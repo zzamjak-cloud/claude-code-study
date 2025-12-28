@@ -67,8 +67,12 @@ function App() {
 
         // 세션 로드
         const savedSessions = await store.get<any>('chat_sessions')
+        console.log('📦 저장된 세션 개수:', savedSessions?.length || 0)
+
+        // 저장된 세션이 있으면 복원, 없으면 새로 생성
         if (savedSessions && Array.isArray(savedSessions) && savedSessions.length > 0) {
           // 저장된 세션 복원
+          console.log('✅ 세션 복원:', savedSessions.map(s => s.title).join(', '))
           useAppStore.setState({
             sessions: savedSessions,
             currentSessionId: savedSessions[0].id,
@@ -77,7 +81,9 @@ function App() {
           })
         } else {
           // 초기 세션 생성
-          createNewSession()
+          console.log('🆕 초기 세션 생성')
+          const newSessionId = createNewSession()
+          console.log('✅ 생성된 세션 ID:', newSessionId)
         }
       } catch (error) {
         console.error('초기화 실패:', error)
@@ -97,9 +103,9 @@ function App() {
           const store = await Store.load('settings.json')
           await store.set('chat_sessions', sessions)
           await store.save()
-          console.log('세션 저장 완료:', sessions.length)
+          console.log('💾 세션 저장 완료:', sessions.length, '개 -', sessions.map(s => s.title).join(', '))
         } catch (error) {
-          console.error('세션 저장 실패:', error)
+          console.error('❌ 세션 저장 실패:', error)
         }
       }
     }
@@ -114,6 +120,14 @@ function App() {
       alert('API Key를 먼저 설정해주세요')
       setShowSettings(true)
       return
+    }
+
+    // 세션이 없으면 자동으로 생성
+    const store = useAppStore.getState()
+    if (!store.currentSessionId || store.sessions.length === 0) {
+      console.log('⚠️ 세션이 없어서 자동 생성')
+      const newSessionId = createNewSession()
+      console.log('✅ 새 세션 생성 완료:', newSessionId)
     }
 
     // 사용자 메시지 추가

@@ -35,6 +35,7 @@ interface AppState {
   deleteSession: (sessionId: string) => void
   updateCurrentSession: () => void
   getSessions: () => ChatSession[]
+  importSession: (session: ChatSession) => void
 
   // 메시지 관리
   addMessage: (message: Message) => void
@@ -63,7 +64,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   createNewSession: () => {
     const newSession: ChatSession = {
       id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      title: '새 게임 기획',
+      title: '기획서 초안',
       messages: [],
       markdownContent: '',
       createdAt: Date.now(),
@@ -117,16 +118,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((prevState) => {
       const updatedSessions = prevState.sessions.map((session) => {
         if (session.id === prevState.currentSessionId) {
-          // 제목 자동 생성 (첫 사용자 메시지 또는 마크다운 제목)
           let title = session.title
-          if (prevState.messages.length > 0 && session.title === '새 게임 기획') {
-            const firstUserMessage = prevState.messages.find((m) => m.role === 'user')
-            if (firstUserMessage) {
-              title = firstUserMessage.content.substring(0, 30) + (firstUserMessage.content.length > 30 ? '...' : '')
-            }
 
-            // 마크다운에서 게임명 추출
-            const gameNameMatch = prevState.markdownContent.match(/^#\s*🎮\s*(.+?)\s*게임\s*기획서/m)
+          // 마크다운에서 게임명 추출 (기획서가 생성된 경우)
+          if (prevState.markdownContent) {
+            // "# 게임명 게임 기획서" 패턴에서 게임명 추출
+            const gameNameMatch = prevState.markdownContent.match(/^#\s*(.+?)\s*게임\s*기획서/m)
             if (gameNameMatch) {
               title = gameNameMatch[1].trim()
             }
@@ -150,6 +147,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   // 세션 목록 가져오기
   getSessions: () => {
     return get().sessions
+  },
+
+  // 세션 불러오기 (파일에서)
+  importSession: (importedSession: ChatSession) => {
+    // 새 ID 생성 (중복 방지)
+    const newSession: ChatSession = {
+      ...importedSession,
+      id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      updatedAt: Date.now(),
+    }
+
+    set((state) => ({
+      sessions: [...state.sessions, newSession],
+      currentSessionId: newSession.id,
+      messages: newSession.messages,
+      markdownContent: newSession.markdownContent,
+    }))
   },
 
   // 메시지 추가
