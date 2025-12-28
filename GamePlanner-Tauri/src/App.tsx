@@ -7,14 +7,18 @@ import { Sidebar } from './components/Sidebar'
 import { ChatPanel } from './components/ChatPanel'
 import { MarkdownPreview } from './components/MarkdownPreview'
 import { SettingsModal } from './components/SettingsModal'
+import { Resizer } from './components/Resizer'
 import { useAppStore } from './store/useAppStore'
 import { useGeminiChat } from './hooks/useGeminiChat'
 
 function App() {
   const [showSettings, setShowSettings] = useState(false)
+  const [chatPanelWidth, setChatPanelWidth] = useState(40) // 40% (4:6 비율)
   const {
     apiKey,
     setApiKey,
+    setNotionApiKey,
+    setNotionDatabaseId,
     addMessage,
     setMarkdownContent,
     setIsLoading,
@@ -43,12 +47,22 @@ function App() {
       try {
         const store = await Store.load('settings.json')
         const savedKey = await store.get<string>('gemini_api_key')
+        const savedNotionKey = await store.get<string>('notion_api_key')
+        const savedNotionDbId = await store.get<string>('notion_database_id')
 
         if (savedKey) {
           setApiKey(savedKey)
         } else {
           // API Key가 없으면 설정 모달 표시
           setShowSettings(true)
+        }
+
+        if (savedNotionKey) {
+          setNotionApiKey(savedNotionKey)
+        }
+
+        if (savedNotionDbId) {
+          setNotionDatabaseId(savedNotionDbId)
         }
 
         // 세션 로드
@@ -189,27 +203,52 @@ function App() {
     }
   }
 
+  // 리사이저 드래그 핸들러
+  const handleResize = (delta: number) => {
+    const container = document.getElementById('main-container')
+    if (!container) return
+
+    // 사이드바(256px)를 제외한 실제 컨텐츠 영역의 너비
+    const contentWidth = container.offsetWidth - 256
+    const deltaPercent = (delta / contentWidth) * 100
+
+    setChatPanelWidth((prev) => {
+      const newWidth = prev + deltaPercent
+      // 최소 20%, 최대 80%로 제한
+      return Math.max(20, Math.min(80, newWidth))
+    })
+  }
+
   return (
     <div className="h-screen flex flex-col">
       <Header
         onSettingsClick={handleSettingsClick}
         onDownloadClick={handleDownloadClick}
       />
-      <div className="flex-1 flex overflow-hidden">
+      <div id="main-container" className="flex-1 flex overflow-hidden">
         {/* 좌측 사이드바 (채팅 목록) */}
         <Sidebar />
 
-        {/* 중앙 채팅 패널 */}
-        <div className="flex-1 border-r border-border">
-          <ChatPanel
-            onSendMessage={handleSendMessage}
-            currentAssistantMessage={currentAssistantMessage}
-          />
-        </div>
+        {/* 메인 컨텐츠 영역 (채팅 + 리사이저 + 기획서) */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 중앙 채팅 패널 */}
+          <div
+            style={{ width: `${chatPanelWidth}%` }}
+            className="flex-shrink-0 overflow-hidden"
+          >
+            <ChatPanel
+              onSendMessage={handleSendMessage}
+              currentAssistantMessage={currentAssistantMessage}
+            />
+          </div>
 
-        {/* 우측 마크다운 프리뷰 */}
-        <div className="flex-1">
-          <MarkdownPreview />
+          {/* 리사이저 */}
+          <Resizer onResize={handleResize} />
+
+          {/* 우측 마크다운 프리뷰 */}
+          <div className="flex-1 overflow-hidden">
+            <MarkdownPreview />
+          </div>
         </div>
       </div>
 

@@ -10,6 +10,7 @@ interface ChatPanelProps {
 export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { messages, isLoading } = useAppStore()
 
   const scrollToBottom = () => {
@@ -20,11 +21,36 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
     scrollToBottom()
   }, [messages])
 
+  // textarea 높이 자동 조절
+  useEffect(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    // 높이를 초기화하여 scrollHeight를 정확하게 측정
+    textarea.style.height = 'auto'
+
+    // 내용에 맞춰 높이 조절 (최소 4줄, 최대 10줄)
+    const lineHeight = 24 // px
+    const minHeight = lineHeight * 4
+    const maxHeight = lineHeight * 10
+    const newHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), maxHeight)
+
+    textarea.style.height = `${newHeight}px`
+  }, [input])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (input.trim() && !isLoading) {
       onSendMessage(input.trim())
       setInput('')
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Ctrl/Cmd + Enter로 전송
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit(e as any)
     }
   }
 
@@ -84,19 +110,21 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
 
       {/* 입력 영역 */}
       <div className="border-t border-border p-4">
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
+        <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="게임 아이디어를 입력하세요..."
-            className="flex-1 px-4 py-2 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            onKeyDown={handleKeyDown}
+            placeholder="게임 아이디어를 입력하세요... (Ctrl/Cmd + Enter로 전송)"
+            className="flex-1 px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto"
+            style={{ minHeight: '96px' }}
             disabled={isLoading}
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
           >
             <Send className="w-5 h-5" />
           </button>

@@ -25,6 +25,8 @@ interface AppState {
 
   // 앱 설정
   apiKey: string | null
+  notionApiKey: string | null
+  notionDatabaseId: string | null
   isLoading: boolean
 
   // 세션 관리
@@ -41,6 +43,8 @@ interface AppState {
 
   // 앱 설정
   setApiKey: (key: string | null) => void
+  setNotionApiKey: (key: string | null) => void
+  setNotionDatabaseId: (id: string | null) => void
   setIsLoading: (loading: boolean) => void
 }
 
@@ -51,6 +55,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   messages: [],
   markdownContent: '',
   apiKey: null,
+  notionApiKey: null,
+  notionDatabaseId: null,
   isLoading: false,
 
   // 새 세션 생성
@@ -166,6 +172,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // API Key 설정
   setApiKey: (key) => set({ apiKey: key }),
+
+  // Notion API Key 설정
+  setNotionApiKey: (key) => set({ notionApiKey: key }),
+
+  // Notion Database ID 설정
+  setNotionDatabaseId: (id) => set({ notionDatabaseId: id }),
 
   // 로딩 상태
   setIsLoading: (loading) => set({ isLoading: loading }),

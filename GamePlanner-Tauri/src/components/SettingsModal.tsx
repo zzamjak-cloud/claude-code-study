@@ -10,18 +10,22 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKeyInput, setApiKeyInput] = useState('')
+  const [notionApiKeyInput, setNotionApiKeyInput] = useState('')
+  const [notionDatabaseIdInput, setNotionDatabaseIdInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const { apiKey, setApiKey } = useAppStore()
+  const { apiKey, notionApiKey, notionDatabaseId, setApiKey, setNotionApiKey, setNotionDatabaseId } = useAppStore()
 
   useEffect(() => {
-    if (isOpen && apiKey) {
-      setApiKeyInput(apiKey)
+    if (isOpen) {
+      if (apiKey) setApiKeyInput(apiKey)
+      if (notionApiKey) setNotionApiKeyInput(notionApiKey)
+      if (notionDatabaseId) setNotionDatabaseIdInput(notionDatabaseId)
     }
-  }, [isOpen, apiKey])
+  }, [isOpen, apiKey, notionApiKey, notionDatabaseId])
 
   const handleSave = async () => {
     if (!apiKeyInput.trim()) {
-      alert('API Key를 입력해주세요')
+      alert('Gemini API Key를 입력해주세요')
       return
     }
 
@@ -29,14 +33,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     try {
       const store = await Store.load('settings.json')
       await store.set('gemini_api_key', apiKeyInput.trim())
+
+      if (notionApiKeyInput.trim()) {
+        await store.set('notion_api_key', notionApiKeyInput.trim())
+        setNotionApiKey(notionApiKeyInput.trim())
+      }
+
+      if (notionDatabaseIdInput.trim()) {
+        await store.set('notion_database_id', notionDatabaseIdInput.trim())
+        setNotionDatabaseId(notionDatabaseIdInput.trim())
+      }
+
       await store.save()
 
       setApiKey(apiKeyInput.trim())
-      alert('API Key가 저장되었습니다')
+      alert('설정이 저장되었습니다')
       onClose()
     } catch (error) {
-      console.error('API Key 저장 실패:', error)
-      alert('API Key 저장에 실패했습니다')
+      console.error('설정 저장 실패:', error)
+      alert('설정 저장에 실패했습니다')
     } finally {
       setIsSaving(false)
     }
@@ -58,9 +73,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         </div>
 
         <div className="space-y-4">
+          {/* Gemini API Key */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Google Gemini API Key
+              Google Gemini API Key <span className="text-destructive">*</span>
             </label>
             <input
               type="password"
@@ -70,20 +86,53 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               className="w-full px-3 py-2 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              API Key는 로컬에 안전하게 저장됩니다
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Google AI Studio
+              </a>
+              에서 무료 발급
             </p>
           </div>
 
-          <div className="text-xs text-muted-foreground space-y-1">
-            <p>Google AI Studio에서 무료 API Key를 발급받을 수 있습니다:</p>
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              https://aistudio.google.com/app/apikey
-            </a>
+          {/* Divider */}
+          <div className="border-t border-border"></div>
+
+          {/* Notion API Key */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Notion API Key (선택)
+            </label>
+            <input
+              type="password"
+              value={notionApiKeyInput}
+              onChange={(e) => setNotionApiKeyInput(e.target.value)}
+              placeholder="ntn_..."
+              className="w-full px-3 py-2 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              노션 저장 기능 사용 시 필요
+            </p>
+          </div>
+
+          {/* Notion Database ID */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Notion Database ID (선택)
+            </label>
+            <input
+              type="text"
+              value={notionDatabaseIdInput}
+              onChange={(e) => setNotionDatabaseIdInput(e.target.value)}
+              placeholder="2d7d040b425c8028a1a9f489c2e0657e"
+              className="w-full px-3 py-2 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              기획서를 저장할 Notion 데이터베이스 ID
+            </p>
           </div>
 
           <div className="flex gap-2 justify-end">
