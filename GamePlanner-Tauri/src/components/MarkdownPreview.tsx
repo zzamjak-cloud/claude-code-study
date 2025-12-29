@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import { Copy, BookOpen, Check, Loader2 } from 'lucide-react'
-import * as opener from '@tauri-apps/plugin-opener'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { useAppStore } from '../store/useAppStore'
 import { createNotionPage } from '../lib/notionBlocks'
 
@@ -56,7 +56,7 @@ export function MarkdownPreview() {
         alert('노션에 저장되었습니다!\n\n' + pageUrl)
         // 노션 페이지 열기
         try {
-          await opener.open(pageUrl)
+          await openUrl(pageUrl)
         } catch (openError) {
           console.error('페이지 열기 실패:', openError)
           // 페이지 열기 실패는 무시 (수동으로 열 수 있음)

@@ -13,7 +13,7 @@ interface NotionBlock {
 /**
  * 마크다운 텍스트를 Notion 블록 배열로 변환
  */
-export function markdownToNotionBlocks(markdown: string, gameName: string): NotionBlock[] {
+export function markdownToNotionBlocks(markdown: string, _gameName: string): NotionBlock[] {
   if (!markdown) {
     return []
   }
