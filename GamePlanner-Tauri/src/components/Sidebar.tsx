@@ -1,10 +1,26 @@
-import { Plus, MessageSquare, Trash2, Save, Upload } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, MessageSquare, Trash2, Save, Upload, FileText, Search } from 'lucide-react'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
-import { useAppStore, ChatSession } from '../store/useAppStore'
+import { useAppStore, ChatSession, SessionType } from '../store/useAppStore'
 
 export function Sidebar() {
-  const { sessions, currentSessionId, createNewSession, loadSession, deleteSession, importSession } = useAppStore()
+  const {
+    sessions,
+    currentSessionId,
+    currentSessionType,
+    createNewSession,
+    loadSession,
+    deleteSession,
+    importSession,
+    setCurrentSessionType,
+  } = useAppStore()
+
+  // 삭제 확인 다이얼로그 상태
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // 현재 탭에 맞는 세션만 필터링
+  const filteredSessions = sessions.filter(s => s.type === currentSessionType)
 
   const handleNewChat = () => {
     createNewSession()
@@ -16,11 +32,39 @@ export function Sidebar() {
     }
   }
 
-  const handleDeleteSession = (e: React.MouseEvent, sessionId: string) => {
-    e.stopPropagation()
-    if (confirm('이 채팅을 삭제하시겠습니까?')) {
-      deleteSession(sessionId)
+  // 탭 전환 핸들러
+  const handleTabChange = (type: SessionType) => {
+    // 탭 타입 변경
+    setCurrentSessionType(type)
+
+    // 해당 타입의 세션들 찾기
+    const typeSessions = sessions.filter(s => s.type === type)
+
+    if (typeSessions.length > 0) {
+      // 가장 최근에 업데이트된 세션 선택
+      const latestSession = typeSessions.sort((a, b) => b.updatedAt - a.updatedAt)[0]
+      loadSession(latestSession.id)
+    } else {
+      // 해당 타입의 세션이 없으면 새로 생성
+      createNewSession()
     }
+  }
+
+  const handleDeleteClick = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setDeleteConfirm(sessionId)
+  }
+
+  const confirmDelete = () => {
+    if (deleteConfirm) {
+      deleteSession(deleteConfirm)
+      setDeleteConfirm(null)
+    }
+  }
+
+  const cancelDelete = () => {
+    setDeleteConfirm(null)
   }
 
   const handleExportSession = async (e: React.MouseEvent, session: ChatSession) => {
@@ -47,11 +91,15 @@ export function Sidebar() {
       // 세션 데이터를 JSON으로 변환
       const sessionData = {
         id: session.id,
+        type: session.type,
         title: session.title,
         messages: session.messages,
         markdownContent: session.markdownContent,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
+        gameName: session.gameName,
+        notionPageUrl: session.notionPageUrl,
+        analysisStatus: session.analysisStatus,
         exportedAt: Date.now(),
         version: '1.0',
       }
@@ -93,11 +141,15 @@ export function Sidebar() {
       // 세션 불러오기
       importSession({
         id: sessionData.id || `session-${Date.now()}`,
+        type: sessionData.type || SessionType.PLANNING,  // 기본값: 기획
         title: sessionData.title,
         messages: sessionData.messages,
         markdownContent: sessionData.markdownContent || '',
         createdAt: sessionData.createdAt || Date.now(),
         updatedAt: sessionData.updatedAt || Date.now(),
+        gameName: sessionData.gameName,
+        notionPageUrl: sessionData.notionPageUrl,
+        analysisStatus: sessionData.analysisStatus,
       })
 
       alert('세션을 불러왔습니다!')
@@ -127,6 +179,32 @@ export function Sidebar() {
 
   return (
     <div className="w-64 bg-muted/50 border-r border-border flex flex-col">
+      {/* 탭 영역 */}
+      <div className="flex border-b border-border">
+        <button
+          onClick={() => handleTabChange(SessionType.PLANNING)}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 transition-colors ${
+            currentSessionType === SessionType.PLANNING
+              ? 'bg-background border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+          }`}
+        >
+          <FileText className="w-4 h-4" />
+          <span className="font-medium text-sm">기획 세션</span>
+        </button>
+        <button
+          onClick={() => handleTabChange(SessionType.ANALYSIS)}
+          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 transition-colors ${
+            currentSessionType === SessionType.ANALYSIS
+              ? 'bg-background border-b-2 border-primary text-primary'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+          }`}
+        >
+          <Search className="w-4 h-4" />
+          <span className="font-medium text-sm">분석 세션</span>
+        </button>
+      </div>
+
       {/* 버튼 영역 */}
       <div className="p-3 border-b border-border space-y-2">
         <button
@@ -134,7 +212,9 @@ export function Sidebar() {
           className="w-full flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-4 h-4" />
-          <span className="font-medium">새 게임 기획</span>
+          <span className="font-medium">
+            {currentSessionType === SessionType.PLANNING ? '새 게임 기획' : '게임 분석'}
+          </span>
         </button>
         <button
           onClick={handleImportSession}
@@ -147,15 +227,17 @@ export function Sidebar() {
 
       {/* 채팅 목록 */}
       <div className="flex-1 overflow-y-auto p-2">
-        {sessions.length === 0 ? (
+        {filteredSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm">
             <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
             <p>채팅이 없습니다</p>
-            <p className="text-xs mt-1">새 게임 기획을 시작하세요</p>
+            <p className="text-xs mt-1">
+              {currentSessionType === SessionType.PLANNING ? '새 게임 기획을 시작하세요' : '게임 분석을 시작하세요'}
+            </p>
           </div>
         ) : (
           <div className="space-y-1">
-            {sessions
+            {filteredSessions
               .sort((a, b) => b.updatedAt - a.updatedAt)
               .map((session) => (
                 <div
@@ -186,7 +268,7 @@ export function Sidebar() {
                         <Save className="w-3.5 h-3.5 text-primary" />
                       </button>
                       <button
-                        onClick={(e) => handleDeleteSession(e, session.id)}
+                        onClick={(e) => handleDeleteClick(e, session.id)}
                         className="p-1 rounded hover:bg-destructive/10 transition-colors"
                         title="삭제"
                       >
@@ -199,6 +281,33 @@ export function Sidebar() {
           </div>
         )}
       </div>
+
+      {/* 삭제 확인 다이얼로그 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">세션 삭제</h3>
+            <p className="text-muted-foreground mb-6">
+              이 채팅을 삭제하시겠습니까?<br />
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors font-medium"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

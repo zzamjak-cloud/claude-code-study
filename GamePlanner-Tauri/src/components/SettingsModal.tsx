@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { Store } from '@tauri-apps/plugin-store'
 import { useAppStore } from '../store/useAppStore'
+import { saveSettings } from '../lib/store'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -11,17 +11,28 @@ interface SettingsModalProps {
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [notionApiKeyInput, setNotionApiKeyInput] = useState('')
-  const [notionDatabaseIdInput, setNotionDatabaseIdInput] = useState('')
+  const [notionPlanningDatabaseIdInput, setNotionPlanningDatabaseIdInput] = useState('')
+  const [notionAnalysisDatabaseIdInput, setNotionAnalysisDatabaseIdInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const { apiKey, notionApiKey, notionDatabaseId, setApiKey, setNotionApiKey, setNotionDatabaseId } = useAppStore()
+  const {
+    apiKey,
+    notionApiKey,
+    notionPlanningDatabaseId,
+    notionAnalysisDatabaseId,
+    setApiKey,
+    setNotionApiKey,
+    setNotionPlanningDatabaseId,
+    setNotionAnalysisDatabaseId,
+  } = useAppStore()
 
   useEffect(() => {
     if (isOpen) {
       if (apiKey) setApiKeyInput(apiKey)
       if (notionApiKey) setNotionApiKeyInput(notionApiKey)
-      if (notionDatabaseId) setNotionDatabaseIdInput(notionDatabaseId)
+      if (notionPlanningDatabaseId) setNotionPlanningDatabaseIdInput(notionPlanningDatabaseId)
+      if (notionAnalysisDatabaseId) setNotionAnalysisDatabaseIdInput(notionAnalysisDatabaseId)
     }
-  }, [isOpen, apiKey, notionApiKey, notionDatabaseId])
+  }, [isOpen, apiKey, notionApiKey, notionPlanningDatabaseId, notionAnalysisDatabaseId])
 
   const handleSave = async () => {
     if (!apiKeyInput.trim()) {
@@ -31,26 +42,31 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     setIsSaving(true)
     try {
-      const store = await Store.load('settings.json')
-      await store.set('gemini_api_key', apiKeyInput.trim())
+      // 전역 Store를 통해 설정 저장
+      await saveSettings({
+        geminiApiKey: apiKeyInput.trim(),
+        notionApiKey: notionApiKeyInput.trim() || undefined,
+        notionPlanningDatabaseId: notionPlanningDatabaseIdInput.trim() || undefined,
+        notionAnalysisDatabaseId: notionAnalysisDatabaseIdInput.trim() || undefined,
+      })
 
+      // Zustand 스토어 업데이트
+      setApiKey(apiKeyInput.trim())
       if (notionApiKeyInput.trim()) {
-        await store.set('notion_api_key', notionApiKeyInput.trim())
         setNotionApiKey(notionApiKeyInput.trim())
       }
-
-      if (notionDatabaseIdInput.trim()) {
-        await store.set('notion_database_id', notionDatabaseIdInput.trim())
-        setNotionDatabaseId(notionDatabaseIdInput.trim())
+      if (notionPlanningDatabaseIdInput.trim()) {
+        setNotionPlanningDatabaseId(notionPlanningDatabaseIdInput.trim())
+      }
+      if (notionAnalysisDatabaseIdInput.trim()) {
+        setNotionAnalysisDatabaseId(notionAnalysisDatabaseIdInput.trim())
       }
 
-      await store.save()
-
-      setApiKey(apiKeyInput.trim())
+      console.log('✅ 설정 저장 완료')
       alert('설정이 저장되었습니다')
       onClose()
     } catch (error) {
-      console.error('설정 저장 실패:', error)
+      console.error('❌ 설정 저장 실패:', error)
       alert('설정 저장에 실패했습니다')
     } finally {
       setIsSaving(false)
@@ -118,20 +134,37 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             </p>
           </div>
 
-          {/* Notion Database ID */}
+          {/* Notion Planning Database ID */}
           <div>
             <label className="block text-sm font-medium mb-2">
-              Notion Database ID (선택)
+              기획서 Notion Database ID (선택)
             </label>
             <input
               type="text"
-              value={notionDatabaseIdInput}
-              onChange={(e) => setNotionDatabaseIdInput(e.target.value)}
+              value={notionPlanningDatabaseIdInput}
+              onChange={(e) => setNotionPlanningDatabaseIdInput(e.target.value)}
               placeholder="2d7d040b425c8028a1a9f489c2e0657e"
               className="w-full px-3 py-2 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             />
             <p className="text-xs text-muted-foreground mt-1">
-              기획서를 저장할 Notion 데이터베이스 ID
+              게임 기획서를 저장할 Notion 데이터베이스 ID
+            </p>
+          </div>
+
+          {/* Notion Analysis Database ID */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              분석 Notion Database ID (선택)
+            </label>
+            <input
+              type="text"
+              value={notionAnalysisDatabaseIdInput}
+              onChange={(e) => setNotionAnalysisDatabaseIdInput(e.target.value)}
+              placeholder="3e8e151c536d9139b2b0e598d3f1768f"
+              className="w-full px-3 py-2 rounded-md border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              게임 분석 결과를 저장할 Notion 데이터베이스 ID
             </p>
           </div>
 

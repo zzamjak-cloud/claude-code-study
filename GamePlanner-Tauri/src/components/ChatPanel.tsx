@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send } from 'lucide-react'
-import { useAppStore } from '../store/useAppStore'
+import { useAppStore, SessionType } from '../store/useAppStore'
+import { AnalysisResult } from './AnalysisResult'
 
 interface ChatPanelProps {
   onSendMessage: (message: string) => void
@@ -11,7 +12,11 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading } = useAppStore()
+  const { messages, isLoading, currentSessionId, sessions } = useAppStore()
+
+  // 현재 세션 정보 가져오기
+  const currentSession = sessions.find(s => s.id === currentSessionId)
+  const isAnalysisMode = currentSession?.type === SessionType.ANALYSIS
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -61,10 +66,21 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
         {messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
-              <p className="text-lg font-medium mb-2">게임 기획서 작성을 시작하세요</p>
-              <p className="text-sm">
-                게임 아이디어를 입력하면 AI가 상세한 기획서를 작성해드립니다
-              </p>
+              {isAnalysisMode ? (
+                <>
+                  <p className="text-lg font-medium mb-2">게임 분석을 시작하세요</p>
+                  <p className="text-sm">
+                    분석할 게임명을 입력하면 AI가 상세한 분석 보고서를 작성해드립니다
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-medium mb-2">게임 기획서 작성을 시작하세요</p>
+                  <p className="text-sm">
+                    게임 아이디어를 입력하면 AI가 상세한 기획서를 작성해드립니다
+                  </p>
+                </>
+              )}
             </div>
           </div>
         ) : (
@@ -105,6 +121,17 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
             </div>
           </div>
         )}
+
+        {/* 분석 결과 표시 (분석 모드 전용) */}
+        {isAnalysisMode && currentSession && (
+          <AnalysisResult
+            sessionId={currentSession.id}
+            gameName={currentSession.gameName}
+            notionPageUrl={currentSession.notionPageUrl}
+            analysisStatus={currentSession.analysisStatus}
+          />
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -116,7 +143,11 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="게임 아이디어를 입력하세요... (Ctrl/Cmd + Enter로 전송)"
+            placeholder={
+              isAnalysisMode
+                ? '게임명을 입력하세요. 예시 Brawl Stars, Royale Match (Ctrl/Cmd + Enter로 전송)'
+                : '게임 아이디어를 입력하세요... (Ctrl/Cmd + Enter로 전송)'
+            }
             className="flex-1 px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto"
             style={{ minHeight: '96px' }}
             disabled={isLoading}

@@ -2,19 +2,66 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import { Copy, BookOpen, Check, Loader2 } from 'lucide-react'
+import { Copy, BookOpen, Check, Loader2, Download } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { useAppStore } from '../store/useAppStore'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeTextFile } from '@tauri-apps/plugin-fs'
+import { useAppStore, SessionType } from '../store/useAppStore'
 import { createNotionPage } from '../lib/notionBlocks'
 
 export function MarkdownPreview() {
-  const { markdownContent, sessions, currentSessionId, notionApiKey, notionDatabaseId } = useAppStore()
+  const {
+    markdownContent,
+    sessions,
+    currentSessionId,
+    notionApiKey,
+    notionPlanningDatabaseId,
+    notionAnalysisDatabaseId,
+  } = useAppStore()
   const [isCopied, setIsCopied] = useState(false)
   const [isNotionLoading, setIsNotionLoading] = useState(false)
 
   // 현재 세션 정보
   const currentSession = sessions.find((s) => s.id === currentSessionId)
-  const gameName = currentSession?.title || '게임 기획서'
+  const isAnalysisMode = currentSession?.type === SessionType.ANALYSIS
+
+  // 마크다운에서 게임명 추출 (노션 저장 시 정확한 제목 사용)
+  const extractGameName = (): string => {
+    if (!markdownContent) {
+      return currentSession?.title || '게임 기획서'
+    }
+
+    if (isAnalysisMode) {
+      // 분석 보고서: "<!-- ANALYSIS_TITLE: 게임명 게임 분석 보고서 -->"
+      const match = markdownContent.match(/<!--\s*ANALYSIS_TITLE:\s*(.+?)\s*게임\s*분석\s*보고서\s*-->/m)
+      if (match) {
+        return match[1].trim()
+      }
+    } else {
+      // 기획서: "🎮 **게임명 게임 기획서**"
+      const match = markdownContent.match(/^🎮\s*\*\*(.+?)\s*게임\s*기획서\*\*/m)
+      if (match) {
+        return match[1].trim()
+      }
+    }
+
+    // 추출 실패 시 세션 제목 사용
+    return currentSession?.title || '게임 기획서'
+  }
+
+  const gameName = extractGameName()
+
+  // 파일명 생성 (세션 타입에 따라)
+  const getFileName = () => {
+    if (isAnalysisMode) {
+      return `${gameName}_게임분석.md`
+    } else {
+      return `${gameName}_게임기획서.md`
+    }
+  }
+
+  // 현재 세션 타입에 맞는 Notion DB ID 선택
+  const notionDatabaseId = isAnalysisMode ? notionAnalysisDatabaseId : notionPlanningDatabaseId
 
   // 복사 기능
   const handleCopy = async () => {
@@ -30,6 +77,34 @@ export function MarkdownPreview() {
     }
   }
 
+  // 다운로드 기능
+  const handleDownload = async () => {
+    if (!markdownContent) {
+      alert('저장할 내용이 없습니다')
+      return
+    }
+
+    try {
+      const filePath = await save({
+        defaultPath: getFileName(),
+        filters: [
+          {
+            name: 'Markdown',
+            extensions: ['md'],
+          },
+        ],
+      })
+
+      if (filePath) {
+        await writeTextFile(filePath, markdownContent)
+        alert('파일이 저장되었습니다!')
+      }
+    } catch (error) {
+      console.error('파일 저장 실패:', error)
+      alert('파일 저장에 실패했습니다')
+    }
+  }
+
   // 노션 저장 기능
   const handleSaveToNotion = async () => {
     if (!markdownContent) {
@@ -42,6 +117,12 @@ export function MarkdownPreview() {
       return
     }
 
+    console.log('📝 노션 저장 시작:', {
+      gameName,
+      isAnalysisMode,
+      markdownLength: markdownContent.length
+    })
+
     setIsNotionLoading(true)
 
     try {
@@ -49,7 +130,8 @@ export function MarkdownPreview() {
         gameName,
         markdownContent,
         notionApiKey,
-        notionDatabaseId
+        notionDatabaseId,
+        isAnalysisMode
       )
 
       if (pageUrl) {
@@ -116,6 +198,16 @@ export function MarkdownPreview() {
               </>
             )}
           </button>
+
+          {/* 다운로드 버튼 */}
+          <button
+            onClick={handleDownload}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background hover:bg-accent transition-colors text-sm font-medium"
+            title="마크다운 파일로 저장"
+          >
+            <Download className="w-4 h-4" />
+            <span>다운로드</span>
+          </button>
         </div>
       )}
 
@@ -154,10 +246,21 @@ export function MarkdownPreview() {
         ) : (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
-              <p className="text-lg font-medium mb-2">기획서가 여기에 표시됩니다</p>
-              <p className="text-sm">
-                AI가 기획서를 작성하면 실시간으로 렌더링됩니다
-              </p>
+              {isAnalysisMode ? (
+                <>
+                  <p className="text-lg font-medium mb-2">게임 분석 결과가 여기에 표시됩니다</p>
+                  <p className="text-sm">
+                    AI가 게임을 분석하면 실시간으로 렌더링됩니다
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-lg font-medium mb-2">기획서가 여기에 표시됩니다</p>
+                  <p className="text-sm">
+                    AI가 기획서를 작성하면 실시간으로 렌더링됩니다
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
