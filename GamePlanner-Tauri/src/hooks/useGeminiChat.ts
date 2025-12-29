@@ -1,4 +1,5 @@
 import { SYSTEM_INSTRUCTION } from '../lib/systemInstruction'
+import { Message } from '../store/useAppStore'
 
 interface StreamCallbacks {
   onChatUpdate: (text: string) => void
@@ -11,7 +12,9 @@ export function useGeminiChat() {
   const sendMessage = async (
     apiKey: string,
     message: string,
-    callbacks: StreamCallbacks
+    callbacks: StreamCallbacks,
+    chatHistory?: Message[],
+    currentMarkdown?: string
   ) => {
     try {
       // API Key 검증 및 정리
@@ -20,26 +23,50 @@ export function useGeminiChat() {
         throw new Error('API Key가 비어있습니다')
       }
 
-      // systemInstruction을 메시지에 포함
-      const fullMessage = `${SYSTEM_INSTRUCTION}\n\n사용자 요청: ${message}`
+      // 대화 히스토리 구성
+      const contents: any[] = []
 
-      // 사용 가능한 모델 확인 (디버깅용)
-      try {
-        const modelsUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`
-        const modelsResponse = await fetch(modelsUrl)
-        if (modelsResponse.ok) {
-          const modelsData = await modelsResponse.json()
-          console.log('사용 가능한 모델:', modelsData)
+      // 1. 시스템 지시문을 첫 메시지로 추가
+      let systemMessage = SYSTEM_INSTRUCTION
 
-          // generateContent를 지원하는 모델 찾기
-          const supportedModels = modelsData.models?.filter((m: any) =>
-            m.supportedGenerationMethods?.includes('generateContent')
-          )
-          console.log('generateContent 지원 모델:', supportedModels?.map((m: any) => m.name))
-        }
-      } catch (e) {
-        console.warn('모델 목록 조회 실패:', e)
+      // 2. 현재 기획서가 있으면 시스템 메시지에 포함
+      if (currentMarkdown && currentMarkdown.trim()) {
+        systemMessage += `\n\n---\n\n# 현재 작성된 기획서\n아래는 현재까지 작성된 기획서입니다. 수정 요청이 들어오면 이 내용을 기반으로 요청된 부분만 수정하고 나머지는 그대로 유지하십시오.\n\n<current_markdown>\n${currentMarkdown}\n</current_markdown>`
       }
+
+      contents.push({
+        role: 'user',
+        parts: [{ text: systemMessage }]
+      })
+
+      contents.push({
+        role: 'model',
+        parts: [{ text: '네, 이해했습니다. 게임 기획 전문가로서 도와드리겠습니다.' }]
+      })
+
+      // 3. 이전 대화 히스토리 추가 (최근 10개만)
+      if (chatHistory && chatHistory.length > 0) {
+        const recentHistory = chatHistory.slice(-10)
+        for (const msg of recentHistory) {
+          contents.push({
+            role: msg.role === 'user' ? 'user' : 'model',
+            parts: [{ text: msg.content }]
+          })
+        }
+      }
+
+      // 4. 현재 사용자 메시지 추가
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      })
+
+      console.log('📝 전달되는 컨텍스트:', {
+        시스템지시문: '포함됨',
+        현재기획서: currentMarkdown ? '포함됨 (' + currentMarkdown.length + '자)' : '없음',
+        대화히스토리: chatHistory?.length || 0,
+        총메시지수: contents.length
+      })
 
       // Fetch API로 직접 호출 (스트리밍)
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${cleanApiKey}`
@@ -52,15 +79,7 @@ export function useGeminiChat() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: fullMessage,
-                },
-              ],
-            },
-          ],
+          contents: contents,
           generationConfig: {
             temperature: 0.7,
             topK: 40,

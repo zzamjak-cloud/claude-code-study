@@ -130,36 +130,48 @@ function App() {
       console.log('✅ 새 세션 생성 완료:', newSessionId)
     }
 
+    // 현재 상태 가져오기 (메시지 추가 전)
+    const currentState = useAppStore.getState()
+    const chatHistory = [...currentState.messages] // 현재까지의 대화 히스토리
+    const currentMarkdownContent = currentState.markdownContent // 현재 기획서
+
     // 사용자 메시지 추가
     addMessage({ role: 'user', content: message })
     setIsLoading(true)
     setCurrentAssistantMessage('')
 
     try {
-      await sendMessage(apiKey, message, {
-        onChatUpdate: (text) => {
-          setCurrentAssistantMessage(text)
+      // 대화 히스토리와 현재 마크다운을 함께 전달
+      await sendMessage(
+        apiKey,
+        message,
+        {
+          onChatUpdate: (text) => {
+            setCurrentAssistantMessage(text)
+          },
+          onMarkdownUpdate: (markdown) => {
+            setMarkdownContent(markdown)
+          },
+          onComplete: (finalChatText) => {
+            if (finalChatText.trim()) {
+              addMessage({ role: 'assistant', content: finalChatText })
+            }
+            setIsLoading(false)
+            setCurrentAssistantMessage('')
+          },
+          onError: (error) => {
+            console.error('Gemini API Error:', error)
+            addMessage({
+              role: 'assistant',
+              content: `오류가 발생했습니다: ${error.message}`,
+            })
+            setIsLoading(false)
+            setCurrentAssistantMessage('')
+          },
         },
-        onMarkdownUpdate: (markdown) => {
-          setMarkdownContent(markdown)
-        },
-        onComplete: (finalChatText) => {
-          if (finalChatText.trim()) {
-            addMessage({ role: 'assistant', content: finalChatText })
-          }
-          setIsLoading(false)
-          setCurrentAssistantMessage('')
-        },
-        onError: (error) => {
-          console.error('Gemini API Error:', error)
-          addMessage({
-            role: 'assistant',
-            content: `오류가 발생했습니다: ${error.message}`,
-          })
-          setIsLoading(false)
-          setCurrentAssistantMessage('')
-        },
-      })
+        chatHistory, // 대화 히스토리 전달
+        currentMarkdownContent // 현재 기획서 전달
+      )
     } catch (error) {
       console.error('Error:', error)
       addMessage({
