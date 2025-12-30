@@ -1,0 +1,270 @@
+/**
+ * Gemini API를 사용한 한국어-영어 자동 번역 Hook
+ *
+ * 사용자가 한국어로 프롬프트를 입력하면 자동으로 영어로 번역하여 반환합니다.
+ * 이미지 생성 API는 영어 프롬프트를 사용하지만, 사용자는 한국어로 입력할 수 있습니다.
+ */
+
+export function useGeminiTranslator() {
+  /**
+   * 텍스트가 한국어를 포함하는지 확인
+   */
+  const containsKorean = (text: string): boolean => {
+    const koreanRegex = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/;
+    return koreanRegex.test(text);
+  };
+
+  /**
+   * 영어 텍스트를 한국어로 번역 (화면 표시용)
+   */
+  const translateToKorean = async (
+    apiKey: string,
+    englishText: string
+  ): Promise<string> => {
+    try {
+      if (!englishText.trim()) {
+        return '';
+      }
+
+      // 이미 한국어가 포함되어 있으면 그대로 반환
+      if (containsKorean(englishText)) {
+        return englishText;
+      }
+
+      console.log('🌐 영어 → 한국어 번역 시작 (화면 표시용)');
+
+      // Gemini 2.5 Flash API 사용 (더 높은 할당량)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a professional translator specializing in image generation prompts. Translate the following English AI image generation prompt into natural Korean.
+
+IMPORTANT RULES:
+1. Translate naturally and fluently in Korean
+2. Keep technical terms in English if commonly used (e.g., "anime style", "chibi")
+3. Make it easy to understand for Korean speakers
+4. Output ONLY the Korean translation, no explanations
+5. Preserve comma-separated format
+
+English prompt to translate:
+${englishText}
+
+Korean translation:`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          topK: 20,
+          topP: 0.8,
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ 번역 API 오류:', response.status, errorText);
+        return englishText;
+      }
+
+      const result = await response.json();
+      const translatedText =
+        result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || englishText;
+
+      console.log('✅ 한국어 번역 완료');
+      return translatedText;
+    } catch (error) {
+      console.error('❌ 번역 오류:', error);
+      return englishText;
+    }
+  };
+
+  /**
+   * 한국어 텍스트를 영어로 번역 (API 전달용)
+   */
+  const translateToEnglish = async (
+    apiKey: string,
+    koreanText: string
+  ): Promise<string> => {
+    try {
+      if (!koreanText.trim()) {
+        return '';
+      }
+
+      // 한국어가 포함되어 있지 않으면 그대로 반환
+      if (!containsKorean(koreanText)) {
+        return koreanText;
+      }
+
+      console.log('🌐 한국어 → 영어 번역 시작:', koreanText);
+
+      // Gemini 2.5 Flash API 사용 (더 높은 할당량)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a professional translator specializing in image generation prompts. Translate the following Korean text into English for use in an AI image generation system.
+
+IMPORTANT RULES:
+1. Translate naturally and accurately
+2. Keep technical terms and artistic terminology in English
+3. Preserve the meaning and nuance
+4. Output ONLY the English translation, no explanations
+5. If the input is already in English, return it as-is
+
+Korean text to translate:
+${koreanText}
+
+English translation:`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3, // 낮은 temperature로 일관성 있는 번역
+          topK: 20,
+          topP: 0.8,
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ 번역 API 오류:', response.status, errorText);
+        // 번역 실패 시 원본 텍스트 반환
+        return koreanText;
+      }
+
+      const result = await response.json();
+      const translatedText =
+        result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || koreanText;
+
+      console.log('✅ 번역 완료:', translatedText);
+      return translatedText;
+    } catch (error) {
+      console.error('❌ 번역 오류:', error);
+      // 오류 발생 시 원본 텍스트 반환
+      return koreanText;
+    }
+  };
+
+  /**
+   * 여러 텍스트를 한 번에 한국어로 번역 (API 호출 최적화)
+   */
+  const translateBatchToKorean = async (
+    apiKey: string,
+    englishTexts: string[]
+  ): Promise<string[]> => {
+    try {
+      if (englishTexts.length === 0) {
+        return [];
+      }
+
+      console.log(`🌐 배치 번역 시작 (${englishTexts.length}개 텍스트)`);
+
+      // 모든 텍스트를 하나의 프롬프트로 결합
+      const combinedText = englishTexts
+        .map((text, idx) => `[${idx + 1}] ${text}`)
+        .join('\n');
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a professional translator. Translate the following English texts into natural Korean. Keep the format exactly as shown with [number] prefix.
+
+IMPORTANT RULES:
+1. Translate each line naturally and fluently in Korean
+2. Keep technical terms in English if commonly used
+3. Preserve the [number] prefix for each line
+4. Output ONLY the translations, no explanations
+
+English texts to translate:
+${combinedText}
+
+Korean translations (keep [number] prefix):`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          topK: 20,
+          topP: 0.8,
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ 배치 번역 API 오류:', response.status, errorText);
+        return englishTexts; // 실패 시 원본 반환
+      }
+
+      const result = await response.json();
+      const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+      // 결과를 파싱하여 배열로 변환
+      const lines = translatedText.split('\n').filter((line) => line.trim());
+      const translations: string[] = [];
+
+      for (let i = 0; i < englishTexts.length; i++) {
+        const linePrefix = `[${i + 1}]`;
+        const matchingLine = lines.find((line) => line.startsWith(linePrefix));
+
+        if (matchingLine) {
+          // [숫자] 제거하고 텍스트만 추출
+          translations.push(matchingLine.replace(linePrefix, '').trim());
+        } else {
+          // 매칭 실패 시 원본 사용
+          translations.push(englishTexts[i]);
+        }
+      }
+
+      console.log('✅ 배치 번역 완료');
+      return translations;
+    } catch (error) {
+      console.error('❌ 배치 번역 오류:', error);
+      return englishTexts; // 오류 시 원본 반환
+    }
+  };
+
+  return {
+    translateToEnglish,
+    translateToKorean,
+    translateBatchToKorean,
+    containsKorean,
+  };
+}

@@ -7,6 +7,13 @@ interface ImageGenerationParams {
   imageSize?: '1K' | '2K' | '4K'; // Gemini 3 Pro만 지원
   negativePrompt?: string; // 피해야 할 요소
   sessionType?: SessionType; // 세션 타입 (CHARACTER/STYLE)
+
+  // 고급 설정
+  seed?: number; // 재현성을 위한 시드 값
+  temperature?: number; // 창의성 제어 (0.0 ~ 2.0)
+  topK?: number; // 샘플링 다양성
+  topP?: number; // 누적 확률 임계값 (0.0 ~ 1.0)
+  referenceStrength?: number; // 참조 이미지 영향력 (0.0 ~ 1.0, 높을수록 참조 이미지를 강하게 따름)
 }
 
 interface GenerationCallbacks {
@@ -221,15 +228,46 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
 
       parts.push({ text: fullPrompt });
 
+      // generationConfig 구성
+      const imageConfig: any = {
+        aspectRatio: params.aspectRatio || '1:1',
+        imageSize: params.imageSize || '2K',
+      };
+
+      // 참조 이미지 영향력 (참조 이미지가 있을 때만)
+      // ⚠️ 주의: referenceStrength는 현재 Gemini API에서 공식 지원되지 않음 (2025-12-30 기준)
+      // UI에는 표시되지만 실제 API 호출 시에는 사용되지 않음
+      // if (hasReferenceImages && params.referenceStrength !== undefined) {
+      //   imageConfig.referenceStrength = params.referenceStrength;
+      //   console.log('   - Reference Strength:', params.referenceStrength);
+      // }
+
+      const generationConfig: any = {
+        responseModalities: ['IMAGE'], // 이미지만 응답
+        imageConfig,
+      };
+
+      // 고급 설정 추가 (값이 있을 때만)
+      if (params.seed !== undefined) {
+        generationConfig.seed = params.seed;
+        console.log('   - Seed:', params.seed);
+      }
+      if (params.temperature !== undefined) {
+        generationConfig.temperature = params.temperature;
+        console.log('   - Temperature:', params.temperature);
+      }
+      if (params.topK !== undefined) {
+        generationConfig.topK = params.topK;
+        console.log('   - Top-K:', params.topK);
+      }
+      if (params.topP !== undefined) {
+        generationConfig.topP = params.topP;
+        console.log('   - Top-P:', params.topP);
+      }
+
       const requestBody = {
         contents: [{ parts }],
-        generationConfig: {
-          responseModalities: ['IMAGE'], // 이미지만 응답
-          imageConfig: {
-            aspectRatio: params.aspectRatio || '1:1',
-            imageSize: params.imageSize || '2K',
-          },
-        },
+        generationConfig,
       };
 
       console.log('🌐 API 요청 전송...');

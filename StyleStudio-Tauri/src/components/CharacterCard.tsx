@@ -1,15 +1,81 @@
-import { useState } from 'react';
-import { User, Edit2, Save, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, Edit2, Save, X, Languages } from 'lucide-react';
 import { CharacterAnalysis } from '../types/analysis';
+import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
 
 interface CharacterCardProps {
   character: CharacterAnalysis;
+  apiKey: string;
+  koreanCharacter?: CharacterAnalysis; // 캐시된 한국어 번역
   onUpdate?: (character: CharacterAnalysis) => void;
 }
 
-export function CharacterCard({ character, onUpdate }: CharacterCardProps) {
+export function CharacterCard({ character, apiKey, koreanCharacter: koreanCharacterProp, onUpdate }: CharacterCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedCharacter, setEditedCharacter] = useState<CharacterAnalysis>(character);
+  const [koreanCharacter, setKoreanCharacter] = useState<CharacterAnalysis>(character);
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const { translateBatchToKorean } = useGeminiTranslator();
+
+  // 캐릭터 필드들을 한국어로 번역 (캐시가 없을 때만 실행)
+  useEffect(() => {
+    const translateCharacter = async () => {
+      // 캐시된 번역이 있으면 그것을 사용
+      if (koreanCharacterProp) {
+        console.log('♻️ [CharacterCard] 캐시된 번역 사용');
+        setKoreanCharacter(koreanCharacterProp);
+        return;
+      }
+
+      // 캐시가 없으면 번역 실행
+      if (!apiKey) return;
+
+      console.log('🌐 [CharacterCard] 번역 실행 중...');
+      setIsTranslating(true);
+      try {
+        // 배치 번역으로 API 호출 1회로 줄임
+        const texts = [
+          character.gender,
+          character.age_group,
+          character.hair,
+          character.eyes,
+          character.face,
+          character.outfit,
+          character.accessories,
+          character.body_proportions,
+          character.limb_proportions,
+          character.torso_shape,
+          character.hand_style,
+        ];
+
+        const translations = await translateBatchToKorean(apiKey, texts);
+
+        setKoreanCharacter({
+          gender: translations[0],
+          age_group: translations[1],
+          hair: translations[2],
+          eyes: translations[3],
+          face: translations[4],
+          outfit: translations[5],
+          accessories: translations[6],
+          body_proportions: translations[7],
+          limb_proportions: translations[8],
+          torso_shape: translations[9],
+          hand_style: translations[10],
+        });
+        console.log('✅ [CharacterCard] 번역 완료');
+      } catch (error) {
+        console.error('❌ [CharacterCard] 번역 오류:', error);
+        setKoreanCharacter(character);
+      } finally {
+        setIsTranslating(false);
+      }
+    };
+
+    translateCharacter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [character, apiKey, koreanCharacterProp]); // koreanCharacterProp 추가
 
   const handleSave = () => {
     if (onUpdate) {
@@ -32,6 +98,8 @@ export function CharacterCard({ character, onUpdate }: CharacterCardProps) {
     { key: 'outfit', label: '의상', icon: '👔' },
     { key: 'accessories', label: '액세서리', icon: '💎' },
     { key: 'body_proportions', label: '등신대 비율', icon: '📏' },
+    { key: 'limb_proportions', label: '팔다리 비율', icon: '🦵' },
+    { key: 'torso_shape', label: '몸통 형태', icon: '🫁' },
     { key: 'hand_style', label: '손 표현', icon: '✋' },
   ];
 
@@ -43,7 +111,15 @@ export function CharacterCard({ character, onUpdate }: CharacterCardProps) {
           <div className="p-2 bg-blue-100 rounded-lg">
             <User size={24} className="text-blue-600" />
           </div>
-          <h3 className="text-xl font-bold text-gray-800">캐릭터 분석</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-xl font-bold text-gray-800">캐릭터 분석</h3>
+            {!isEditing && (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 rounded text-xs text-blue-700">
+                <Languages size={12} />
+                <span>한국어</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 편집 버튼 */}
@@ -94,9 +170,14 @@ export function CharacterCard({ character, onUpdate }: CharacterCardProps) {
                 }
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            ) : isTranslating ? (
+              <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-500 flex items-center gap-2">
+                <Languages size={14} className="animate-pulse" />
+                <span className="text-sm">번역 중...</span>
+              </div>
             ) : (
               <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-700">
-                {character[key]}
+                {koreanCharacter[key]}
               </div>
             )}
           </div>

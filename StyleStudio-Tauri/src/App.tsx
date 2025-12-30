@@ -7,6 +7,8 @@ import { ImageGeneratorPanel } from './components/ImageGeneratorPanel';
 import { SettingsModal } from './components/SettingsModal';
 import { SaveSessionModal } from './components/SaveSessionModal';
 import { useGeminiAnalyzer } from './hooks/useGeminiAnalyzer';
+import { useGeminiTranslator } from './hooks/useGeminiTranslator';
+import { buildUnifiedPrompt } from './lib/promptBuilder';
 import {
   loadApiKey,
   saveApiKey,
@@ -16,7 +18,7 @@ import {
   importSessionFromFile,
 } from './lib/storage';
 import { ImageAnalysisResult } from './types/analysis';
-import { Session, SessionType } from './types/session';
+import { Session, SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from './types/session';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { readFile } from '@tauri-apps/plugin-fs';
 
@@ -32,7 +34,94 @@ function App() {
   const [currentView, setCurrentView] = useState<'analysis' | 'generator'>('analysis');
 
   const { analyzeImages } = useGeminiAnalyzer();
+  const { translateBatchToKorean, translateToEnglish } = useGeminiTranslator();
   const lastDropTimeRef = useRef(0);
+
+  // 분석 결과를 한국어로 번역 (한 번만 실행)
+  const translateAnalysisResult = async (
+    analysis: ImageAnalysisResult
+  ): Promise<KoreanAnalysisCache> => {
+    console.log('🌐 분석 결과 번역 시작...');
+
+    try {
+      // 모든 필드를 하나의 배열로 모아서 한 번에 번역 (영어→한국어)
+      const allTexts = [
+        // Style (5개)
+        analysis.style.art_style,
+        analysis.style.technique,
+        analysis.style.color_palette,
+        analysis.style.lighting,
+        analysis.style.mood,
+        // Character (11개)
+        analysis.character.gender,
+        analysis.character.age_group,
+        analysis.character.hair,
+        analysis.character.eyes,
+        analysis.character.face,
+        analysis.character.outfit,
+        analysis.character.accessories,
+        analysis.character.body_proportions,
+        analysis.character.limb_proportions,
+        analysis.character.torso_shape,
+        analysis.character.hand_style,
+        // Composition (4개)
+        analysis.composition.pose,
+        analysis.composition.angle,
+        analysis.composition.background,
+        analysis.composition.depth_of_field,
+        // Prompts (2개)
+        buildUnifiedPrompt(analysis).positivePrompt,
+        analysis.negative_prompt,
+      ];
+
+      // 한 번의 API 호출로 모든 필드 번역 (영어→한국어)
+      const translations = await translateBatchToKorean(apiKey, allTexts);
+
+      // 사용자 맞춤 프롬프트를 영어로 번역 (한국어→영어, 이미지 생성용)
+      const customPromptEnglish = analysis.user_custom_prompt
+        ? await translateToEnglish(apiKey, analysis.user_custom_prompt)
+        : '';
+
+      const koreanCache: KoreanAnalysisCache = {
+        style: {
+          art_style: translations[0],
+          technique: translations[1],
+          color_palette: translations[2],
+          lighting: translations[3],
+          mood: translations[4],
+        },
+        character: {
+          gender: translations[5],
+          age_group: translations[6],
+          hair: translations[7],
+          eyes: translations[8],
+          face: translations[9],
+          outfit: translations[10],
+          accessories: translations[11],
+          body_proportions: translations[12],
+          limb_proportions: translations[13],
+          torso_shape: translations[14],
+          hand_style: translations[15],
+        },
+        composition: {
+          pose: translations[16],
+          angle: translations[17],
+          background: translations[18],
+          depth_of_field: translations[19],
+        },
+        positivePrompt: translations[20],
+        negativePrompt: translations[21],
+        customPromptEnglish: customPromptEnglish, // 이미지 생성 시 사용할 영어 번역
+      };
+
+      console.log('✅ 번역 완료 (한국어 표시용 + 영어 이미지 생성용)');
+      return koreanCache;
+    } catch (error) {
+      console.error('❌ 번역 오류:', error);
+      // 번역 실패 시 빈 캐시 반환
+      return {};
+    }
+  };
 
   // Tauri 이미지 로드 함수
   const loadTauriImage = async (filePath: string): Promise<string | null> => {
@@ -264,6 +353,19 @@ function App() {
       return;
     }
 
+    // 번역 캐시 확인 및 생성
+    let koreanCache: KoreanAnalysisCache | undefined;
+
+    if (currentSession?.koreanAnalysis) {
+      // 기존 번역 캐시 재사용
+      console.log('♻️ 기존 번역 캐시 재사용');
+      koreanCache = currentSession.koreanAnalysis;
+    } else {
+      // 새로 번역 실행
+      console.log('🌐 번역 실행 중...');
+      koreanCache = await translateAnalysisResult(analysisResult);
+    }
+
     let updatedSessions: Session[];
     let sessionToSave: Session;
 
@@ -278,6 +380,7 @@ function App() {
         updatedAt: new Date().toISOString(),
         referenceImages: uploadedImages,
         analysis: analysisResult,
+        koreanAnalysis: koreanCache,
         imageCount: uploadedImages.length,
       };
 
@@ -295,6 +398,7 @@ function App() {
         updatedAt: new Date().toISOString(),
         referenceImages: uploadedImages,
         analysis: analysisResult,
+        koreanAnalysis: koreanCache,
         imageCount: uploadedImages.length,
       };
 
@@ -363,6 +467,31 @@ function App() {
   const handleGenerateImage = () => {
     console.log('🎨 이미지 생성 화면으로 전환');
     setCurrentView('generator');
+  };
+
+  const handleHistoryAdd = (entry: GenerationHistoryEntry) => {
+    console.log('📜 히스토리 추가:', entry.id);
+
+    // 현재 세션이 있으면 히스토리에 추가
+    if (currentSession) {
+      const updatedSession: Session = {
+        ...currentSession,
+        generationHistory: [...(currentSession.generationHistory || []), entry],
+        updatedAt: new Date().toISOString(),
+      };
+
+      setCurrentSession(updatedSession);
+
+      // 세션 목록 업데이트
+      const updatedSessions = sessions.map((s) =>
+        s.id === updatedSession.id ? updatedSession : s
+      );
+      setSessions(updatedSessions);
+
+      // 저장
+      saveSessions(updatedSessions);
+      console.log('✅ 세션 히스토리 업데이트 완료');
+    }
   };
 
   const handleBackToAnalysis = () => {
@@ -443,6 +572,8 @@ function App() {
                 images={uploadedImages}
                 isAnalyzing={isAnalyzing}
                 analysisResult={analysisResult}
+                apiKey={apiKey}
+                koreanAnalysis={currentSession?.koreanAnalysis}
                 onAnalyze={handleAnalyze}
                 onSaveSession={handleSaveSessionClick}
                 onReset={handleReset}
@@ -459,6 +590,9 @@ function App() {
                   analysis={analysisResult}
                   referenceImages={uploadedImages}
                   sessionType={currentSession?.type || 'STYLE'}
+                  customPromptEnglish={currentSession?.koreanAnalysis?.customPromptEnglish}
+                  generationHistory={currentSession?.generationHistory}
+                  onHistoryAdd={handleHistoryAdd}
                   onSettingsClick={handleSettingsClick}
                   onBack={handleBackToAnalysis}
                 />

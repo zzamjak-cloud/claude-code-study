@@ -1,15 +1,19 @@
 import { useState } from 'react';
-import { Wand2, Download, Settings, Image as ImageIcon, ArrowLeft } from 'lucide-react';
+import { Wand2, Download, Settings, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Copy, Languages } from 'lucide-react';
 import { ImageAnalysisResult } from '../types/analysis';
-import { SessionType } from '../types/session';
+import { SessionType, GenerationHistoryEntry, GenerationSettings } from '../types/session';
 import { buildUnifiedPrompt } from '../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../hooks/useGeminiImageGenerator';
+import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
 
 interface ImageGeneratorPanelProps {
   apiKey: string;
   analysis: ImageAnalysisResult;
   referenceImages: string[];
   sessionType: SessionType;
+  customPromptEnglish?: string; // 캐시된 사용자 맞춤 프롬프트 영어 번역
+  generationHistory?: GenerationHistoryEntry[];
+  onHistoryAdd?: (entry: GenerationHistoryEntry) => void;
   onSettingsClick?: () => void;
   onBack?: () => void;
 }
@@ -19,19 +23,33 @@ export function ImageGeneratorPanel({
   analysis,
   referenceImages,
   sessionType,
+  customPromptEnglish,
+  generationHistory = [],
+  onHistoryAdd,
   onSettingsClick,
   onBack,
 }: ImageGeneratorPanelProps) {
   const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
   const { generateImage } = useGeminiImageGenerator();
+  const { translateToEnglish, containsKorean } = useGeminiTranslator();
 
   const [additionalPrompt, setAdditionalPrompt] = useState('');
+  const [isTranslating, setIsTranslating] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3' | '3:4'>('1:1');
   const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
   const [useReferenceImages, setUseReferenceImages] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+
+  // 고급 설정
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [editableNegativePrompt, setEditableNegativePrompt] = useState(negativePrompt);
+  const [seed, setSeed] = useState<number | undefined>(undefined);
+  const [temperature, setTemperature] = useState<number>(1.0);
+  const [topK, setTopK] = useState<number>(40);
+  const [topP, setTopP] = useState<number>(0.95);
+  const [referenceStrength, setReferenceStrength] = useState<number>(0.8);
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -44,69 +62,127 @@ export function ImageGeneratorPanel({
     setProgressMessage('이미지 생성 준비 중...');
     setGeneratedImage(null);
 
-    // 최종 프롬프트 구성
-    let finalPrompt = '';
+    try {
+      // 1단계: 한국어 프롬프트를 영어로 번역
+      setIsTranslating(true);
+      setProgressMessage('프롬프트를 영어로 변환 중...');
 
-    if (sessionType === 'CHARACTER') {
-      // 캐릭터 세션: 참조 이미지가 캐릭터 외형을 완벽히 유지하므로
-      // 포즈/표정/동작만 프롬프트로 전달
-      const parts = [
-        analysis.user_custom_prompt,
-        additionalPrompt.trim(),
-      ].filter(Boolean);
-      finalPrompt = parts.length > 0 ? parts.join(', ') : 'standing naturally, neutral expression';
-    } else {
-      // 스타일 세션: 참조 이미지가 있으면 스타일만 유지하고
-      // 구체적인 내용은 사용자 프롬프트 사용
-      if (useReferenceImages && referenceImages.length > 0) {
-        // 참조 이미지로 스타일 유지, 사용자 프롬프트만 사용
-        const parts = [
-          analysis.user_custom_prompt,
-          additionalPrompt.trim(),
-        ].filter(Boolean);
-        finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
+      // 사용자 맞춤 프롬프트: 캐시가 있으면 사용, 없으면 번역
+      let translatedUserCustomPrompt = '';
+      if (customPromptEnglish) {
+        console.log('♻️ 캐시된 사용자 맞춤 프롬프트 사용');
+        translatedUserCustomPrompt = customPromptEnglish;
+      } else if (analysis.user_custom_prompt) {
+        console.log('🌐 사용자 맞춤 프롬프트 번역 중...');
+        translatedUserCustomPrompt = await translateToEnglish(apiKey, analysis.user_custom_prompt);
+      }
+
+      // 추가 프롬프트: 항상 번역 (매번 새로 입력되는 값)
+      const translatedAdditionalPrompt = additionalPrompt.trim()
+        ? await translateToEnglish(apiKey, additionalPrompt.trim())
+        : '';
+
+      setIsTranslating(false);
+      console.log('✅ 번역 완료');
+      console.log('   - 사용자 맞춤 프롬프트:', translatedUserCustomPrompt);
+      console.log('   - 추가 프롬프트:', translatedAdditionalPrompt);
+
+      // 2단계: 최종 프롬프트 구성 (영어 사용)
+      let finalPrompt = '';
+
+      if (sessionType === 'CHARACTER') {
+        // 캐릭터 세션: 참조 이미지가 캐릭터 외형을 완벽히 유지하므로
+        // 포즈/표정/동작만 프롬프트로 전달
+        const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+        finalPrompt = parts.length > 0 ? parts.join(', ') : 'standing naturally, neutral expression';
       } else {
-        // 참조 이미지 없으면 AI 분석 프롬프트 포함
-        const parts = [
-          positivePrompt,
-          analysis.user_custom_prompt,
-          additionalPrompt.trim(),
-        ].filter(Boolean);
-        finalPrompt = parts.join(', ');
+        // 스타일 세션: 참조 이미지가 있으면 스타일만 유지하고
+        // 구체적인 내용은 사용자 프롬프트 사용
+        if (useReferenceImages && referenceImages.length > 0) {
+          // 참조 이미지로 스타일 유지, 사용자 프롬프트만 사용
+          const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+          finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
+        } else {
+          // 참조 이미지 없으면 AI 분석 프롬프트 포함
+          const parts = [positivePrompt, translatedUserCustomPrompt, translatedAdditionalPrompt].filter(
+            Boolean
+          );
+          finalPrompt = parts.join(', ');
+        }
       }
-    }
 
-    await generateImage(
-      apiKey,
-      {
-        prompt: finalPrompt,
-        negativePrompt: negativePrompt,
-        referenceImages:
-          sessionType === 'CHARACTER' || useReferenceImages ? referenceImages : undefined,
-        aspectRatio: aspectRatio,
-        imageSize: imageSize,
-        sessionType: sessionType,
-      },
-      {
-        onProgress: (message) => {
-          setProgressMessage(message);
-          console.log('📊 진행:', message);
+      console.log('🎨 최종 프롬프트 (영어):', finalPrompt);
+
+      // 3단계: 이미지 생성
+      await generateImage(
+        apiKey,
+        {
+          prompt: finalPrompt,
+          negativePrompt: editableNegativePrompt || negativePrompt,
+          referenceImages:
+            sessionType === 'CHARACTER' || useReferenceImages ? referenceImages : undefined,
+          aspectRatio: aspectRatio,
+          imageSize: imageSize,
+          sessionType: sessionType,
+          // 고급 설정
+          seed: seed,
+          temperature: temperature,
+          topK: topK,
+          topP: topP,
+          referenceStrength: referenceStrength,
         },
-        onComplete: (imageBase64) => {
-          const dataUrl = `data:image/png;base64,${imageBase64}`;
-          setGeneratedImage(dataUrl);
-          setIsGenerating(false);
-          setProgressMessage('');
-          console.log('✅ 생성 완료');
-        },
-        onError: (error) => {
-          setIsGenerating(false);
-          setProgressMessage('');
-          console.error('❌ 생성 오류:', error);
-          alert('이미지 생성 실패: ' + error.message);
-        },
-      }
-    );
+        {
+          onProgress: (message) => {
+            setProgressMessage(message);
+            console.log('📊 진행:', message);
+          },
+          onComplete: (imageBase64) => {
+            const dataUrl = `data:image/png;base64,${imageBase64}`;
+            setGeneratedImage(dataUrl);
+            setIsGenerating(false);
+            setIsTranslating(false);
+            setProgressMessage('');
+            console.log('✅ 생성 완료');
+
+            // 히스토리에 추가
+            if (onHistoryAdd) {
+              const historyEntry: GenerationHistoryEntry = {
+                id: `gen-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+                timestamp: new Date().toISOString(),
+                prompt: finalPrompt,
+                negativePrompt: editableNegativePrompt || negativePrompt,
+                imageBase64: dataUrl,
+                settings: {
+                  aspectRatio: aspectRatio,
+                  imageSize: imageSize,
+                  seed: seed,
+                  temperature: temperature,
+                  topK: topK,
+                  topP: topP,
+                  referenceStrength: referenceStrength,
+                  useReferenceImages: sessionType === 'CHARACTER' || useReferenceImages,
+                },
+              };
+              onHistoryAdd(historyEntry);
+              console.log('📜 히스토리에 추가됨:', historyEntry.id);
+            }
+          },
+          onError: (error) => {
+            setIsGenerating(false);
+            setIsTranslating(false);
+            setProgressMessage('');
+            console.error('❌ 생성 오류:', error);
+            alert('이미지 생성 실패: ' + error.message);
+          },
+        }
+      );
+    } catch (error) {
+      setIsGenerating(false);
+      setIsTranslating(false);
+      setProgressMessage('');
+      console.error('❌ 프롬프트 변환 또는 생성 오류:', error);
+      alert('오류 발생: ' + (error as Error).message);
+    }
   };
 
   const handleDownload = () => {
@@ -142,6 +218,33 @@ export function ImageGeneratorPanel({
       console.error('❌ 다운로드 오류:', error);
       alert('이미지 다운로드에 실패했습니다: ' + (error as Error).message);
     }
+  };
+
+  // 히스토리에서 설정 복원
+  const handleRestoreFromHistory = (entry: GenerationHistoryEntry) => {
+    console.log('🔄 히스토리에서 설정 복원:', entry.id);
+
+    // 이미지 설정 복원
+    setAspectRatio(entry.settings.aspectRatio);
+    setImageSize(entry.settings.imageSize);
+    setUseReferenceImages(entry.settings.useReferenceImages);
+
+    // 고급 설정 복원
+    setSeed(entry.settings.seed);
+    setTemperature(entry.settings.temperature ?? 1.0);
+    setTopK(entry.settings.topK ?? 40);
+    setTopP(entry.settings.topP ?? 0.95);
+    setReferenceStrength(entry.settings.referenceStrength ?? 0.8);
+
+    // Negative Prompt 복원
+    if (entry.negativePrompt) {
+      setEditableNegativePrompt(entry.negativePrompt);
+    }
+
+    // 생성된 이미지 표시
+    setGeneratedImage(entry.imageBase64);
+
+    alert('설정이 복원되었습니다. 프롬프트를 수정한 후 "이미지 생성"을 클릭하세요.');
   };
 
   return (
@@ -187,9 +290,17 @@ export function ImageGeneratorPanel({
             {/* 사용자 맞춤 프롬프트 안내 (자동 적용) */}
             {analysis.user_custom_prompt && (
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                <p className="text-xs font-semibold text-purple-800 mb-1">
-                  ✅ 사용자 맞춤 프롬프트 (자동 적용됨)
-                </p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-purple-800">
+                    ✅ 사용자 맞춤 프롬프트 (자동 적용됨)
+                  </p>
+                  {containsKorean(analysis.user_custom_prompt) && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 rounded text-xs text-purple-700">
+                      <Languages size={12} />
+                      <span>한→영</span>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-purple-700 whitespace-pre-wrap break-words">
                   {analysis.user_custom_prompt}
                 </p>
@@ -198,24 +309,32 @@ export function ImageGeneratorPanel({
 
             {/* 추가 프롬프트 입력 (선택사항) */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {sessionType === 'CHARACTER' ? '추가 포즈/표정/동작 (선택)' : '추가 프롬프트 (선택)'}
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold text-gray-700">
+                  {sessionType === 'CHARACTER' ? '추가 포즈/표정/동작 (선택)' : '추가 프롬프트 (선택)'}
+                </label>
+                {containsKorean(additionalPrompt) && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs text-blue-700">
+                    <Languages size={14} />
+                    <span>한→영 자동 변환</span>
+                  </div>
+                )}
+              </div>
               <textarea
                 value={additionalPrompt}
                 onChange={(e) => setAdditionalPrompt(e.target.value)}
                 placeholder={
                   sessionType === 'CHARACTER'
-                    ? '예: looking back, waving hand'
-                    : '예: night scene, rainy weather'
+                    ? '예: 손을 흔들며 뒤를 돌아보는 / looking back, waving hand'
+                    : '예: 밤 풍경, 비오는 날씨 / night scene, rainy weather'
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
                 rows={3}
               />
               <p className="text-xs text-gray-500 mt-1">
                 {sessionType === 'CHARACTER'
-                  ? '이 생성에만 적용할 임시 요소를 입력하세요. 캐릭터 외형은 참조 이미지를 유지합니다.'
-                  : '이 생성에만 적용할 임시 요소를 입력하세요. AI 분석과 사용자 맞춤 프롬프트는 자동 포함됩니다.'}
+                  ? '한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.'
+                  : '한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.'}
               </p>
             </div>
 
@@ -284,6 +403,169 @@ export function ImageGeneratorPanel({
                   ? '캐릭터 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
                   : '현재 세션의 이미지를 참조하여 스타일 일관성을 높입니다'}
               </p>
+
+              {/* 참조 이미지가 사용될 때만 썸네일과 영향력 슬라이더 표시 */}
+              {(sessionType === 'CHARACTER' || useReferenceImages) && referenceImages.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  {/* 참조 이미지 썸네일 */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {referenceImages.slice(0, 4).map((img, idx) => (
+                      <div key={idx} className="aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={img}
+                          alt={`참조 ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 참조 영향력 슬라이더 */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      참조 영향력: {(referenceStrength * 100).toFixed(0)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={referenceStrength}
+                      onChange={(e) => setReferenceStrength(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>영감만 (0%)</span>
+                      <span>완벽 복사 (100%)</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {sessionType === 'CHARACTER'
+                        ? '캐릭터 외형 복사 정도를 조절합니다. 높을수록 참조 이미지와 동일하게 유지됩니다.'
+                        : '스타일 복사 정도를 조절합니다. 높을수록 참조 스타일을 강하게 따릅니다.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 고급 설정 */}
+            <div className="border-t border-gray-200 pt-4">
+              <button
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <span className="text-sm font-semibold text-gray-700">고급 설정</span>
+                {showAdvanced ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+              </button>
+
+              {showAdvanced && (
+                <div className="mt-4 space-y-4">
+                  {/* Seed 값 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Seed (재현성)
+                      </label>
+                      <button
+                        onClick={() => setSeed(Math.floor(Math.random() * 1000000))}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors"
+                        title="랜덤 Seed 생성"
+                      >
+                        <Dices size={14} />
+                        랜덤
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      value={seed ?? ''}
+                      onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="비워두면 랜덤 생성"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      동일한 seed 값으로 동일한 결과를 재현할 수 있습니다
+                    </p>
+                  </div>
+
+                  {/* Temperature */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Temperature: {temperature.toFixed(2)}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={temperature}
+                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>일관성 (0.0)</span>
+                      <span>창의성 (2.0)</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      낮을수록 일관적이고 예측 가능한 결과, 높을수록 창의적이고 다양한 결과
+                    </p>
+                  </div>
+
+                  {/* Top-K */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Top-K: {topK}
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={topK}
+                      onChange={(e) => setTopK(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      샘플링할 상위 K개의 토큰 수 (낮을수록 보수적, 높을수록 다양함)
+                    </p>
+                  </div>
+
+                  {/* Top-P */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Top-P: {topP.toFixed(2)}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={topP}
+                      onChange={(e) => setTopP(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      누적 확률 임계값 (낮을수록 보수적, 높을수록 다양함)
+                    </p>
+                  </div>
+
+                  {/* Negative Prompt 편집 */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Negative Prompt (직접 편집)
+                    </label>
+                    <textarea
+                      value={editableNegativePrompt}
+                      onChange={(e) => setEditableNegativePrompt(e.target.value)}
+                      placeholder="피해야 할 요소들 (영문 키워드)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                      rows={3}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      AI가 자동 생성한 negative prompt를 수동으로 수정할 수 있습니다
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 생성 버튼 */}
@@ -303,43 +585,85 @@ export function ImageGeneratorPanel({
             {/* 진행 상태 */}
             {progressMessage && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800">{progressMessage}</p>
+                <div className="flex items-center gap-2">
+                  {isTranslating && <Languages size={16} className="text-blue-600 animate-pulse" />}
+                  <p className="text-sm text-blue-800">{progressMessage}</p>
+                </div>
               </div>
             )}
           </div>
         </div>
 
-        {/* 오른쪽: 결과 표시 */}
-        <div className="flex-1 p-8 flex items-center justify-center overflow-auto">
-          {isGenerating ? (
-            <div className="flex flex-col items-center">
-              <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
-              <p className="text-gray-600 font-semibold">{progressMessage}</p>
-            </div>
-          ) : generatedImage ? (
-            <div className="max-w-4xl w-full">
-              <div className="bg-white rounded-xl shadow-2xl p-6">
-                <img
-                  src={generatedImage}
-                  alt="Generated"
-                  className="w-full h-auto rounded-lg"
-                />
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={handleDownload}
-                    className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all"
-                  >
-                    <Download size={20} />
-                    <span>다운로드</span>
-                  </button>
+        {/* 오른쪽: 결과 표시 및 히스토리 */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* 결과 표시 영역 */}
+          <div className="flex-1 p-8 flex items-center justify-center overflow-auto">
+            {isGenerating ? (
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                <p className="text-gray-600 font-semibold">{progressMessage}</p>
+              </div>
+            ) : generatedImage ? (
+              <div className="max-w-4xl w-full">
+                <div className="bg-white rounded-xl shadow-2xl p-6">
+                  <img
+                    src={generatedImage}
+                    alt="Generated"
+                    className="w-full h-auto rounded-lg"
+                  />
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={handleDownload}
+                      className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all"
+                    >
+                      <Download size={20} />
+                      <span>다운로드</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="text-center text-gray-400">
-              <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
-              <p className="text-lg font-semibold">이미지를 생성해보세요</p>
-              <p className="text-sm mt-2">왼쪽 설정을 조정하고 "이미지 생성" 버튼을 클릭하세요</p>
+            ) : (
+              <div className="text-center text-gray-400">
+                <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-semibold">이미지를 생성해보세요</p>
+                <p className="text-sm mt-2">왼쪽 설정을 조정하고 "이미지 생성" 버튼을 클릭하세요</p>
+              </div>
+            )}
+          </div>
+
+          {/* 히스토리 섹션 */}
+          {generationHistory.length > 0 && (
+            <div className="border-t border-gray-200 bg-white p-4 max-h-64 overflow-y-auto">
+              <div className="flex items-center gap-2 mb-3">
+                <History size={18} className="text-gray-600" />
+                <h3 className="font-semibold text-gray-800">생성 히스토리 ({generationHistory.length})</h3>
+              </div>
+              <div className="grid grid-cols-4 gap-3">
+                {generationHistory.slice().reverse().map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="group relative cursor-pointer"
+                    onClick={() => handleRestoreFromHistory(entry)}
+                  >
+                    <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-transparent group-hover:border-purple-500 transition-all">
+                      <img
+                        src={entry.imageBase64}
+                        alt={`Generated ${new Date(entry.timestamp).toLocaleString()}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 rounded-lg transition-all flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-center p-2">
+                        <Copy size={20} className="mx-auto mb-1" />
+                        <p className="text-xs font-semibold">설정 복원</p>
+                      </div>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500 text-center truncate">
+                      {new Date(entry.timestamp).toLocaleTimeString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>

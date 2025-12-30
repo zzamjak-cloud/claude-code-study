@@ -7,10 +7,14 @@ import { NegativePromptCard } from './NegativePromptCard';
 import { UnifiedPromptCard } from './UnifiedPromptCard';
 import { Session } from '../types/session';
 
+import { KoreanAnalysisCache } from '../types/session';
+
 interface AnalysisPanelProps {
   images: string[];
   isAnalyzing: boolean;
   analysisResult: ImageAnalysisResult | null;
+  apiKey: string;
+  koreanAnalysis?: KoreanAnalysisCache;
   onAnalyze: () => void;
   onSaveSession?: () => void;
   onReset?: () => void;
@@ -25,6 +29,8 @@ export function AnalysisPanel({
   images,
   isAnalyzing,
   analysisResult,
+  apiKey,
+  koreanAnalysis,
   onAnalyze,
   onSaveSession,
   onReset,
@@ -188,20 +194,39 @@ export function AnalysisPanel({
             {/* 통합 프롬프트 카드 (최상단) */}
             <UnifiedPromptCard
               analysis={analysisResult}
+              apiKey={apiKey}
+              koreanPositivePrompt={koreanAnalysis?.positivePrompt}
+              koreanNegativePrompt={koreanAnalysis?.negativePrompt}
               onCustomPromptChange={onCustomPromptChange}
             />
 
             {/* 스타일 카드 */}
-            <StyleCard style={analysisResult.style} />
+            <StyleCard
+              style={analysisResult.style}
+              apiKey={apiKey}
+              koreanStyle={koreanAnalysis?.style}
+            />
 
             {/* 캐릭터 카드 */}
-            <CharacterCard character={analysisResult.character} />
+            <CharacterCard
+              character={analysisResult.character}
+              apiKey={apiKey}
+              koreanCharacter={koreanAnalysis?.character}
+            />
 
             {/* 구도 카드 */}
-            <CompositionCard composition={analysisResult.composition} />
+            <CompositionCard
+              composition={analysisResult.composition}
+              apiKey={apiKey}
+              koreanComposition={koreanAnalysis?.composition}
+            />
 
             {/* 부정 프롬프트 카드 */}
-            <NegativePromptCard negativePrompt={analysisResult.negative_prompt} />
+            <NegativePromptCard
+              negativePrompt={analysisResult.negative_prompt}
+              apiKey={apiKey}
+              koreanNegativePrompt={koreanAnalysis?.negativePrompt}
+            />
           </div>
         )}
       </div>

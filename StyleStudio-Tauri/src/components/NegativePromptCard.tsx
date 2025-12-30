@@ -1,14 +1,57 @@
-import { useState } from 'react';
-import { AlertTriangle, Edit2, Save, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { AlertTriangle, Edit2, Save, X, Languages } from 'lucide-react';
+import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
 
 interface NegativePromptCardProps {
   negativePrompt: string;
+  apiKey: string;
+  koreanNegativePrompt?: string; // 캐시된 한국어 번역
   onUpdate?: (negativePrompt: string) => void;
 }
 
-export function NegativePromptCard({ negativePrompt, onUpdate }: NegativePromptCardProps) {
+export function NegativePromptCard({
+  negativePrompt,
+  apiKey,
+  koreanNegativePrompt: koreanNegativeProp,
+  onUpdate,
+}: NegativePromptCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrompt, setEditedPrompt] = useState(negativePrompt);
+  const [koreanPrompt, setKoreanPrompt] = useState(negativePrompt);
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const { translateToKorean } = useGeminiTranslator();
+
+  // 네거티브 프롬프트를 한국어로 번역 (캐시가 없을 때만 실행)
+  useEffect(() => {
+    const translatePrompt = async () => {
+      // 캐시된 번역이 있으면 그것을 사용
+      if (koreanNegativeProp) {
+        console.log('♻️ [NegativePromptCard] 캐시된 번역 사용');
+        setKoreanPrompt(koreanNegativeProp);
+        return;
+      }
+
+      // 캐시가 없으면 번역 실행
+      if (!apiKey || !negativePrompt) return;
+
+      console.log('🌐 [NegativePromptCard] 번역 실행 중...');
+      setIsTranslating(true);
+      try {
+        const translated = await translateToKorean(apiKey, negativePrompt);
+        setKoreanPrompt(translated);
+        console.log('✅ [NegativePromptCard] 번역 완료');
+      } catch (error) {
+        console.error('❌ [NegativePromptCard] 번역 오류:', error);
+        setKoreanPrompt(negativePrompt);
+      } finally {
+        setIsTranslating(false);
+      }
+    };
+
+    translatePrompt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [negativePrompt, apiKey, koreanNegativeProp]); // koreanNegativeProp 추가
 
   const handleSave = () => {
     if (onUpdate) {
@@ -30,9 +73,19 @@ export function NegativePromptCard({ negativePrompt, onUpdate }: NegativePromptC
           <div className="p-2 bg-red-100 rounded-lg">
             <AlertTriangle size={24} className="text-red-600" />
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-800">부정 프롬프트</h3>
-            <p className="text-xs text-gray-500">이 스타일에서 피해야 할 요소</p>
+          <div className="flex items-center gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xl font-bold text-gray-800">부정 프롬프트</h3>
+                {!isEditing && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 rounded text-xs text-blue-700">
+                    <Languages size={12} />
+                    <span>한국어</span>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-gray-500">이 스타일에서 피해야 할 요소</p>
+            </div>
           </div>
         </div>
 
@@ -76,9 +129,14 @@ export function NegativePromptCard({ negativePrompt, onUpdate }: NegativePromptC
           rows={4}
           placeholder="피해야 할 요소들을 입력하세요 (예: realistic proportions, detailed anatomy, 5-finger hands)"
         />
+      ) : isTranslating ? (
+        <div className="px-3 py-2 bg-red-50 rounded-lg text-gray-500 flex items-center gap-2">
+          <Languages size={16} className="animate-pulse" />
+          <span>번역 중...</span>
+        </div>
       ) : (
         <div className="px-3 py-2 bg-red-50 rounded-lg text-gray-700 whitespace-pre-wrap">
-          {negativePrompt}
+          {koreanPrompt}
         </div>
       )}
 
