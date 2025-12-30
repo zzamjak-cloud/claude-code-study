@@ -7,6 +7,7 @@ import { NegativePromptCard } from './NegativePromptCard';
 import { UnifiedPromptCard } from './UnifiedPromptCard';
 import { Session } from '../types/session';
 
+import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from '../types/analysis';
 import { KoreanAnalysisCache } from '../types/session';
 
 interface AnalysisPanelProps {
@@ -23,6 +24,10 @@ interface AnalysisPanelProps {
   onGenerateImage?: () => void;
   currentSession?: Session | null;
   onCustomPromptChange?: (customPrompt: string) => void;
+  onStyleUpdate?: (style: StyleAnalysis) => void;
+  onCharacterUpdate?: (character: CharacterAnalysis) => void;
+  onCompositionUpdate?: (composition: CompositionAnalysis) => void;
+  onNegativePromptUpdate?: (negativePrompt: string) => void;
 }
 
 export function AnalysisPanel({
@@ -39,6 +44,10 @@ export function AnalysisPanel({
   onGenerateImage,
   currentSession,
   onCustomPromptChange,
+  onStyleUpdate,
+  onCharacterUpdate,
+  onCompositionUpdate,
+  onNegativePromptUpdate,
 }: AnalysisPanelProps) {
   if (images.length === 0) {
     return null;
@@ -205,6 +214,7 @@ export function AnalysisPanel({
               style={analysisResult.style}
               apiKey={apiKey}
               koreanStyle={koreanAnalysis?.style}
+              onUpdate={onStyleUpdate}
             />
 
             {/* 캐릭터 카드 */}
@@ -212,6 +222,7 @@ export function AnalysisPanel({
               character={analysisResult.character}
               apiKey={apiKey}
               koreanCharacter={koreanAnalysis?.character}
+              onUpdate={onCharacterUpdate}
             />
 
             {/* 구도 카드 */}
@@ -219,6 +230,7 @@ export function AnalysisPanel({
               composition={analysisResult.composition}
               apiKey={apiKey}
               koreanComposition={koreanAnalysis?.composition}
+              onUpdate={onCompositionUpdate}
             />
 
             {/* 부정 프롬프트 카드 */}
@@ -226,6 +238,7 @@ export function AnalysisPanel({
               negativePrompt={analysisResult.negative_prompt}
               apiKey={apiKey}
               koreanNegativePrompt={koreanAnalysis?.negativePrompt}
+              onUpdate={onNegativePromptUpdate}
             />
           </div>
         )}

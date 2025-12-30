@@ -18,6 +18,11 @@ export function CharacterCard({ character, apiKey, koreanCharacter: koreanCharac
 
   const { translateBatchToKorean } = useGeminiTranslator();
 
+  // character prop이 변경되면 editedCharacter 동기화
+  useEffect(() => {
+    setEditedCharacter(character);
+  }, [character]);
+
   // 캐릭터 필드들을 한국어로 번역 (캐시가 없을 때만 실행)
   useEffect(() => {
     const translateCharacter = async () => {

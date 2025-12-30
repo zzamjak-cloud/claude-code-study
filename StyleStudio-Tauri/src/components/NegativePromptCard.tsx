@@ -22,6 +22,11 @@ export function NegativePromptCard({
 
   const { translateToKorean } = useGeminiTranslator();
 
+  // negativePrompt prop이 변경되면 editedPrompt 동기화
+  useEffect(() => {
+    setEditedPrompt(negativePrompt);
+  }, [negativePrompt]);
+
   // 네거티브 프롬프트를 한국어로 번역 (캐시가 없을 때만 실행)
   useEffect(() => {
     const translatePrompt = async () => {

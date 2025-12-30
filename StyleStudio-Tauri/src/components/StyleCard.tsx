@@ -18,6 +18,11 @@ export function StyleCard({ style, apiKey, koreanStyle: koreanStyleProp, onUpdat
 
   const { translateBatchToKorean } = useGeminiTranslator();
 
+  // style prop이 변경되면 editedStyle 동기화
+  useEffect(() => {
+    setEditedStyle(style);
+  }, [style]);
+
   // 스타일 필드들을 한국어로 번역 (캐시가 없을 때만 실행)
   useEffect(() => {
     const translateStyle = async () => {

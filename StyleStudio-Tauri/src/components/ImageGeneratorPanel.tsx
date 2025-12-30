@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Wand2, Download, Settings, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Copy, Languages } from 'lucide-react';
+import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Copy, Languages } from 'lucide-react';
 import { ImageAnalysisResult } from '../types/analysis';
 import { SessionType, GenerationHistoryEntry, GenerationSettings } from '../types/session';
 import { buildUnifiedPrompt } from '../lib/promptBuilder';
@@ -14,7 +14,6 @@ interface ImageGeneratorPanelProps {
   customPromptEnglish?: string; // 캐시된 사용자 맞춤 프롬프트 영어 번역
   generationHistory?: GenerationHistoryEntry[];
   onHistoryAdd?: (entry: GenerationHistoryEntry) => void;
-  onSettingsClick?: () => void;
   onBack?: () => void;
 }
 
@@ -26,7 +25,6 @@ export function ImageGeneratorPanel({
   customPromptEnglish,
   generationHistory = [],
   onHistoryAdd,
-  onSettingsClick,
   onBack,
 }: ImageGeneratorPanelProps) {
   const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
@@ -53,8 +51,7 @@ export function ImageGeneratorPanel({
 
   const handleGenerate = async () => {
     if (!apiKey) {
-      alert('API 키를 먼저 설정해주세요');
-      onSettingsClick?.();
+      alert('API 키를 먼저 설정해주세요. Style Studio 헤더의 설정 아이콘을 클릭하여 API 키를 입력하세요.');
       return;
     }
 
@@ -272,12 +269,14 @@ export function ImageGeneratorPanel({
               </p>
             </div>
           </div>
-          {onSettingsClick && (
+          {/* 다운로드 버튼 (이미지 생성 시 표시) */}
+          {generatedImage && !isGenerating && (
             <button
-              onClick={onSettingsClick}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all shadow-lg"
             >
-              <Settings size={20} className="text-gray-600" />
+              <Download size={20} />
+              <span>다운로드</span>
             </button>
           )}
         </div>
@@ -597,69 +596,61 @@ export function ImageGeneratorPanel({
         {/* 오른쪽: 결과 표시 및 히스토리 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 결과 표시 영역 */}
-          <div className="flex-1 p-8 flex items-center justify-center overflow-auto">
-            {isGenerating ? (
-              <div className="flex flex-col items-center">
-                <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
-                <p className="text-gray-600 font-semibold">{progressMessage}</p>
-              </div>
-            ) : generatedImage ? (
-              <div className="max-w-4xl w-full">
-                <div className="bg-white rounded-xl shadow-2xl p-6">
-                  <img
-                    src={generatedImage}
-                    alt="Generated"
-                    className="w-full h-auto rounded-lg"
-                  />
-                  <div className="mt-4 flex justify-end">
-                    <button
-                      onClick={handleDownload}
-                      className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all"
-                    >
-                      <Download size={20} />
-                      <span>다운로드</span>
-                    </button>
+          <div className="flex-1 p-8 overflow-y-auto">
+            <div className="flex items-start justify-center min-h-full">
+              {isGenerating ? (
+                <div className="flex flex-col items-center mt-20">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                  <p className="text-gray-600 font-semibold">{progressMessage}</p>
+                </div>
+              ) : generatedImage ? (
+                <div className="max-w-5xl w-full">
+                  <div className="bg-white rounded-xl shadow-2xl p-6">
+                    <img
+                      src={generatedImage}
+                      alt="Generated"
+                      className="w-full h-auto rounded-lg"
+                      style={{ maxHeight: 'none' }}
+                    />
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="text-center text-gray-400">
-                <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-semibold">이미지를 생성해보세요</p>
-                <p className="text-sm mt-2">왼쪽 설정을 조정하고 "이미지 생성" 버튼을 클릭하세요</p>
-              </div>
-            )}
+              ) : (
+                <div className="text-center text-gray-400 mt-20">
+                  <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-semibold">이미지를 생성해보세요</p>
+                  <p className="text-sm mt-2">왼쪽 설정을 조정하고 "이미지 생성" 버튼을 클릭하세요</p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 히스토리 섹션 */}
           {generationHistory.length > 0 && (
-            <div className="border-t border-gray-200 bg-white p-4 max-h-64 overflow-y-auto">
+            <div className="border-t border-gray-200 bg-white p-4 max-h-48 overflow-y-auto">
               <div className="flex items-center gap-2 mb-3">
-                <History size={18} className="text-gray-600" />
-                <h3 className="font-semibold text-gray-800">생성 히스토리 ({generationHistory.length})</h3>
+                <History size={16} className="text-gray-600" />
+                <h3 className="text-sm font-semibold text-gray-800">생성 히스토리 ({generationHistory.length})</h3>
               </div>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-8 gap-2">
                 {generationHistory.slice().reverse().map((entry) => (
                   <div
                     key={entry.id}
                     className="group relative cursor-pointer"
                     onClick={() => handleRestoreFromHistory(entry)}
+                    title={`생성 시간: ${new Date(entry.timestamp).toLocaleString()}`}
                   >
-                    <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-transparent group-hover:border-purple-500 transition-all">
+                    <div className="aspect-square bg-gray-100 rounded-md overflow-hidden border-2 border-transparent group-hover:border-purple-500 transition-all">
                       <img
                         src={entry.imageBase64}
                         alt={`Generated ${new Date(entry.timestamp).toLocaleString()}`}
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-60 rounded-lg transition-all flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-center p-2">
-                        <Copy size={20} className="mx-auto mb-1" />
-                        <p className="text-xs font-semibold">설정 복원</p>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-70 rounded-md transition-all flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-center">
+                        <Copy size={16} className="mx-auto mb-1" />
+                        <p className="text-xs font-semibold">복원</p>
                       </div>
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500 text-center truncate">
-                      {new Date(entry.timestamp).toLocaleTimeString()}
                     </div>
                   </div>
                 ))}

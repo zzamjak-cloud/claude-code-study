@@ -8,6 +8,8 @@ import { SettingsModal } from './components/SettingsModal';
 import { SaveSessionModal } from './components/SaveSessionModal';
 import { useGeminiAnalyzer } from './hooks/useGeminiAnalyzer';
 import { useGeminiTranslator } from './hooks/useGeminiTranslator';
+import { useAutoSave } from './hooks/useAutoSave';
+import { ProgressIndicator } from './components/ProgressIndicator';
 import { buildUnifiedPrompt } from './lib/promptBuilder';
 import {
   loadApiKey,
@@ -36,6 +38,26 @@ function App() {
   const { analyzeImages } = useGeminiAnalyzer();
   const { translateBatchToKorean, translateToEnglish } = useGeminiTranslator();
   const lastDropTimeRef = useRef(0);
+
+  // 자동 저장 Hook
+  const { isSaving, progress, triggerManualSave } = useAutoSave({
+    currentSession,
+    analysisResult,
+    apiKey,
+    uploadedImages,
+    onSessionUpdate: (session) => {
+      setCurrentSession(session);
+      // 세션 목록 업데이트
+      const updatedSessions = currentSession
+        ? sessions.map((s) => (s.id === session.id ? session : s))
+        : [...sessions, session];
+      setSessions(updatedSessions);
+      // localStorage에 저장
+      saveSessions(updatedSessions);
+    },
+    autoSaveEnabled: true,
+    autoSaveDelay: 1000, // 1초 디바운스
+  });
 
   // 분석 결과를 한국어로 번역 (한 번만 실행)
   const translateAnalysisResult = async (
@@ -275,8 +297,6 @@ function App() {
       return;
     }
 
-    setIsAnalyzing(true);
-
     // 분석 강화 모드 감지: currentSession이 있고 기존 analysisResult가 있으면 강화 모드
     const isRefinementMode = currentSession && analysisResult;
 
@@ -284,7 +304,30 @@ function App() {
       console.log('🔄 분석 강화 모드 활성화');
       console.log('   - 기존 분석 결과:', analysisResult);
       console.log('   - 현재 이미지 개수:', uploadedImages.length);
+      console.log('   - 세션 이미지 개수:', currentSession.imageCount);
+
+      // 신규 이미지 확인
+      const hasNewImages = uploadedImages.length > currentSession.imageCount;
+
+      if (!hasNewImages) {
+        alert('신규 이미지가 없습니다. 이미지를 추가한 후 다시 분석해주세요.');
+        return;
+      }
+
+      // 신규 이미지가 있으면 확인 창 표시
+      const confirmed = window.confirm(
+        '기존 내용들이 변경될 수도 있습니다. 그래도 진행하시겠습니까?'
+      );
+
+      if (!confirmed) {
+        console.log('❌ 사용자가 분석 강화를 취소함');
+        return;
+      }
+
+      console.log('✅ 사용자가 분석 강화를 승인함');
     }
+
+    setIsAnalyzing(true);
 
     // 모든 이미지를 Gemini에 전송하여 공통 스타일 분석 (또는 분석 강화)
     await analyzeImages(
@@ -464,8 +507,15 @@ function App() {
     setCurrentView('analysis');
   };
 
-  const handleGenerateImage = () => {
+  const handleGenerateImage = async () => {
     console.log('🎨 이미지 생성 화면으로 전환');
+
+    // 세션이 없으면 자동으로 저장 먼저 수행
+    if (!currentSession) {
+      console.log('⚠️ 세션이 없습니다. 자동 저장을 먼저 수행합니다...');
+      await triggerManualSave();
+    }
+
     setCurrentView('generator');
   };
 
@@ -582,6 +632,38 @@ function App() {
                 onGenerateImage={analysisResult ? handleGenerateImage : undefined}
                 currentSession={currentSession}
                 onCustomPromptChange={handleCustomPromptChange}
+                onStyleUpdate={(style) => {
+                  if (analysisResult) {
+                    const updated = { ...analysisResult, style };
+                    setAnalysisResult(updated);
+                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
+                    triggerManualSave(updated);
+                  }
+                }}
+                onCharacterUpdate={(character) => {
+                  if (analysisResult) {
+                    const updated = { ...analysisResult, character };
+                    setAnalysisResult(updated);
+                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
+                    triggerManualSave(updated);
+                  }
+                }}
+                onCompositionUpdate={(composition) => {
+                  if (analysisResult) {
+                    const updated = { ...analysisResult, composition };
+                    setAnalysisResult(updated);
+                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
+                    triggerManualSave(updated);
+                  }
+                }}
+                onNegativePromptUpdate={(negativePrompt) => {
+                  if (analysisResult) {
+                    const updated = { ...analysisResult, negative_prompt: negativePrompt };
+                    setAnalysisResult(updated);
+                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
+                    triggerManualSave(updated);
+                  }
+                }}
               />
             ) : (
               analysisResult && (
@@ -593,7 +675,6 @@ function App() {
                   customPromptEnglish={currentSession?.koreanAnalysis?.customPromptEnglish}
                   generationHistory={currentSession?.generationHistory}
                   onHistoryAdd={handleHistoryAdd}
-                  onSettingsClick={handleSettingsClick}
                   onBack={handleBackToAnalysis}
                 />
               )
@@ -619,6 +700,9 @@ function App() {
         onSave={handleSaveSession}
         currentSession={currentSession}
       />
+
+      {/* 진행 상태 표시 */}
+      <ProgressIndicator {...progress} />
     </div>
   );
 }

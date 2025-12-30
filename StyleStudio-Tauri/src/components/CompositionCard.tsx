@@ -18,6 +18,11 @@ export function CompositionCard({ composition, apiKey, koreanComposition: korean
 
   const { translateBatchToKorean } = useGeminiTranslator();
 
+  // composition prop이 변경되면 editedComposition 동기화
+  useEffect(() => {
+    setEditedComposition(composition);
+  }, [composition]);
+
   // 구도 필드들을 한국어로 번역 (캐시가 없을 때만 실행)
   useEffect(() => {
     const translateComposition = async () => {
