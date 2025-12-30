@@ -1,4 +1,4 @@
-import { Plus, Palette, User, Trash2, ImagePlus, Save, FolderOpen } from 'lucide-react';
+import { Palette, User, Trash2, ImagePlus, Save, FolderOpen } from 'lucide-react';
 import { Session } from '../types/session';
 
 interface SidebarProps {
@@ -18,14 +18,6 @@ export function Sidebar({
   onNewImage,
   onImportSession
 }: SidebarProps) {
-  const formatDate = (isoString: string) => {
-    const date = new Date(isoString);
-    return date.toLocaleDateString('ko-KR', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
   const styleCount = sessions.filter((s) => s.type === 'STYLE').length;
   const characterCount = sessions.filter((s) => s.type === 'CHARACTER').length;
 
@@ -94,13 +86,6 @@ export function Sidebar({
                 <div className="flex-1 min-w-0">
                   {/* 세션 이름 */}
                   <h3 className="font-semibold text-sm text-white truncate">{session.name}</h3>
-
-                  {/* 날짜 및 이미지 개수 */}
-                  <div className="flex items-center gap-2 mt-1">
-                    <p className="text-xs text-gray-400">{formatDate(session.createdAt)}</p>
-                    <span className="text-xs text-gray-500">•</span>
-                    <p className="text-xs text-purple-400">{session.imageCount}개 이미지</p>
-                  </div>
                 </div>
 
                 {/* 액션 버튼 */}

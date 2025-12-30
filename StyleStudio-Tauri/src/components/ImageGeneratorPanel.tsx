@@ -25,9 +25,9 @@ export function ImageGeneratorPanel({
   const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
   const { generateImage } = useGeminiImageGenerator();
 
-  const [userPrompt, setUserPrompt] = useState('');
+  const [additionalPrompt, setAdditionalPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'1:1' | '16:9' | '9:16' | '4:3' | '3:4'>('1:1');
-  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('2K');
+  const [imageSize, setImageSize] = useState<'1K' | '2K' | '4K'>('1K');
   const [useReferenceImages, setUseReferenceImages] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
@@ -44,17 +44,36 @@ export function ImageGeneratorPanel({
     setProgressMessage('이미지 생성 준비 중...');
     setGeneratedImage(null);
 
-    // 최종 프롬프트 구성: 세션 타입에 따라 다르게 처리
+    // 최종 프롬프트 구성
     let finalPrompt = '';
+
     if (sessionType === 'CHARACTER') {
-      // 캐릭터 세션: 사용자 입력만 사용 (포즈/표정/동작)
-      // 참조 이미지에서 캐릭터 정보를 가져오므로 positivePrompt는 불필요
-      finalPrompt = userPrompt.trim() || 'standing naturally, neutral expression';
+      // 캐릭터 세션: 참조 이미지가 캐릭터 외형을 완벽히 유지하므로
+      // 포즈/표정/동작만 프롬프트로 전달
+      const parts = [
+        analysis.user_custom_prompt,
+        additionalPrompt.trim(),
+      ].filter(Boolean);
+      finalPrompt = parts.length > 0 ? parts.join(', ') : 'standing naturally, neutral expression';
     } else {
-      // 스타일 세션: 통합 프롬프트 + 사용자 입력
-      finalPrompt = userPrompt.trim()
-        ? `${positivePrompt}, ${userPrompt.trim()}`
-        : positivePrompt;
+      // 스타일 세션: 참조 이미지가 있으면 스타일만 유지하고
+      // 구체적인 내용은 사용자 프롬프트 사용
+      if (useReferenceImages && referenceImages.length > 0) {
+        // 참조 이미지로 스타일 유지, 사용자 프롬프트만 사용
+        const parts = [
+          analysis.user_custom_prompt,
+          additionalPrompt.trim(),
+        ].filter(Boolean);
+        finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
+      } else {
+        // 참조 이미지 없으면 AI 분석 프롬프트 포함
+        const parts = [
+          positivePrompt,
+          analysis.user_custom_prompt,
+          additionalPrompt.trim(),
+        ].filter(Boolean);
+        finalPrompt = parts.join(', ');
+      }
     }
 
     await generateImage(
@@ -165,26 +184,38 @@ export function ImageGeneratorPanel({
         {/* 왼쪽: 설정 패널 */}
         <div className="w-96 bg-white border-r border-gray-200 p-6 overflow-y-auto">
           <div className="space-y-6">
-            {/* 프롬프트 입력 */}
+            {/* 사용자 맞춤 프롬프트 안내 (자동 적용) */}
+            {analysis.user_custom_prompt && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <p className="text-xs font-semibold text-purple-800 mb-1">
+                  ✅ 사용자 맞춤 프롬프트 (자동 적용됨)
+                </p>
+                <p className="text-xs text-purple-700 whitespace-pre-wrap break-words">
+                  {analysis.user_custom_prompt}
+                </p>
+              </div>
+            )}
+
+            {/* 추가 프롬프트 입력 (선택사항) */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                {sessionType === 'CHARACTER' ? '포즈/표정/동작' : '추가 프롬프트 (선택사항)'}
+                {sessionType === 'CHARACTER' ? '추가 포즈/표정/동작 (선택)' : '추가 프롬프트 (선택)'}
               </label>
               <textarea
-                value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
+                value={additionalPrompt}
+                onChange={(e) => setAdditionalPrompt(e.target.value)}
                 placeholder={
                   sessionType === 'CHARACTER'
-                    ? '예: 쪼그리고 앉아 슬퍼하는 모습, 점프하며 기뻐하는 표정, 뒤돌아보는 포즈'
-                    : '예: standing pose, smiling, outdoor background'
+                    ? '예: looking back, waving hand'
+                    : '예: night scene, rainy weather'
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                rows={4}
+                rows={3}
               />
               <p className="text-xs text-gray-500 mt-1">
                 {sessionType === 'CHARACTER'
-                  ? '캐릭터의 포즈, 표정, 동작만 입력하세요. 캐릭터 외형은 참조 이미지를 완벽히 유지합니다. (배경: 흰색 자동 적용)'
-                  : '기본 스타일에 추가할 요소를 입력하세요 (포즈, 표정, 배경 등)'}
+                  ? '이 생성에만 적용할 임시 요소를 입력하세요. 캐릭터 외형은 참조 이미지를 유지합니다.'
+                  : '이 생성에만 적용할 임시 요소를 입력하세요. AI 분석과 사용자 맞춤 프롬프트는 자동 포함됩니다.'}
               </p>
             </div>
 

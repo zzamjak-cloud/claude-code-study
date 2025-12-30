@@ -114,7 +114,7 @@ export function useGeminiAnalyzer() {
             temperature: 0.4,
             topK: 32,
             topP: 0.95,
-            maxOutputTokens: 4096, // 분석 강화 프롬프트를 위해 증가
+            maxOutputTokens: 8192, // JSON 응답 잘림 방지를 위해 증가
           },
         }),
       });
@@ -144,13 +144,62 @@ export function useGeminiAnalyzer() {
       console.log('   - 전체 응답:', JSON.stringify(result, null, 2));
 
       // 응답에서 텍스트 추출
-      const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+      const candidate = result.candidates?.[0];
+
+      // 응답 차단 확인
+      if (!candidate) {
+        console.error('❌ candidates가 없습니다');
+        throw new Error('Gemini 응답에 candidates가 없습니다. API 키나 요청을 확인하세요.');
+      }
+
+      // finishReason 확인
+      const finishReason = candidate.finishReason;
+      console.log('   - finishReason:', finishReason);
+
+      if (finishReason === 'SAFETY') {
+        console.error('❌ 안전 필터에 의해 차단됨');
+        console.error('   - safetyRatings:', candidate.safetyRatings);
+        throw new Error('이미지가 안전 필터에 의해 차단되었습니다. 다른 이미지로 시도해주세요.');
+      }
+
+      if (finishReason === 'RECITATION') {
+        console.error('❌ 저작권 관련 차단');
+        throw new Error('저작권 관련 문제로 분석이 차단되었습니다.');
+      }
+
+      if (finishReason === 'MAX_TOKENS') {
+        console.error('❌ 최대 토큰 수 초과로 응답 잘림');
+        throw new Error('응답이 너무 길어서 잘렸습니다. 이미지 개수를 줄이거나 다시 시도해주세요.');
+      }
+
+      if (finishReason === 'OTHER' || finishReason === 'BLOCKLIST') {
+        console.error('❌ 기타 이유로 차단됨:', finishReason);
+        throw new Error(`응답이 차단되었습니다: ${finishReason}`);
+      }
+
+      if (finishReason !== 'STOP') {
+        console.warn('⚠️ 비정상적인 finishReason:', finishReason);
+        console.warn('   - 응답이 완전하지 않을 수 있습니다');
+      }
+
+      const text = candidate.content?.parts?.[0]?.text;
       if (!text) {
         console.error('❌ 텍스트 추출 실패:');
-        console.error('   - candidates:', result.candidates);
-        console.error('   - content:', result.candidates?.[0]?.content);
-        console.error('   - parts:', result.candidates?.[0]?.content?.parts);
-        throw new Error('Gemini 응답에 텍스트가 없습니다');
+        console.error('   - candidate:', JSON.stringify(candidate, null, 2));
+        console.error('   - content:', candidate.content);
+        console.error('   - parts:', candidate.content?.parts);
+        console.error('   - finishReason:', finishReason);
+        console.error('   - safetyRatings:', candidate.safetyRatings);
+
+        // promptFeedback 확인
+        if (result.promptFeedback) {
+          console.error('   - promptFeedback:', result.promptFeedback);
+          if (result.promptFeedback.blockReason) {
+            throw new Error(`프롬프트가 차단되었습니다: ${result.promptFeedback.blockReason}`);
+          }
+        }
+
+        throw new Error('Gemini 응답에 텍스트가 없습니다. 이미지를 확인하거나 다시 시도해주세요.');
       }
 
       console.log('📝 추출된 텍스트:');
@@ -195,16 +244,42 @@ export function useGeminiAnalyzer() {
           console.log('   - JSON 객체 추출 성공');
         }
 
-        console.log('   - 최종 JSON 텍스트 (앞 200자):', jsonText.substring(0, 200));
+        // 3단계: JSON 클린업 - trailing commas 제거
+        // ,} 또는 ,] 패턴을 } 또는 ]로 변경
+        jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1');
+        console.log('   - Trailing commas 제거 완료');
 
-        // 3단계: JSON 파싱
+        console.log('   - 최종 JSON 텍스트 (앞 300자):', jsonText.substring(0, 300));
+        console.log('   - 최종 JSON 텍스트 (전체 길이):', jsonText.length);
+
+        // 4단계: JSON 파싱
         analysisResult = JSON.parse(jsonText.trim());
         console.log('✅ JSON 파싱 성공');
         console.log('   - 결과:', JSON.stringify(analysisResult, null, 2));
       } catch (parseError) {
         console.error('❌ JSON 파싱 실패:', parseError);
-        console.error('   - 원본 텍스트 (앞 500자):', text.substring(0, 500));
-        console.error('   - 원본 텍스트 (뒤 500자):', text.substring(text.length - 500));
+
+        // 에러 위치 정보 추출 (처리된 jsonText 기준)
+        const errorMessage = (parseError as Error).message;
+        const positionMatch = errorMessage.match(/position (\d+)/);
+
+        if (positionMatch) {
+          const errorPos = parseInt(positionMatch[1]);
+          const start = Math.max(0, errorPos - 100);
+          const end = Math.min(jsonText.length, errorPos + 100);
+
+          console.error('   - 에러 발생 위치 주변 (±100자):', jsonText.substring(start, end));
+          console.error('   - 에러 위치:', errorPos);
+        }
+
+        // 전체 JSON 텍스트 출력 (처리된 jsonText)
+        console.error('   - 파싱 시도한 전체 JSON (길이:', jsonText.length, '):');
+        console.error(jsonText);
+
+        // 원본 텍스트도 출력
+        console.error('   - 원본 Gemini 응답 (길이:', text.length, '):');
+        console.error(text);
+
         throw new Error('분석 결과를 JSON으로 파싱할 수 없습니다. Gemini 응답 형식을 확인하세요.');
       }
 
@@ -249,6 +324,12 @@ export function useGeminiAnalyzer() {
         if (!analysisResult.character.hand_style) {
           analysisResult.character.hand_style = 'not specified';
         }
+      }
+
+      // 분석 강화 모드인 경우 기존 사용자 맞춤 프롬프트 유지
+      if (options?.previousAnalysis?.user_custom_prompt) {
+        analysisResult.user_custom_prompt = options.previousAnalysis.user_custom_prompt;
+        console.log('✅ 사용자 맞춤 프롬프트 유지:', analysisResult.user_custom_prompt);
       }
 
       console.log('✅ 분석 완료!');

@@ -36,4 +36,5 @@ export interface ImageAnalysisResult {
   character: CharacterAnalysis;
   composition: CompositionAnalysis;
   negative_prompt: string; // 피해야 할 요소들 (예: realistic hands, detailed fingers, 8-head proportions)
+  user_custom_prompt?: string; // 사용자가 직접 입력한 맞춤형 프롬프트 (분석 강화 시 유지)
 }

@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Upload, Image as ImageIcon, FolderOpen } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
-import { listen } from '@tauri-apps/api/event';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 
 interface ImageUploadProps {
   onImageSelect: (imageData: string) => void;
@@ -10,60 +10,43 @@ interface ImageUploadProps {
 
 export function ImageUpload({ onImageSelect }: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
+  const onImageSelectRef = useRef(onImageSelect);
 
-  // Tauri 파일 드롭 이벤트 리스너 (호버 감지)
+  // onImageSelect가 변경될 때마다 ref 업데이트
   useEffect(() => {
-    let unlistenHover: (() => void) | null = null;
-    let unlistenDrop: (() => void) | null = null;
-    let unlistenCancel: (() => void) | null = null;
+    onImageSelectRef.current = onImageSelect;
+  }, [onImageSelect]);
 
-    // 파일 드롭 호버 감지
-    listen<string[]>('tauri://file-drop-hover', (event) => {
-      console.log('🎯 파일 드래그 호버 감지:', event.payload);
-      setIsDragging(true);
-    }).then((unlisten) => {
-      unlistenHover = unlisten;
-    });
+  // 호버 상태만 관리 (실제 드롭 처리는 App.tsx에서 전역으로 처리)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
 
-    // 파일 드롭 이벤트
-    listen<string[]>('tauri://file-drop', async (event) => {
-      console.log('📦 파일 드롭 이벤트 발생:', event.payload);
-      setIsDragging(false);
+    const setupHoverListener = async () => {
+      try {
+        const appWindow = getCurrentWindow();
 
-      const filePaths = event.payload;
-      if (filePaths && filePaths.length > 0) {
-        const filePath = filePaths[0];
-        console.log('📁 첫 번째 파일:', filePath);
+        unlisten = await appWindow.onDragDropEvent((event) => {
+          if (event.payload.type === 'hover') {
+            setIsDragging(true);
+          } else if (event.payload.type === 'drop' || event.payload.type === 'cancel') {
+            setIsDragging(false);
+          }
+        });
 
-        // 이미지 파일인지 확인 (확장자 체크)
-        const ext = filePath.split('.').pop()?.toLowerCase();
-        if (ext && ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext)) {
-          console.log('✅ 이미지 파일 확인, 읽기 시작');
-          await loadTauriImage(filePath);
-        } else {
-          console.error('❌ 이미지 파일이 아님:', ext);
-          alert('이미지 파일만 업로드 가능합니다 (PNG, JPG, JPEG, GIF, WEBP)');
-        }
+        console.log('✅ [ImageUpload] 호버 리스너 등록 완료');
+      } catch (error) {
+        console.error('❌ [ImageUpload] 호버 리스너 등록 실패:', error);
       }
-    }).then((unlisten) => {
-      unlistenDrop = unlisten;
-    });
+    };
 
-    // 파일 드롭 취소
-    listen('tauri://file-drop-cancelled', () => {
-      console.log('❌ 파일 드롭 취소됨');
-      setIsDragging(false);
-    }).then((unlisten) => {
-      unlistenCancel = unlisten;
-    });
+    setupHoverListener();
 
     return () => {
-      // 컴포넌트 언마운트 시 리스너 정리
-      if (unlistenHover) unlistenHover();
-      if (unlistenDrop) unlistenDrop();
-      if (unlistenCancel) unlistenCancel();
+      if (unlisten) {
+        unlisten();
+      }
     };
-  }, [onImageSelect]);
+  }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -82,7 +65,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
     reader.onload = (e) => {
       const result = e.target?.result as string;
       console.log('✅ 파일 읽기 완료, 데이터 길이:', result.length);
-      onImageSelect(result);
+      onImageSelectRef.current(result);
     };
     reader.onerror = (e) => {
       console.error('❌ 파일 읽기 실패:', e);
@@ -112,7 +95,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
 
       const dataUrl = `data:${mimeType};base64,${base64}`;
       console.log('✅ Tauri 파일 변환 완료, 데이터 길이:', dataUrl.length);
-      onImageSelect(dataUrl);
+      onImageSelectRef.current(dataUrl);
     } catch (error) {
       console.error('❌ Tauri 파일 읽기 오류:', error);
       alert('파일 읽기 오류: ' + (error as Error).message);

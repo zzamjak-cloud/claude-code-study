@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { ImageUpload } from './components/ImageUpload';
@@ -17,6 +17,8 @@ import {
 } from './lib/storage';
 import { ImageAnalysisResult } from './types/analysis';
 import { Session, SessionType } from './types/session';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { readFile } from '@tauri-apps/plugin-fs';
 
 function App() {
   const [showSettings, setShowSettings] = useState(false);
@@ -26,11 +28,96 @@ function App() {
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<ImageAnalysisResult | null>(null);
-  const [progressMessage, setProgressMessage] = useState('');
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentView, setCurrentView] = useState<'analysis' | 'generator'>('analysis');
 
   const { analyzeImages } = useGeminiAnalyzer();
+  const lastDropTimeRef = useRef(0);
+
+  // Tauri 이미지 로드 함수
+  const loadTauriImage = async (filePath: string): Promise<string | null> => {
+    try {
+      console.log('📁 Tauri 파일 읽기:', filePath);
+      const fileData = await readFile(filePath);
+
+      // Uint8Array를 base64로 변환
+      const base64 = btoa(
+        Array.from(new Uint8Array(fileData))
+          .map((b) => String.fromCharCode(b))
+          .join('')
+      );
+
+      // 확장자에서 MIME 타입 추정
+      const ext = filePath.split('.').pop()?.toLowerCase();
+      const mimeType = ext === 'png' ? 'image/png' :
+                      ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' :
+                      ext === 'gif' ? 'image/gif' :
+                      ext === 'webp' ? 'image/webp' : 'image/png';
+
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      console.log('✅ Tauri 파일 변환 완료');
+      return dataUrl;
+    } catch (error) {
+      console.error('❌ Tauri 파일 읽기 오류:', error);
+      return null;
+    }
+  };
+
+  // 전역 드래그 앤 드롭 리스너
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    const setupGlobalDropListener = async () => {
+      try {
+        const appWindow = getCurrentWindow();
+
+        unlisten = await appWindow.onDragDropEvent(async (event) => {
+          if (event.payload.type === 'drop') {
+            // 중복 이벤트 방지: 500ms 이내 재호출 무시
+            const now = Date.now();
+            if (now - lastDropTimeRef.current < 500) {
+              console.log('⏳ [App] 중복 드롭 이벤트 무시');
+              return;
+            }
+            lastDropTimeRef.current = now;
+
+            const filePaths = event.payload.paths;
+            console.log('📦 [App] 전역 드롭 이벤트:', filePaths?.length, '개 파일');
+
+            if (filePaths && filePaths.length > 0) {
+              // 이미지 파일만 필터링
+              const imageFiles = filePaths.filter((filePath: string) => {
+                const ext = filePath.split('.').pop()?.toLowerCase();
+                return ext && ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(ext);
+              });
+
+              // 순차적으로 이미지 로드 및 추가
+              for (const filePath of imageFiles) {
+                const imageData = await loadTauriImage(filePath);
+                if (imageData) {
+                  setUploadedImages((prev) => [...prev, imageData]);
+                  console.log('✅ [App] 이미지 추가됨');
+                }
+              }
+            }
+          }
+        });
+
+        console.log('✅ [App] 전역 드래그 앤 드롭 리스너 등록 완료');
+      } catch (error) {
+        console.error('❌ [App] 전역 드롭 리스너 등록 실패:', error);
+      }
+    };
+
+    setupGlobalDropListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+        console.log('🧹 [App] 전역 드롭 리스너 정리 완료');
+      }
+    };
+  }, []);
 
   // 앱 시작 시 API 키 및 세션 로드
   useEffect(() => {
@@ -63,13 +150,22 @@ function App() {
     console.log('🖼️ 이미지 추가:', imageData.substring(0, 50) + '...');
     setUploadedImages((prev) => [...prev, imageData]);
 
-    // 세션이 없을 때만 분석 결과 초기화
-    // 세션이 있으면 기존 분석 결과를 유지하고 나중에 "분석 강화" 실행
-    if (!currentSession) {
-      setAnalysisResult(null);
-      console.log('   - 분석 결과 초기화 (새 세션)');
+    // 기존 분석 결과가 있으면 유지 (분석 강화 가능)
+    // 분석 결과가 없는 경우에만 초기 상태 유지
+    if (analysisResult) {
+      console.log('   - 기존 분석 유지 (분석 강화 가능)');
     } else {
-      console.log('   - 기존 분석 유지 (세션 있음, 나중에 분석 강화 가능)');
+      console.log('   - 분석 필요 (새 이미지)');
+    }
+  };
+
+  const handleCustomPromptChange = (customPrompt: string) => {
+    console.log('✏️ 사용자 맞춤 프롬프트 변경:', customPrompt);
+    if (analysisResult) {
+      setAnalysisResult({
+        ...analysisResult,
+        user_custom_prompt: customPrompt,
+      });
     }
   };
 
@@ -91,7 +187,6 @@ function App() {
     }
 
     setIsAnalyzing(true);
-    setProgressMessage('분석 준비 중...');
 
     // 분석 강화 모드 감지: currentSession이 있고 기존 analysisResult가 있으면 강화 모드
     const isRefinementMode = currentSession && analysisResult;
@@ -108,13 +203,11 @@ function App() {
       uploadedImages,
       {
         onProgress: (message) => {
-          setProgressMessage(message);
           console.log('📊 진행 상황:', message);
         },
         onComplete: (result) => {
           setAnalysisResult(result);
           setIsAnalyzing(false);
-          setProgressMessage('');
           console.log('✅ 분석 완료:', result);
 
           if (isRefinementMode) {
@@ -123,7 +216,6 @@ function App() {
         },
         onError: (error) => {
           setIsAnalyzing(false);
-          setProgressMessage('');
           console.error('❌ 분석 오류:', error);
           alert('분석 오류: ' + error.message);
         },
@@ -358,6 +450,7 @@ function App() {
                 onRemoveImage={handleRemoveImage}
                 onGenerateImage={analysisResult ? handleGenerateImage : undefined}
                 currentSession={currentSession}
+                onCustomPromptChange={handleCustomPromptChange}
               />
             ) : (
               analysisResult && (

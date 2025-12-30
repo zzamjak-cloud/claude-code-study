@@ -45,7 +45,7 @@ export function useGeminiImageGenerator() {
       // 1. 참조 이미지가 있으면 먼저 추가 (최대 14개)
       const hasReferenceImages = params.referenceImages && params.referenceImages.length > 0;
 
-      if (hasReferenceImages) {
+      if (hasReferenceImages && params.referenceImages) {
         const maxImages = Math.min(params.referenceImages.length, 14);
         console.log(`   - 참조 이미지 ${maxImages}개 추가 중...`);
 
@@ -74,38 +74,141 @@ export function useGeminiImageGenerator() {
       let fullPrompt = '';
 
       if (hasReferenceImages && params.sessionType === 'CHARACTER') {
-        // 캐릭터 세션: 캐릭터 완벽 유지 + 흰색 배경 강제
-        fullPrompt = `Generate an image of the EXACT SAME CHARACTER shown in the reference images above.
+        // 캐릭터 세션: 포즈 변경 최우선 + 캐릭터 외형/비율 완벽 복사
+        fullPrompt = `🚨 MISSION: Draw the EXACT SAME character from reference images, but in a NEW POSE.
 
-ABSOLUTE REQUIREMENTS (DO NOT DEVIATE):
-- Maintain 100% IDENTICAL character features: face structure, facial features, hairstyle, hair color, eye shape, eye color, skin tone, clothing/outfit details
-- The character must look EXACTLY like the reference - same person, same style, same appearance
-- Keep the EXACT SAME art style, drawing technique, line quality, and visual aesthetic
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: APPLY NEW POSE (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CRITICAL BODY PROPORTIONS (MUST BE IDENTICAL):
-- Head-to-body ratio MUST be exactly the same as reference
-- Arm length MUST be exactly the same as reference (measure where hands reach when arms hang down)
-- Leg length MUST be exactly the same as reference (same proportion to total body height)
-- Torso shape and length MUST be exactly the same as reference
-- Hand and finger style MUST be exactly the same as reference
-- DO NOT make arms or legs longer or shorter than the reference
-- DO NOT change body proportions in any way
+NEW POSE TO DRAW: "${params.prompt || 'standing naturally, neutral expression'}"
 
-Background: PURE WHITE (#FFFFFF) - no gradients, no shadows, no other colors
-Only the character's pose, expression, or action can change as specified below:
+⚠️ CRITICAL POSE INSTRUCTIONS:
+- "looking up" / "고개를 젖히고" = Head tilted backward, neck stretched, face pointing upward to sky
+- "bowing" / "인사하고" = Upper body bent forward at waist, head down
+- "sitting" / "앉아있고" = Legs bent, bottom on ground or chair
+- "running" / "달리고" = One leg forward, one back, arms pumping, dynamic motion
 
-${params.prompt}`;
+🎯 FOLLOW THE POSE DESCRIPTION LITERALLY. The reference images show a DIFFERENT pose - IGNORE their pose completely.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: COPY CHARACTER APPEARANCE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While drawing the NEW pose, copy these features EXACTLY:
+
+🔒 BODY PROPORTIONS (NEVER CHANGE THESE):
+- Head-to-body ratio: Count heads in reference (e.g., 2-head, 3-head, 8-head) → USE EXACT SAME RATIO
+- Leg length: Measure legs vs torso in reference → COPY EXACT RATIO
+- If legs are SHORT in reference → Keep them SHORT
+- If legs are LONG in reference → Keep them LONG
+- Arm length, torso height, limb thickness → ALL identical to reference
+- Overall "chibi" or "realistic" style → MUST match reference
+
+🔒 HAIR (Copy every strand):
+- Hairstyle, bangs/fringe, length, color
+- DO NOT omit bangs if present in reference
+
+🔒 FACE:
+- Eye style, nose, mouth, face shape
+
+🔒 CLOTHING:
+- Outfit design, colors, accessories
+
+🔒 ART STYLE:
+- Line quality, shading, coloring technique
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: FRAMING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Draw FULL BODY (head to feet visible)
+- White background
+- Do NOT crop legs or body
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Did you draw the NEW pose correctly? (Step 1)
+2. Did you keep leg length IDENTICAL to reference? (Not longer, not shorter)
+3. Did you keep head-to-body ratio IDENTICAL to reference?
+4. Did you include all hair details (especially bangs)?
+5. Is the full body visible?
+
+If reference shows SHORT legs (chibi/casual style) → Your output MUST also have SHORT legs.
+If reference shows LONG legs (realistic style) → Your output MUST also have LONG legs.
+
+NEVER "improve" or "normalize" body proportions. COPY them EXACTLY.`;
       } else if (hasReferenceImages) {
-        // 스타일 세션: 스타일 일관성 유지
-        fullPrompt = `Generate an image with the EXACT SAME STYLE and visual characteristics shown in the reference images above.
+        // 스타일 세션: 스타일 일관성 최우선
+        fullPrompt = `🎨 ABSOLUTE PRIORITY: REPLICATE THE VISUAL STYLE SHOWN IN THE REFERENCE IMAGES ABOVE
+This is your PRIMARY and MOST IMPORTANT task. Everything else is secondary.
 
-CRITICAL REQUIREMENTS:
-- Maintain the same art style, technique, color palette, and visual aesthetic
-- Keep the same drawing/rendering style and quality
-- Only the subject, composition, or scene can change as specified below
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔒 MANDATORY STYLE REPLICATION (NON-NEGOTIABLE):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Style description and subject:
-${params.prompt}`;
+You are a STYLE CLONING AI. Your job is to PERFECTLY COPY the visual style shown in the reference images.
+
+CRITICAL REQUIREMENTS - These OVERRIDE all other instructions:
+
+1. ART STYLE & TECHNIQUE:
+   - Copy the EXACT drawing/painting technique
+   - Match the artistic approach precisely
+   - Use the SAME level of realism/stylization
+   - Replicate the artist's signature style
+
+2. COLOR & PALETTE:
+   - Use the EXACT color palette from references
+   - Match color saturation, brightness, contrast
+   - Copy color relationships and harmonies
+   - Replicate color application technique
+
+3. LINES & EDGES:
+   - Match line weight, thickness, variation
+   - Copy line quality (smooth/rough/sketchy)
+   - Replicate edge treatment
+   - Use same line style throughout
+
+4. SHADING & LIGHTING:
+   - Copy shading technique precisely
+   - Match light source and direction
+   - Replicate shadow style and density
+   - Use same highlights approach
+
+5. TEXTURE & SURFACE:
+   - Match material rendering style
+   - Copy texture detail level
+   - Replicate surface treatment
+   - Use same texture techniques
+
+6. OVERALL AESTHETIC:
+   - Maintain the visual "feel"
+   - Match the mood and atmosphere
+   - Copy the artistic signature
+   - Keep the same visual identity
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ CRITICAL WARNING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DO NOT:
+- Add your own style interpretation
+- Change the visual aesthetic
+- Use different techniques
+- Alter the color approach
+- Modify the artistic style
+
+The reference images are YOUR STYLE BIBLE. Follow them EXACTLY.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 Subject/Content (Secondary - Apply with the style above):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${params.prompt}
+
+REMEMBER: The style shown in references is MANDATORY. The subject/content can change, but the VISUAL STYLE must stay identical.`;
       } else {
         // 참조 이미지가 없을 때: 일반 프롬프트
         fullPrompt = params.prompt;

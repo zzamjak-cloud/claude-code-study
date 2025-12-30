@@ -1,4 +1,4 @@
-import { Sparkles, Loader2, Save, X, RefreshCw, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Sparkles, Save, RefreshCw, Plus, Trash2, Wand2 } from 'lucide-react';
 import { ImageAnalysisResult } from '../types/analysis';
 import { StyleCard } from './StyleCard';
 import { CharacterCard } from './CharacterCard';
@@ -18,6 +18,7 @@ interface AnalysisPanelProps {
   onRemoveImage?: (index: number) => void;
   onGenerateImage?: () => void;
   currentSession?: Session | null;
+  onCustomPromptChange?: (customPrompt: string) => void;
 }
 
 export function AnalysisPanel({
@@ -31,6 +32,7 @@ export function AnalysisPanel({
   onRemoveImage,
   onGenerateImage,
   currentSession,
+  onCustomPromptChange,
 }: AnalysisPanelProps) {
   if (images.length === 0) {
     return null;
@@ -67,7 +69,7 @@ export function AnalysisPanel({
                 />
 
                 {/* 삭제 버튼 */}
-                {onRemoveImage && images.length > 1 && (
+                {onRemoveImage && (
                   <button
                     onClick={() => onRemoveImage(index)}
                     className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
@@ -148,23 +150,8 @@ export function AnalysisPanel({
         {/* 분석 완료 상태 */}
         {analysisResult && !isAnalyzing && (
           <div className="space-y-4">
-            {/* 스타일 카드 */}
-            <StyleCard style={analysisResult.style} />
-
-            {/* 캐릭터 카드 */}
-            <CharacterCard character={analysisResult.character} />
-
-            {/* 구도 카드 */}
-            <CompositionCard composition={analysisResult.composition} />
-
-            {/* 부정 프롬프트 카드 */}
-            <NegativePromptCard negativePrompt={analysisResult.negative_prompt} />
-
-            {/* 통합 프롬프트 카드 */}
-            <UnifiedPromptCard analysis={analysisResult} />
-
-            {/* 액션 버튼 */}
-            <div className="space-y-3 pt-4 border-t border-gray-200">
+            {/* 액션 버튼 (상단) */}
+            <div className="space-y-3 pb-4 border-b border-gray-200">
               {/* 이미지 생성 버튼 (강조) */}
               {onGenerateImage && (
                 <button
@@ -197,6 +184,24 @@ export function AnalysisPanel({
                 )}
               </div>
             </div>
+
+            {/* 통합 프롬프트 카드 (최상단) */}
+            <UnifiedPromptCard
+              analysis={analysisResult}
+              onCustomPromptChange={onCustomPromptChange}
+            />
+
+            {/* 스타일 카드 */}
+            <StyleCard style={analysisResult.style} />
+
+            {/* 캐릭터 카드 */}
+            <CharacterCard character={analysisResult.character} />
+
+            {/* 구도 카드 */}
+            <CompositionCard composition={analysisResult.composition} />
+
+            {/* 부정 프롬프트 카드 */}
+            <NegativePromptCard negativePrompt={analysisResult.negative_prompt} />
           </div>
         )}
       </div>
