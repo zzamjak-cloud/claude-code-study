@@ -134,8 +134,6 @@ export function AnalysisPanel({
 
       {/* 오른쪽: 분석 패널 */}
       <div className="w-[500px] bg-white border-l border-gray-200 p-6 flex flex-col overflow-y-auto">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">이미지 분석</h2>
-
         {/* 분석 전 상태 */}
         {!analysisResult && !isAnalyzing && (
           <>
@@ -165,39 +163,38 @@ export function AnalysisPanel({
         {/* 분석 완료 상태 */}
         {analysisResult && !isAnalyzing && (
           <div className="space-y-4">
-            {/* 액션 버튼 (상단) */}
-            <div className="space-y-3 pb-4 border-b border-gray-200">
-              {/* 이미지 생성 버튼 (강조) */}
+            {/* 액션 버튼 (상단) - 아이콘만 한 라인에 3개 */}
+            <div className="flex gap-2 pb-4 border-b border-gray-200">
+              {/* 이미지 생성 버튼 */}
               {onGenerateImage && (
                 <button
                   onClick={onGenerateImage}
-                  className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-4 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
+                  className="flex-1 flex items-center justify-center p-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
+                  title="이미지 생성하기"
                 >
                   <Wand2 size={20} />
-                  <span>이미지 생성하기</span>
                 </button>
               )}
 
-              {/* 기존 버튼들 */}
-              <div className="flex gap-3">
-                <button
-                  onClick={onAnalyze}
-                  className="flex-1 flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-3 rounded-lg font-semibold transition-all"
-                >
-                  <Sparkles size={18} />
-                  <span>{currentSession ? '분석 강화' : '다시 분석'}</span>
-                </button>
+              {/* 분석 강화 버튼 */}
+              <button
+                onClick={onAnalyze}
+                className="flex-1 flex items-center justify-center p-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-all"
+                title={currentSession ? '분석 강화' : '다시 분석'}
+              >
+                <Sparkles size={20} />
+              </button>
 
-                {onSaveSession && (
-                  <button
-                    onClick={onSaveSession}
-                    className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white px-4 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
-                  >
-                    <Save size={18} />
-                    <span>세션 저장</span>
-                  </button>
-                )}
-              </div>
+              {/* 세션 저장 버튼 */}
+              {onSaveSession && (
+                <button
+                  onClick={onSaveSession}
+                  className="flex-1 flex items-center justify-center p-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
+                  title="세션 저장"
+                >
+                  <Save size={20} />
+                </button>
+              )}
             </div>
 
             {/* 통합 프롬프트 카드 (최상단) */}

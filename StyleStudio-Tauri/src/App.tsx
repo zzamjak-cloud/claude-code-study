@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { ImageUpload } from './components/ImageUpload';
 import { AnalysisPanel } from './components/AnalysisPanel';
@@ -601,19 +600,32 @@ function App() {
     }
   };
 
-  return (
-    <div className="h-screen flex flex-col bg-gray-100">
-      <Header onSettingsClick={handleSettingsClick} />
+  const handleReorderSessions = async (reorderedSessions: Session[]) => {
+    console.log('🔄 세션 순서 변경');
+    setSessions(reorderedSessions);
 
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar
-          sessions={sessions}
-          onSelectSession={handleSelectSession}
-          onDeleteSession={handleDeleteSession}
-          onExportSession={handleExportSession}
-          onNewImage={handleReset}
-          onImportSession={handleImportSession}
-        />
+    // Tauri Store에 저장
+    try {
+      await saveSessions(reorderedSessions);
+      console.log('✅ 세션 순서 저장 완료');
+    } catch (error) {
+      console.error('❌ 세션 순서 저장 오류:', error);
+    }
+  };
+
+  return (
+    <div className="h-screen flex bg-gray-100">
+      <Sidebar
+        sessions={sessions}
+        currentSessionId={currentSession?.id}
+        onSelectSession={handleSelectSession}
+        onDeleteSession={handleDeleteSession}
+        onExportSession={handleExportSession}
+        onNewImage={handleReset}
+        onImportSession={handleImportSession}
+        onSettingsClick={handleSettingsClick}
+        onReorderSessions={handleReorderSessions}
+      />
 
         <main className="flex-1 flex flex-col overflow-hidden">
           {uploadedImages.length > 0 ? (
@@ -683,27 +695,26 @@ function App() {
             <ImageUpload onImageSelect={handleImageSelect} />
           )}
         </main>
+
+        {/* 설정 모달 */}
+        <SettingsModal
+          isOpen={showSettings}
+          onClose={() => setShowSettings(false)}
+          currentApiKey={apiKey}
+          onSave={handleSaveApiKey}
+        />
+
+        {/* 세션 저장 모달 */}
+        <SaveSessionModal
+          isOpen={showSaveSession}
+          onClose={() => setShowSaveSession(false)}
+          onSave={handleSaveSession}
+          currentSession={currentSession}
+        />
+
+        {/* 진행 상태 표시 */}
+        <ProgressIndicator {...progress} />
       </div>
-
-      {/* 설정 모달 */}
-      <SettingsModal
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        currentApiKey={apiKey}
-        onSave={handleSaveApiKey}
-      />
-
-      {/* 세션 저장 모달 */}
-      <SaveSessionModal
-        isOpen={showSaveSession}
-        onClose={() => setShowSaveSession(false)}
-        onSave={handleSaveSession}
-        currentSession={currentSession}
-      />
-
-      {/* 진행 상태 표시 */}
-      <ProgressIndicator {...progress} />
-    </div>
   );
 }
 
