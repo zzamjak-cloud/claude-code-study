@@ -138,20 +138,10 @@ export function UnifiedPromptCard({
           </div>
           <button
             onClick={() => handleCopy(positivePrompt, 'positive')}
-            className="flex items-center gap-2 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition-all"
+            className="p-2 text-green-600 hover:bg-green-100 hover:text-green-700 rounded-lg transition-all"
             title="영어 원본 복사 (API 전달용)"
           >
-            {copiedPositive ? (
-              <>
-                <Check size={16} />
-                <span>복사됨!</span>
-              </>
-            ) : (
-              <>
-                <Copy size={16} />
-                <span>영어 복사</span>
-              </>
-            )}
+            {copiedPositive ? <Check size={18} /> : <Copy size={18} />}
           </button>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200 max-h-40 overflow-y-auto">
@@ -180,20 +170,10 @@ export function UnifiedPromptCard({
           </div>
           <button
             onClick={() => handleCopy(negativePrompt, 'negative')}
-            className="flex items-center gap-2 px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-semibold transition-all"
+            className="p-2 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-all"
             title="영어 원본 복사 (API 전달용)"
           >
-            {copiedNegative ? (
-              <>
-                <Check size={16} />
-                <span>복사됨!</span>
-              </>
-            ) : (
-              <>
-                <Copy size={16} />
-                <span>영어 복사</span>
-              </>
-            )}
+            {copiedNegative ? <Check size={18} /> : <Copy size={18} />}
           </button>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200 max-h-40 overflow-y-auto">

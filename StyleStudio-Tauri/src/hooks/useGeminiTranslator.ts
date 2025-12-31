@@ -237,12 +237,12 @@ Korean translations (keep [number] prefix):`,
       const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
 
       // 결과를 파싱하여 배열로 변환
-      const lines = translatedText.split('\n').filter((line) => line.trim());
+      const lines = translatedText.split('\n').filter((line: string) => line.trim());
       const translations: string[] = [];
 
       for (let i = 0; i < englishTexts.length; i++) {
         const linePrefix = `[${i + 1}]`;
-        const matchingLine = lines.find((line) => line.startsWith(linePrefix));
+        const matchingLine = lines.find((line: string) => line.startsWith(linePrefix));
 
         if (matchingLine) {
           // [숫자] 제거하고 텍스트만 추출
