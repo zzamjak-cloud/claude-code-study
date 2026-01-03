@@ -29,6 +29,12 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<ImageAnalysisResult | null>(null);
   const [currentView, setCurrentView] = useState<'analysis' | 'generator'>('analysis');
+  const [generateProgress, setGenerateProgress] = useState({
+    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
+    message: '',
+    percentage: 0,
+    estimatedSecondsLeft: 0,
+  });
 
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage } =
@@ -209,27 +215,60 @@ function App() {
       return;
     }
 
+    setGenerateProgress({
+      stage: 'idle',
+      message: '',
+      percentage: 0,
+      estimatedSecondsLeft: 0,
+    });
+
     try {
       let koreanCache = currentSession?.koreanAnalysis;
 
+      // 변경된 내용이 있으면 번역
       if (currentSession && hasChangesToTranslate(analysisResult, currentSession)) {
+        setGenerateProgress({
+          stage: 'translating',
+          message: '변경된 내용 번역 중...',
+          percentage: 0,
+          estimatedSecondsLeft: 0,
+        });
         const { updatedAnalysis, updatedKoreanCache } = await translateAndUpdateCache(
           apiKey,
           analysisResult,
-          currentSession
+          currentSession,
+          (progress) => {
+            setGenerateProgress({
+              stage: progress.stage as 'translating' | 'saving' | 'complete',
+              message: progress.message,
+              percentage: progress.percentage,
+              estimatedSecondsLeft: 0,
+            });
+          }
         );
         setAnalysisResult(updatedAnalysis);
         koreanCache = updatedKoreanCache;
       } else if (!currentSession) {
+        // 새 세션인 경우 전체 번역
+        setGenerateProgress({
+          stage: 'translating',
+          message: '전체 번역 중...',
+          percentage: 0,
+          estimatedSecondsLeft: 0,
+        });
         koreanCache = await translateAnalysisResult(apiKey, analysisResult);
       }
 
-      if (koreanCache && analysisResult.user_custom_prompt) {
-        koreanCache.customPromptEnglish = await translateCustomPrompt(
-          apiKey,
-          analysisResult.user_custom_prompt
-        );
-      }
+      // 사용자 맞춤 프롬프트는 이미 세션 저장 시 번역되어 캐시에 저장됨
+      // 이미지 생성 화면 이동 시에는 추가 번역 불필요
+
+      // 세션 저장
+      setGenerateProgress({
+        stage: 'saving',
+        message: '세션 저장 중...',
+        percentage: 95,
+        estimatedSecondsLeft: 0,
+      });
 
       if (!currentSession) {
         const newSession = createNewSession(analysisResult, uploadedImages, koreanCache);
@@ -248,9 +287,31 @@ function App() {
         await persistSessions(updatedSessions);
       }
 
-      setCurrentView('generator');
+      setGenerateProgress({
+        stage: 'complete',
+        message: '완료!',
+        percentage: 100,
+        estimatedSecondsLeft: 0,
+      });
+
+      // 잠시 후 화면 이동
+      setTimeout(() => {
+        setCurrentView('generator');
+        setGenerateProgress({
+          stage: 'idle',
+          message: '',
+          percentage: 0,
+          estimatedSecondsLeft: 0,
+        });
+      }, 500);
     } catch (error) {
       logger.error('❌ [이미지 생성] 번역/저장 오류:', error);
+      setGenerateProgress({
+        stage: 'idle',
+        message: '',
+        percentage: 0,
+        estimatedSecondsLeft: 0,
+      });
       alert('번역 또는 저장 중 오류가 발생했습니다.');
     }
   };
@@ -338,7 +399,7 @@ function App() {
                 analysis={analysisResult}
                 referenceImages={uploadedImages}
                 sessionType={currentSession?.type || 'STYLE'}
-                customPromptEnglish={currentSession?.koreanAnalysis?.customPromptEnglish}
+                koreanAnalysis={currentSession?.koreanAnalysis}
                 generationHistory={currentSession?.generationHistory}
                 onHistoryAdd={handleHistoryAdd}
                 onHistoryDelete={handleHistoryDelete}
@@ -367,6 +428,7 @@ function App() {
 
       <ProgressIndicator {...progress} />
       {saveProgress.stage !== 'idle' && <ProgressIndicator {...saveProgress} />}
+      {generateProgress.stage !== 'idle' && <ProgressIndicator {...generateProgress} />}
       </div>
     </ErrorBoundary>
   );

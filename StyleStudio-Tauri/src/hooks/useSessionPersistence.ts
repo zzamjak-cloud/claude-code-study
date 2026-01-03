@@ -47,7 +47,7 @@ export function useSessionPersistence(
     estimatedSecondsLeft: 0,
   });
 
-  const { translateAnalysisResult, hasChangesToTranslate, translateAndUpdateCache, translateCustomPrompt } =
+  const { translateAnalysisResult, hasChangesToTranslate, translateAndUpdateCache } =
     useTranslation();
 
   /**
@@ -94,19 +94,8 @@ export function useSessionPersistence(
           koreanCache = updatedKoreanCache;
         }
 
-        // 사용자 맞춤 프롬프트 번역
-        if (koreanCache && props.analysisResult.user_custom_prompt) {
-          setSaveProgress({
-            stage: 'translating',
-            message: '사용자 맞춤 프롬프트 번역 중...',
-            percentage: 85,
-            estimatedSecondsLeft: 0,
-          });
-          koreanCache.customPromptEnglish = await translateCustomPrompt(
-            props.apiKey,
-            props.analysisResult.user_custom_prompt
-          );
-        }
+        // 사용자 맞춤 프롬프트는 세션 저장 시 번역하지 않음
+        // 이미지 생성 시에만 번역됨
       } else {
         // 새 세션 생성: 전체 번역
         setSaveProgress({
@@ -117,19 +106,8 @@ export function useSessionPersistence(
         });
         koreanCache = await translateAnalysisResult(props.apiKey, props.analysisResult);
 
-        setSaveProgress({
-          stage: 'translating',
-          message: '사용자 맞춤 프롬프트 번역 중...',
-          percentage: 90,
-          estimatedSecondsLeft: 0,
-        });
-
-        if (props.analysisResult.user_custom_prompt) {
-          koreanCache.customPromptEnglish = await translateCustomPrompt(
-            props.apiKey,
-            props.analysisResult.user_custom_prompt
-          );
-        }
+        // 사용자 맞춤 프롬프트는 세션 저장 시 번역하지 않음
+        // 이미지 생성 시에만 번역됨
       }
 
       setSaveProgress({

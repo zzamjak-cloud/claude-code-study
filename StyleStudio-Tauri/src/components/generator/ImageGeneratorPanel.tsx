@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2 } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
-import { SessionType, GenerationHistoryEntry } from '../../types/session';
+import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -12,7 +12,7 @@ interface ImageGeneratorPanelProps {
   analysis: ImageAnalysisResult;
   referenceImages: string[];
   sessionType: SessionType;
-  customPromptEnglish?: string; // 캐시된 사용자 맞춤 프롬프트 영어 번역
+  koreanAnalysis?: KoreanAnalysisCache; // 한글 캐시 (사용자 맞춤 프롬프트 번역 포함)
   generationHistory?: GenerationHistoryEntry[];
   onHistoryAdd?: (entry: GenerationHistoryEntry) => void;
   onHistoryDelete?: (entryId: string) => void;
@@ -24,7 +24,7 @@ export function ImageGeneratorPanel({
   analysis,
   referenceImages,
   sessionType,
-  customPromptEnglish: _customPromptEnglish, // 사용하지 않음 - 항상 최신 값 번역
+  koreanAnalysis,
   generationHistory = [],
   onHistoryAdd,
   onHistoryDelete,
@@ -70,14 +70,19 @@ export function ImageGeneratorPanel({
       setIsTranslating(true);
       setProgressMessage('프롬프트를 영어로 변환 중...');
 
-      // 사용자 맞춤 프롬프트: 항상 최신 값 확인 후 번역 (캐시 무시)
+      // 사용자 맞춤 프롬프트: 캐시에서 가져오기 (이미 세션 저장 시 번역됨)
       let translatedUserCustomPrompt = '';
       if (analysis.user_custom_prompt) {
-        // 한글이 포함되어 있으면 번역, 영어면 그대로 사용
-        if (containsKorean(analysis.user_custom_prompt)) {
-          logger.debug('🌐 사용자 맞춤 프롬프트 번역 중...');
+        // 캐시에 번역된 영어가 있으면 사용
+        if (koreanAnalysis?.customPromptEnglish) {
+          logger.debug('♻️ 사용자 맞춤 프롬프트 캐시 사용');
+          translatedUserCustomPrompt = koreanAnalysis.customPromptEnglish;
+        } else if (containsKorean(analysis.user_custom_prompt)) {
+          // 캐시가 없고 한글이면 번역 (예외 상황)
+          logger.debug('🌐 사용자 맞춤 프롬프트 번역 중... (캐시 없음)');
           translatedUserCustomPrompt = await translateCustomPrompt(apiKey, analysis.user_custom_prompt);
         } else {
+          // 이미 영어인 경우
           logger.debug('♻️ 사용자 맞춤 프롬프트는 이미 영어입니다');
           translatedUserCustomPrompt = analysis.user_custom_prompt;
         }

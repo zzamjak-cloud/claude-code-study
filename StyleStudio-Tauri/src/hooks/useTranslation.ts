@@ -92,7 +92,7 @@ export function useTranslation() {
         },
         positivePrompt: translations[20],
         negativePrompt: translations[21],
-        customPromptEnglish: customPromptEnglish,
+        customPromptEnglish: customPromptEnglish || undefined,
       };
 
       return koreanCache;
@@ -131,7 +131,10 @@ export function useTranslation() {
     // negative_prompt 변경 확인
     const negativeChanged = oldAnalysis.negative_prompt !== analysisResult.negative_prompt;
 
-    return styleChanged || characterChanged || compositionChanged || negativeChanged;
+    // user_custom_prompt 변경 확인
+    const customPromptChanged = oldAnalysis.user_custom_prompt !== analysisResult.user_custom_prompt;
+
+    return styleChanged || characterChanged || compositionChanged || negativeChanged || customPromptChanged;
   };
 
   /**
@@ -222,6 +225,14 @@ export function useTranslation() {
         }
       }
 
+      // user_custom_prompt 변경 시 - 한글인 경우만 수집
+      let customPromptKoreanText: string | null = null;
+      if (oldAnalysis.user_custom_prompt !== analysisResult.user_custom_prompt) {
+        if (analysisResult.user_custom_prompt && containsKorean(analysisResult.user_custom_prompt)) {
+          customPromptKoreanText = analysisResult.user_custom_prompt;
+        }
+      }
+
       // 2단계: 모든 한글 텍스트를 하나로 모아서 배치 번역 (한글→영어만)
       const allKoreanTextsToTranslate: string[] = [];
 
@@ -239,6 +250,10 @@ export function useTranslation() {
 
       if (negativeKoreanText) {
         allKoreanTextsToTranslate.push(negativeKoreanText);
+      }
+
+      if (customPromptKoreanText) {
+        allKoreanTextsToTranslate.push(customPromptKoreanText);
       }
 
       // 3단계: 배치 번역 실행 (한글→영어만)
