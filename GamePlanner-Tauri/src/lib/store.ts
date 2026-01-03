@@ -1,4 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
+import { PromptTemplate } from '../types/promptTemplate'
 
 /**
  * 전역 Store 인스턴스 관리
@@ -74,6 +75,11 @@ export async function getSettings() {
   // 마이그레이션: 기존 notion_database_id 확인
   const oldNotionDbId = await store.get<string>('notion_database_id')
 
+  // 템플릿 관련 설정
+  const promptTemplates = await store.get<PromptTemplate[]>('prompt_templates')
+  const currentPlanningTemplateId = await store.get<string>('current_planning_template_id')
+  const currentAnalysisTemplateId = await store.get<string>('current_analysis_template_id')
+
   return {
     geminiApiKey,
     notionApiKey,
@@ -81,6 +87,9 @@ export async function getSettings() {
     notionAnalysisDatabaseId,
     oldNotionDbId,
     chatSessions,
+    promptTemplates,
+    currentPlanningTemplateId,
+    currentAnalysisTemplateId,
   }
 }
 
@@ -146,4 +155,38 @@ export async function saveSessions(sessions: any[]) {
     await store.set('gemini_api_key', currentSettings.geminiApiKey)
     await saveStore()
   }
+}
+
+/**
+ * 템플릿을 저장합니다
+ */
+export async function saveTemplates(templates: PromptTemplate[]) {
+  const store = await getStore()
+  await store.set('prompt_templates', templates)
+  await saveStore()
+  console.log('💾 템플릿 저장 완료:', templates.length, '개')
+}
+
+/**
+ * 현재 선택된 템플릿 ID를 가져옵니다
+ */
+export async function getCurrentTemplateIds(): Promise<{
+  planning: string | null
+  analysis: string | null
+}> {
+  const store = await getStore()
+  const planning = await store.get<string>('current_planning_template_id')
+  const analysis = await store.get<string>('current_analysis_template_id')
+  return { planning: planning || null, analysis: analysis || null }
+}
+
+/**
+ * 현재 선택된 템플릿 ID를 저장합니다
+ */
+export async function setCurrentTemplateIds(planningId: string, analysisId: string) {
+  const store = await getStore()
+  await store.set('current_planning_template_id', planningId)
+  await store.set('current_analysis_template_id', analysisId)
+  await saveStore()
+  console.log('✅ 현재 템플릿 ID 저장:', { planning: planningId, analysis: analysisId })
 }

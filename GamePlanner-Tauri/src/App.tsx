@@ -8,7 +8,9 @@ import { Resizer } from './components/Resizer'
 import { useAppStore, SessionType } from './store/useAppStore'
 import { useGeminiChat } from './hooks/useGeminiChat'
 import { useGameAnalysis } from './hooks/useGameAnalysis'
-import { getSettings, saveSessions, saveSettings } from './lib/store'
+import { getSettings, saveSessions, saveSettings, saveTemplates } from './lib/store'
+import { DEFAULT_TEMPLATES } from './lib/templateDefaults'
+import { SYSTEM_INSTRUCTION } from './lib/systemInstruction'
 
 function App() {
   const [showSettings, setShowSettings] = useState(false)
@@ -25,6 +27,10 @@ function App() {
     createNewSession,
     updateAnalysisStatus,
     sessions,
+    // 템플릿 관련 (신규)
+    getTemplateById,
+    currentPlanningTemplateId,
+    currentAnalysisTemplateId,
   } = useAppStore()
   const { sendMessage } = useGeminiChat()
   const { analyzeGame } = useGameAnalysis()
@@ -70,16 +76,44 @@ function App() {
           setNotionAnalysisDatabaseId(settings.notionAnalysisDatabaseId)
         }
 
+        // 템플릿 로드 및 초기화 (신규)
+        console.log('📋 템플릿 로드 중...')
+        if (settings.promptTemplates && settings.promptTemplates.length > 0) {
+          console.log('✅ 기존 템플릿 로드:', settings.promptTemplates.length, '개')
+          useAppStore.setState({ templates: settings.promptTemplates })
+        } else {
+          console.log('🆕 기본 템플릿 생성 중...')
+          // 기본 템플릿을 직접 상태에 설정 (고정 ID 유지)
+          useAppStore.setState({ templates: DEFAULT_TEMPLATES })
+          // 템플릿 저장
+          await saveTemplates(DEFAULT_TEMPLATES)
+          console.log('✅ 기본 템플릿 생성 완료:', DEFAULT_TEMPLATES.length, '개')
+        }
+
+        // 현재 템플릿 ID 로드
+        if (settings.currentPlanningTemplateId) {
+          useAppStore.setState({ currentPlanningTemplateId: settings.currentPlanningTemplateId })
+        }
+        if (settings.currentAnalysisTemplateId) {
+          useAppStore.setState({ currentAnalysisTemplateId: settings.currentAnalysisTemplateId })
+        }
+
         // 세션 로드
         const savedSessions = settings.chatSessions
         console.log('📦 저장된 세션 개수:', savedSessions?.length || 0)
 
         // 저장된 세션이 있으면 복원, 없으면 새로 생성
         if (savedSessions && Array.isArray(savedSessions) && savedSessions.length > 0) {
-          // 세션 타입 마이그레이션: type이 없는 세션은 PLANNING으로 설정
+          // 세션 마이그레이션: type과 templateId가 없는 세션 처리
           const migratedSessions = savedSessions.map((session: any) => ({
             ...session,
             type: session.type || SessionType.PLANNING,
+            // templateId 마이그레이션
+            templateId: session.templateId || (
+              (session.type === SessionType.ANALYSIS || session.gameName)
+                ? 'default-analysis'
+                : 'default-planning'
+            ),
           }))
 
           // 저장된 세션 복원
@@ -169,6 +203,12 @@ function App() {
       const chatHistory = [...currentState.messages] // 현재까지의 대화 히스토리
       const currentAnalysisContent = currentState.markdownContent // 현재 분석 내용
 
+      // 템플릿 기반 시스템 프롬프트 로드 (신규)
+      const template = getTemplateById(currentSession.templateId || currentAnalysisTemplateId || 'default-analysis')
+      const systemPrompt = template?.content || ''
+
+      console.log('📋 사용 중인 분석 템플릿:', template?.name || '기본 분석 템플릿')
+
       // 사용자 메시지 추가
       addMessage({ role: 'user', content: message })
       setIsLoading(true)
@@ -178,7 +218,7 @@ function App() {
       updateAnalysisStatus(currentSession.id, 'running')
 
       try {
-        // 대화 히스토리와 현재 분석 내용을 함께 전달
+        // 대화 히스토리와 현재 분석 내용, 템플릿 프롬프트를 함께 전달
         await analyzeGame(
           apiKey,
           message,
@@ -209,7 +249,8 @@ function App() {
             },
           },
           chatHistory, // 대화 히스토리 전달
-          currentAnalysisContent // 현재 분석 내용 전달
+          currentAnalysisContent, // 현재 분석 내용 전달
+          systemPrompt // 템플릿 프롬프트 전달 (신규)
         )
       } catch (error) {
         console.error('분석 실행 오류:', error)
@@ -225,13 +266,19 @@ function App() {
     const chatHistory = [...currentState.messages] // 현재까지의 대화 히스토리
     const currentMarkdownContent = currentState.markdownContent // 현재 기획서
 
+    // 템플릿 기반 시스템 프롬프트 로드 (신규)
+    const template = getTemplateById(currentSession?.templateId || currentPlanningTemplateId || 'default-planning')
+    const systemPrompt = template?.content || SYSTEM_INSTRUCTION
+
+    console.log('📋 사용 중인 기획 템플릿:', template?.name || '기본 기획 템플릿')
+
     // 사용자 메시지 추가
     addMessage({ role: 'user', content: message })
     setIsLoading(true)
     setCurrentAssistantMessage('')
 
     try {
-      // 대화 히스토리와 현재 마크다운을 함께 전달
+      // 대화 히스토리와 현재 마크다운, 템플릿 프롬프트를 함께 전달
       await sendMessage(
         apiKey,
         message,
@@ -260,7 +307,8 @@ function App() {
           },
         },
         chatHistory, // 대화 히스토리 전달
-        currentMarkdownContent // 현재 기획서 전달
+        currentMarkdownContent, // 현재 기획서 전달
+        systemPrompt // 템플릿 프롬프트 전달 (신규)
       )
     } catch (error) {
       console.error('Error:', error)

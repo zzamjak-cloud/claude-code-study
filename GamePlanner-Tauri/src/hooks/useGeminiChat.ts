@@ -14,7 +14,8 @@ export function useGeminiChat() {
     message: string,
     callbacks: StreamCallbacks,
     chatHistory?: Message[],
-    currentMarkdown?: string
+    currentMarkdown?: string,
+    systemPrompt?: string  // 신규: 동적 시스템 프롬프트
   ) => {
     try {
       // API Key 검증 및 정리
@@ -26,8 +27,8 @@ export function useGeminiChat() {
       // 대화 히스토리 구성
       const contents: any[] = []
 
-      // 1. 시스템 지시문을 첫 메시지로 추가
-      let systemMessage = SYSTEM_INSTRUCTION
+      // 1. 시스템 지시문을 첫 메시지로 추가 (동적 프롬프트 지원)
+      let systemMessage = systemPrompt || SYSTEM_INSTRUCTION  // fallback
 
       // 2. 현재 기획서가 있으면 시스템 메시지에 포함
       if (currentMarkdown && currentMarkdown.trim()) {

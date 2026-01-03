@@ -106,8 +106,8 @@ function processLines(lines: string[], startIdx: number, endIdx: number, current
       }
       i++
     }
-    // 수평선
-    else if (truncatedLine.startsWith('---')) {
+    // 수평선 (---, ***, ___)
+    else if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmedLine)) {
       blocks.push({
         object: 'block',
         type: 'divider',
@@ -115,8 +115,8 @@ function processLines(lines: string[], startIdx: number, endIdx: number, current
       })
       i++
     }
-    // 목록 항목 (중첩 지원, 최대 2단계)
-    else if (trimmedLine.startsWith('- ')) {
+    // 목록 항목 (중첩 지원, 최대 2단계, - 또는 * 모두 지원)
+    else if (/^[-*]\s/.test(trimmedLine)) {
       const result = processListItem(lines, i, endIdx, getIndentLevel(line), currentDepth)
       if (result.block) {
         blocks.push(result.block)
@@ -158,12 +158,28 @@ function processLines(lines: string[], startIdx: number, endIdx: number, current
 }
 
 /**
- * 들여쓰기 레벨 계산 (공백 2개 = 1레벨)
+ * 들여쓰기 레벨 계산 (공백 2개 또는 탭 1개 = 1레벨)
  */
 function getIndentLevel(line: string): number {
   const match = line.match(/^(\s*)/)
-  if (!match) return 0
-  return Math.floor(match[1].length / 2)
+  if (!match || !match[1]) return 0
+
+  const indent = match[1]
+  let level = 0
+
+  for (let i = 0; i < indent.length; i++) {
+    if (indent[i] === '\t') {
+      level++
+    } else if (indent[i] === ' ') {
+      // 공백 2개를 1레벨로 계산
+      if (i + 1 < indent.length && indent[i + 1] === ' ') {
+        level++
+        i++ // 다음 공백 건너뛰기
+      }
+    }
+  }
+
+  return level
 }
 
 /**
@@ -172,7 +188,8 @@ function getIndentLevel(line: string): number {
 function processListItem(lines: string[], startIdx: number, endIdx: number, currentIndent: number, currentDepth: number): { block: NotionBlock | null, nextIdx: number } {
   const line = lines[startIdx]
   const trimmedLine = line.trim()
-  const text = trimmedLine.substring(2).trim() // "- " 제거
+  // "- " 또는 "* " 제거
+  const text = trimmedLine.replace(/^[-*]\s/, '').trim()
   const truncatedText = text.length > 2000 ? text.substring(0, 1997) + '...' : text
 
   if (!truncatedText) {
@@ -204,7 +221,7 @@ function processListItem(lines: string[], startIdx: number, endIdx: number, curr
 
     // 들여쓰기가 더 깊으면 하위 항목
     if (nextIndent > currentIndent) {
-      if (nextTrimmed.startsWith('- ')) {
+      if (/^[-*]\s/.test(nextTrimmed)) {
         // 현재 깊이가 최대 깊이보다 작을 때만 children 추가
         if (currentDepth < maxDepth) {
           const result = processListItem(lines, i, endIdx, nextIndent, currentDepth + 1)
@@ -214,7 +231,7 @@ function processListItem(lines: string[], startIdx: number, endIdx: number, curr
           i = result.nextIdx
         } else {
           // 최대 깊이를 초과하면 현재 레벨로 평탄화
-          const flatText = nextTrimmed.substring(2).trim()
+          const flatText = nextTrimmed.replace(/^[-*]\s/, '').trim()
           if (flatText) {
             const flatRichText = parseInlineFormatting(flatText)
             children.push({

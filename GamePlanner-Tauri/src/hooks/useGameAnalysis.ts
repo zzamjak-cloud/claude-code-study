@@ -14,7 +14,8 @@ export function useGameAnalysis() {
     message: string,
     callbacks: AnalysisCallbacks,
     chatHistory?: Message[],
-    currentAnalysis?: string
+    currentAnalysis?: string,
+    systemPrompt?: string  // 신규: 동적 시스템 프롬프트
   ) => {
     try {
       // API Key 검증 및 정리
@@ -26,8 +27,13 @@ export function useGameAnalysis() {
       // 대화 히스토리 구성
       const contents: any[] = []
 
-      // 1. 시스템 지시문을 첫 메시지로 추가
-      const systemMessage = createAnalysisSystemPrompt(currentAnalysis)
+      // 1. 시스템 지시문을 첫 메시지로 추가 (동적 프롬프트 지원)
+      // systemPrompt는 사용자 정의 템플릿 내용 (간결한 버전)
+      // createAnalysisSystemPrompt로 시스템 래퍼와 결합
+      const systemMessage = createAnalysisSystemPrompt(
+        systemPrompt || '기본 분석 템플릿을 사용합니다.',
+        currentAnalysis
+      )
 
       contents.push({
         role: 'user',

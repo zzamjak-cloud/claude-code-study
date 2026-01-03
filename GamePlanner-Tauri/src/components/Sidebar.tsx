@@ -1,8 +1,11 @@
 import { useState } from 'react'
-import { Plus, MessageSquare, Trash2, Save, Upload, FileText, Search } from 'lucide-react'
+import { Plus, MessageSquare, Trash2, Save, Upload, FileText, Search, FileEdit } from 'lucide-react'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { useAppStore, ChatSession, SessionType } from '../store/useAppStore'
+import { TemplateManagerModal } from './TemplateManagerModal'
+import { TemplateSelector } from './TemplateSelector'
+import { TemplateType } from '../types/promptTemplate'
 
 export function Sidebar() {
   const {
@@ -14,16 +17,29 @@ export function Sidebar() {
     deleteSession,
     importSession,
     setCurrentSessionType,
+    getTemplateById,
   } = useAppStore()
 
   // 삭제 확인 다이얼로그 상태
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
+  // 템플릿 관리 모달 상태
+  const [showTemplateManager, setShowTemplateManager] = useState(false)
+
+  // 템플릿 선택 모달 상태 (신규)
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false)
+
   // 현재 탭에 맞는 세션만 필터링
   const filteredSessions = sessions.filter(s => s.type === currentSessionType)
 
+  // 새 세션 생성 - 템플릿 선택 모달 표시
   const handleNewChat = () => {
-    createNewSession()
+    setShowTemplateSelector(true)
+  }
+
+  // 템플릿 선택 완료 후 세션 생성
+  const handleTemplateSelected = (templateId: string) => {
+    createNewSession(templateId)
   }
 
   const handleSelectSession = (sessionId: string) => {
@@ -160,22 +176,6 @@ export function Sidebar() {
     }
   }
 
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-
-    if (days === 0) {
-      return '오늘'
-    } else if (days === 1) {
-      return '어제'
-    } else if (days < 7) {
-      return `${days}일 전`
-    } else {
-      return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
-    }
-  }
 
   return (
     <div className="w-64 bg-muted/50 border-r border-border flex flex-col">
@@ -206,23 +206,30 @@ export function Sidebar() {
       </div>
 
       {/* 버튼 영역 */}
-      <div className="p-3 border-b border-border space-y-2">
-        <button
-          onClick={handleNewChat}
-          className="w-full flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          <span className="font-medium">
-            {currentSessionType === SessionType.PLANNING ? '새 게임 기획' : '게임 분석'}
-          </span>
-        </button>
-        <button
-          onClick={handleImportSession}
-          className="w-full flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors text-sm"
-        >
-          <Upload className="w-4 h-4" />
-          <span className="font-medium">세션 불러오기</span>
-        </button>
+      <div className="p-3 border-b border-border">
+        <div className="flex gap-2">
+          <button
+            onClick={handleNewChat}
+            className="flex-1 flex items-center justify-center p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            title={currentSessionType === SessionType.PLANNING ? '새 게임 기획' : '게임 분석'}
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleImportSession}
+            className="flex-1 flex items-center justify-center p-2 rounded-lg bg-muted hover:bg-accent transition-colors"
+            title="세션 불러오기"
+          >
+            <Upload className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setShowTemplateManager(true)}
+            className="flex-1 flex items-center justify-center p-2 rounded-lg bg-muted hover:bg-accent transition-colors"
+            title={currentSessionType === SessionType.PLANNING ? '기획 템플릿 관리' : '분석 템플릿 관리'}
+          >
+            <FileEdit className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* 채팅 목록 */}
@@ -243,20 +250,32 @@ export function Sidebar() {
                 <div
                   key={session.id}
                   onClick={() => handleSelectSession(session.id)}
-                  className={`group relative p-3 rounded-lg cursor-pointer transition-colors ${
+                  className={`group relative p-3 rounded-lg cursor-pointer transition-all ${
                     currentSessionId === session.id
-                      ? 'bg-accent'
-                      : 'hover:bg-accent/50'
+                      ? 'bg-primary/10 border-l-4 border-primary pl-2.5'
+                      : 'hover:bg-accent/50 border-l-4 border-transparent'
                   }`}
                 >
                   <div className="flex items-start gap-2">
-                    <MessageSquare className="w-4 h-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                    <MessageSquare className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
+                      currentSessionId === session.id
+                        ? 'text-primary'
+                        : 'text-muted-foreground'
+                    }`} />
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">
+                      <div className={`font-medium text-sm truncate ${
+                        currentSessionId === session.id
+                          ? 'text-primary'
+                          : ''
+                      }`}>
                         {session.title}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {formatDate(session.updatedAt)}
+                        {session.templateId ? (
+                          getTemplateById(session.templateId)?.name || '기본 템플릿'
+                        ) : (
+                          '기본 템플릿'
+                        )}
                       </div>
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -308,6 +327,21 @@ export function Sidebar() {
           </div>
         </div>
       )}
+
+      {/* 템플릿 관리 모달 */}
+      <TemplateManagerModal
+        isOpen={showTemplateManager}
+        onClose={() => setShowTemplateManager(false)}
+        templateType={currentSessionType === SessionType.PLANNING ? TemplateType.PLANNING : TemplateType.ANALYSIS}
+      />
+
+      {/* 템플릿 선택 모달 (신규) */}
+      <TemplateSelector
+        isOpen={showTemplateSelector}
+        onClose={() => setShowTemplateSelector(false)}
+        sessionType={currentSessionType}
+        onSelect={handleTemplateSelected}
+      />
     </div>
   )
 }

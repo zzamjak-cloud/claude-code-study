@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { PromptTemplate } from '../types/promptTemplate'
 
 export interface Message {
   role: 'user' | 'assistant'
@@ -24,6 +25,9 @@ export interface ChatSession {
   gameName?: string
   notionPageUrl?: string
   analysisStatus?: 'pending' | 'running' | 'completed' | 'failed'
+
+  // 템플릿 연동 (신규)
+  templateId?: string  // 이 세션에 사용된 템플릿 ID
 }
 
 interface AppState {
@@ -43,8 +47,13 @@ interface AppState {
   notionAnalysisDatabaseId: string | null  // 분석 DB
   isLoading: boolean
 
+  // 템플릿 관리 (신규)
+  templates: PromptTemplate[]
+  currentPlanningTemplateId: string | null
+  currentAnalysisTemplateId: string | null
+
   // 세션 관리
-  createNewSession: () => string
+  createNewSession: (templateId?: string) => string
   loadSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
   updateCurrentSession: () => void
@@ -70,6 +79,15 @@ interface AppState {
   createAnalysisSession: (gameName: string) => string
   updateAnalysisStatus: (sessionId: string, status: string, notionUrl?: string) => void
   convertAnalysisToPlanning: (analysisSessionId: string) => string
+
+  // 템플릿 관리 (신규)
+  addTemplate: (template: Omit<PromptTemplate, 'id' | 'createdAt' | 'updatedAt'>) => void
+  updateTemplate: (id: string, updates: Partial<PromptTemplate>) => void
+  deleteTemplate: (id: string) => void
+  setCurrentPlanningTemplate: (id: string) => void
+  setCurrentAnalysisTemplate: (id: string) => void
+  getTemplateById: (id: string) => PromptTemplate | undefined
+  getTemplatesByType: (type: string) => PromptTemplate[]
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -85,10 +103,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   notionAnalysisDatabaseId: null,
   isLoading: false,
 
+  // 템플릿 초기 상태
+  templates: [],
+  currentPlanningTemplateId: 'default-planning',
+  currentAnalysisTemplateId: 'default-analysis',
+
   // 새 세션 생성
-  createNewSession: () => {
+  createNewSession: (customTemplateId?: string) => {
     const state = get()
     console.log('🆕 새 세션 생성 시작 - 현재 세션 타입:', state.currentSessionType)
+
+    // 템플릿 ID 결정: 파라미터로 전달된 ID > 현재 선택된 템플릿 ID
+    const templateId = customTemplateId || (
+      state.currentSessionType === SessionType.PLANNING
+        ? state.currentPlanningTemplateId
+        : state.currentAnalysisTemplateId
+    )
+
     const newSession: ChatSession = {
       id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: state.currentSessionType,  // 현재 탭 타입에 따라 생성
@@ -97,12 +128,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       markdownContent: '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      templateId: templateId || undefined,  // 템플릿 ID 할당
     }
 
     console.log('✅ 새 세션 생성 완료:', {
       id: newSession.id,
       type: newSession.type,
-      title: newSession.title
+      title: newSession.title,
+      templateId: newSession.templateId
     })
 
     set((state) => ({
@@ -265,6 +298,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // 분석 세션 생성
   createAnalysisSession: (gameName: string) => {
+    const state = get()
     const newSession: ChatSession = {
       id: `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: SessionType.ANALYSIS,
@@ -275,6 +309,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       updatedAt: Date.now(),
       gameName,
       analysisStatus: 'pending',
+      templateId: state.currentAnalysisTemplateId || 'default-analysis',  // 템플릿 ID 할당
     }
 
     set((state) => ({
@@ -324,6 +359,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       markdownContent: '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      templateId: state.currentPlanningTemplateId || 'default-planning',  // 템플릿 ID 할당
     }
 
     set((state) => ({
@@ -335,5 +371,70 @@ export const useAppStore = create<AppState>((set, get) => ({
     }))
 
     return newSession.id
+  },
+
+  // ============ 템플릿 관리 메서드 (신규) ============
+
+  // 템플릿 추가
+  addTemplate: (template) => {
+    const newTemplate: PromptTemplate = {
+      ...template,
+      id: `template-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }
+    set((state) => ({
+      templates: [...state.templates, newTemplate]
+    }))
+    console.log('✅ 템플릿 추가:', newTemplate.name)
+  },
+
+  // 템플릿 수정
+  updateTemplate: (id, updates) => {
+    set((state) => ({
+      templates: state.templates.map((t) =>
+        t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t
+      )
+    }))
+    console.log('✅ 템플릿 수정:', id)
+  },
+
+  // 템플릿 삭제
+  deleteTemplate: (id) => {
+    const state = get()
+    const template = state.templates.find(t => t.id === id)
+
+    if (template?.isDefault) {
+      throw new Error('기본 템플릿은 삭제할 수 없습니다.')
+    }
+
+    set((state) => ({
+      templates: state.templates.filter((t) => t.id !== id)
+    }))
+    console.log('✅ 템플릿 삭제:', id)
+  },
+
+  // 현재 기획 템플릿 설정
+  setCurrentPlanningTemplate: (id) => {
+    set({ currentPlanningTemplateId: id })
+    console.log('✅ 현재 기획 템플릿 설정:', id)
+  },
+
+  // 현재 분석 템플릿 설정
+  setCurrentAnalysisTemplate: (id) => {
+    set({ currentAnalysisTemplateId: id })
+    console.log('✅ 현재 분석 템플릿 설정:', id)
+  },
+
+  // ID로 템플릿 가져오기
+  getTemplateById: (id) => {
+    const state = get()
+    return state.templates.find((t) => t.id === id)
+  },
+
+  // 타입별 템플릿 목록 가져오기
+  getTemplatesByType: (type) => {
+    const state = get()
+    return state.templates.filter((t) => t.type === type)
   },
 }))
