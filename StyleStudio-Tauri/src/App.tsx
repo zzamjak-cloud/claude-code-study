@@ -33,13 +33,19 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<ImageAnalysisResult | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentView, setCurrentView] = useState<'analysis' | 'generator'>('analysis');
+  const [saveProgress, setSaveProgress] = useState({
+    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
+    message: '',
+    percentage: 0,
+    estimatedSecondsLeft: 0,
+  });
 
   const { analyzeImages } = useGeminiAnalyzer();
-  const { translateBatchToKorean, translateToEnglish } = useGeminiTranslator();
+  const { translateBatchToKorean, translateBatchToEnglish, translateToEnglish, containsKorean } = useGeminiTranslator();
   const lastDropTimeRef = useRef(0);
 
   // 자동 저장 Hook
-  const { progress, triggerManualSave } = useAutoSave({
+  const { progress } = useAutoSave({
     currentSession,
     analysisResult,
     apiKey,
@@ -272,10 +278,400 @@ function App() {
   const handleCustomPromptChange = (customPrompt: string) => {
     console.log('✏️ 사용자 맞춤 프롬프트 변경:', customPrompt);
     if (analysisResult) {
-      setAnalysisResult({
+      const updated = {
         ...analysisResult,
         user_custom_prompt: customPrompt,
+      };
+      setAnalysisResult(updated);
+      // 자동 저장 제거 - 세션 저장 버튼 또는 이미지 생성 화면 이동 시에만 저장
+    }
+  };
+
+  // 번역 없이 세션 저장 (프롬프트 수정 시 사용)
+  const saveSessionWithoutTranslation = async (updatedAnalysis: ImageAnalysisResult) => {
+    if (!currentSession || !apiKey) return;
+
+    try {
+      const updatedSession: Session = {
+        ...currentSession,
+        analysis: updatedAnalysis,
+        updatedAt: new Date().toISOString(),
+        // koreanAnalysis는 그대로 유지 (번역 없이)
+      };
+
+      const updatedSessions = sessions.map((s) =>
+        s.id === currentSession.id ? updatedSession : s
+      );
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+      await saveSessions(updatedSessions);
+      console.log('✅ [프롬프트 수정] 세션 저장 완료 (번역 없이)');
+    } catch (error) {
+      console.error('❌ [프롬프트 수정] 세션 저장 오류:', error);
+    }
+  };
+
+  // 한글 캐시 업데이트 (각 카드 수정 시 사용)
+  const updateKoreanCache = (updates: Partial<KoreanAnalysisCache>) => {
+    if (!currentSession) return;
+
+    const updatedKoreanAnalysis: KoreanAnalysisCache = {
+      ...(currentSession.koreanAnalysis || {}),
+      ...updates,
+    };
+
+    const updatedSession: Session = {
+      ...currentSession,
+      koreanAnalysis: updatedKoreanAnalysis,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updatedSessions = sessions.map((s) =>
+      s.id === currentSession.id ? updatedSession : s
+    );
+    setSessions(updatedSessions);
+    setCurrentSession(updatedSession);
+    saveSessions(updatedSessions);
+    console.log('✅ [한글 캐시] 업데이트 완료');
+  };
+
+  // 변경된 내용이 있는지 확인 (영어 원본과 캐시 비교)
+  const hasChangesToTranslate = (): boolean => {
+    if (!analysisResult || !currentSession?.koreanAnalysis) {
+      return false;
+    }
+
+    // style, character, composition, negative_prompt 변경 확인
+    const oldAnalysis = currentSession.analysis;
+    
+    // style 변경 확인
+    const styleChanged = JSON.stringify(oldAnalysis.style) !== JSON.stringify(analysisResult.style);
+    
+    // character 변경 확인
+    const characterChanged = JSON.stringify(oldAnalysis.character) !== JSON.stringify(analysisResult.character);
+    
+    // composition 변경 확인
+    const compositionChanged = JSON.stringify(oldAnalysis.composition) !== JSON.stringify(analysisResult.composition);
+    
+    // negative_prompt 변경 확인
+    const negativeChanged = oldAnalysis.negative_prompt !== analysisResult.negative_prompt;
+
+    // user_custom_prompt는 변경 감지에서 제외 (세션 저장/이미지 생성 시에만 처리)
+
+    return styleChanged || characterChanged || compositionChanged || negativeChanged;
+  };
+
+  // 변경된 내용 번역 및 캐싱 갱신
+  const translateAndUpdateCache = async (onProgress?: (progress: { stage: string; message: string; percentage: number }) => void): Promise<void> => {
+    if (!analysisResult || !apiKey || !currentSession) {
+      throw new Error('분석 결과, API 키, 또는 세션이 없습니다');
+    }
+
+    console.log('🌐 [자동 번역] 변경된 내용 번역 시작...');
+
+    try {
+      // 변경된 섹션만 번역
+      const oldAnalysis = currentSession.analysis;
+      let updatedAnalysis = analysisResult; // 영어 원본 업데이트용
+      const updatedKoreanCache: KoreanAnalysisCache = {
+        ...(currentSession.koreanAnalysis || {}),
+      };
+      
+      let hasAnyChanges = false;
+      
+      // 1단계: 모든 변경된 섹션의 한글 텍스트 수집
+      const styleKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
+      const characterKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
+      const compositionKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
+      let negativeKoreanText: string | null = null;
+      // user_custom_prompt는 translateAndUpdateCache에서 제외 (세션 저장/이미지 생성 시에만 처리)
+
+      // style 변경 시 - 한글 텍스트만 수집
+      if (JSON.stringify(oldAnalysis.style) !== JSON.stringify(analysisResult.style)) {
+        hasAnyChanges = true;
+        const styleTexts = [
+          { value: analysisResult.style.art_style, field: 'art_style' },
+          { value: analysisResult.style.technique, field: 'technique' },
+          { value: analysisResult.style.color_palette, field: 'color_palette' },
+          { value: analysisResult.style.lighting, field: 'lighting' },
+          { value: analysisResult.style.mood, field: 'mood' },
+        ];
+        styleTexts.forEach((item, idx) => {
+          if (containsKorean(item.value)) {
+            styleKoreanTexts.push({ text: item.value, field: item.field, index: idx });
+          }
+        });
+      }
+      
+      // character 변경 시 - 한글 텍스트만 수집
+      if (JSON.stringify(oldAnalysis.character) !== JSON.stringify(analysisResult.character)) {
+        hasAnyChanges = true;
+        const characterTexts = [
+          { value: analysisResult.character.gender, field: 'gender' },
+          { value: analysisResult.character.age_group, field: 'age_group' },
+          { value: analysisResult.character.hair, field: 'hair' },
+          { value: analysisResult.character.eyes, field: 'eyes' },
+          { value: analysisResult.character.face, field: 'face' },
+          { value: analysisResult.character.outfit, field: 'outfit' },
+          { value: analysisResult.character.accessories, field: 'accessories' },
+          { value: analysisResult.character.body_proportions, field: 'body_proportions' },
+          { value: analysisResult.character.limb_proportions, field: 'limb_proportions' },
+          { value: analysisResult.character.torso_shape, field: 'torso_shape' },
+          { value: analysisResult.character.hand_style, field: 'hand_style' },
+        ];
+        characterTexts.forEach((item, idx) => {
+          if (containsKorean(item.value)) {
+            characterKoreanTexts.push({ text: item.value, field: item.field, index: idx });
+          }
+        });
+      }
+      
+      // composition 변경 시 - 한글 텍스트만 수집
+      if (JSON.stringify(oldAnalysis.composition) !== JSON.stringify(analysisResult.composition)) {
+        hasAnyChanges = true;
+        const compositionTexts = [
+          { value: analysisResult.composition.pose, field: 'pose' },
+          { value: analysisResult.composition.angle, field: 'angle' },
+          { value: analysisResult.composition.background, field: 'background' },
+          { value: analysisResult.composition.depth_of_field, field: 'depth_of_field' },
+        ];
+        compositionTexts.forEach((item, idx) => {
+          if (containsKorean(item.value)) {
+            compositionKoreanTexts.push({ text: item.value, field: item.field, index: idx });
+          }
+        });
+      }
+      
+      // negative_prompt 변경 시 - 한글인 경우만 수집
+      if (oldAnalysis.negative_prompt !== analysisResult.negative_prompt) {
+        hasAnyChanges = true;
+        if (containsKorean(analysisResult.negative_prompt)) {
+          negativeKoreanText = analysisResult.negative_prompt;
+        }
+      }
+      
+      // user_custom_prompt는 translateAndUpdateCache에서 제외 (세션 저장/이미지 생성 시에만 처리)
+      
+      // 2단계: 모든 한글 텍스트를 하나로 모아서 배치 번역 (한글→영어만)
+      const allKoreanTextsToTranslate: string[] = [];
+      const translationMap: Array<{ section: 'style' | 'character' | 'composition' | 'negative' | 'custom'; field?: string; index?: number; originalIndex: number }> = [];
+      
+      styleKoreanTexts.forEach((item) => {
+        allKoreanTextsToTranslate.push(item.text);
+        translationMap.push({ section: 'style', field: item.field, index: item.index, originalIndex: allKoreanTextsToTranslate.length - 1 });
       });
+      
+      characterKoreanTexts.forEach((item) => {
+        allKoreanTextsToTranslate.push(item.text);
+        translationMap.push({ section: 'character', field: item.field, index: item.index, originalIndex: allKoreanTextsToTranslate.length - 1 });
+      });
+      
+      compositionKoreanTexts.forEach((item) => {
+        allKoreanTextsToTranslate.push(item.text);
+        translationMap.push({ section: 'composition', field: item.field, index: item.index, originalIndex: allKoreanTextsToTranslate.length - 1 });
+      });
+      
+      if (negativeKoreanText) {
+        allKoreanTextsToTranslate.push(negativeKoreanText);
+        translationMap.push({ section: 'negative', originalIndex: allKoreanTextsToTranslate.length - 1 });
+      }
+      
+      // user_custom_prompt는 translateAndUpdateCache에서 제외 (세션 저장/이미지 생성 시에만 처리)
+      
+      // 3단계: 배치 번역 실행 (한글→영어만, 영어→한글 번역 제거)
+      if (allKoreanTextsToTranslate.length > 0) {
+        onProgress?.({ stage: 'translating', message: '변경된 내용 번역 중...', percentage: 10 });
+        console.log(`   - 배치 번역 시작 (한→영: ${allKoreanTextsToTranslate.length}개 텍스트)`);
+        
+        const translatedEnglish = await translateBatchToEnglish(apiKey, allKoreanTextsToTranslate);
+        
+        // 4단계: 번역 결과를 각 섹션에 적용
+        let translationIdx = 0;
+        
+        // Style 처리
+        if (styleKoreanTexts.length > 0) {
+          const styleTexts = [
+            analysisResult.style.art_style,
+            analysisResult.style.technique,
+            analysisResult.style.color_palette,
+            analysisResult.style.lighting,
+            analysisResult.style.mood,
+          ];
+          const finalEnglishTexts = [...styleTexts];
+          const finalKoreanTexts = [...styleTexts];
+          
+          styleKoreanTexts.forEach((item) => {
+            finalEnglishTexts[item.index] = translatedEnglish[translationIdx];
+            finalKoreanTexts[item.index] = item.text;
+            translationIdx++;
+          });
+          
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            style: {
+              art_style: finalEnglishTexts[0],
+              technique: finalEnglishTexts[1],
+              color_palette: finalEnglishTexts[2],
+              lighting: finalEnglishTexts[3],
+              mood: finalEnglishTexts[4],
+            },
+          };
+          updatedKoreanCache.style = {
+            art_style: finalKoreanTexts[0],
+            technique: finalKoreanTexts[1],
+            color_palette: finalKoreanTexts[2],
+            lighting: finalKoreanTexts[3],
+            mood: finalKoreanTexts[4],
+          };
+        }
+        
+        // Character 처리
+        if (characterKoreanTexts.length > 0) {
+          const characterTexts = [
+            analysisResult.character.gender,
+            analysisResult.character.age_group,
+            analysisResult.character.hair,
+            analysisResult.character.eyes,
+            analysisResult.character.face,
+            analysisResult.character.outfit,
+            analysisResult.character.accessories,
+            analysisResult.character.body_proportions,
+            analysisResult.character.limb_proportions,
+            analysisResult.character.torso_shape,
+            analysisResult.character.hand_style,
+          ];
+          const finalEnglishTexts = [...characterTexts];
+          const finalKoreanTexts = [...characterTexts];
+          
+          characterKoreanTexts.forEach((item) => {
+            finalEnglishTexts[item.index] = translatedEnglish[translationIdx];
+            finalKoreanTexts[item.index] = item.text;
+            translationIdx++;
+          });
+          
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            character: {
+              gender: finalEnglishTexts[0],
+              age_group: finalEnglishTexts[1],
+              hair: finalEnglishTexts[2],
+              eyes: finalEnglishTexts[3],
+              face: finalEnglishTexts[4],
+              outfit: finalEnglishTexts[5],
+              accessories: finalEnglishTexts[6],
+              body_proportions: finalEnglishTexts[7],
+              limb_proportions: finalEnglishTexts[8],
+              torso_shape: finalEnglishTexts[9],
+              hand_style: finalEnglishTexts[10],
+            },
+          };
+          updatedKoreanCache.character = {
+            gender: finalKoreanTexts[0],
+            age_group: finalKoreanTexts[1],
+            hair: finalKoreanTexts[2],
+            eyes: finalKoreanTexts[3],
+            face: finalKoreanTexts[4],
+            outfit: finalKoreanTexts[5],
+            accessories: finalKoreanTexts[6],
+            body_proportions: finalKoreanTexts[7],
+            limb_proportions: finalKoreanTexts[8],
+            torso_shape: finalKoreanTexts[9],
+            hand_style: finalKoreanTexts[10],
+          };
+        }
+        
+        // Composition 처리
+        if (compositionKoreanTexts.length > 0) {
+          const compositionTexts = [
+            analysisResult.composition.pose,
+            analysisResult.composition.angle,
+            analysisResult.composition.background,
+            analysisResult.composition.depth_of_field,
+          ];
+          const finalEnglishTexts = [...compositionTexts];
+          const finalKoreanTexts = [...compositionTexts];
+          
+          compositionKoreanTexts.forEach((item) => {
+            finalEnglishTexts[item.index] = translatedEnglish[translationIdx];
+            finalKoreanTexts[item.index] = item.text;
+            translationIdx++;
+          });
+          
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            composition: {
+              pose: finalEnglishTexts[0],
+              angle: finalEnglishTexts[1],
+              background: finalEnglishTexts[2],
+              depth_of_field: finalEnglishTexts[3],
+            },
+          };
+          updatedKoreanCache.composition = {
+            pose: finalKoreanTexts[0],
+            angle: finalKoreanTexts[1],
+            background: finalKoreanTexts[2],
+            depth_of_field: finalKoreanTexts[3],
+          };
+        }
+        
+        // Negative Prompt 처리 (한글인 경우만)
+        if (negativeKoreanText) {
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            negative_prompt: translatedEnglish[translationIdx],
+          };
+          updatedKoreanCache.negativePrompt = negativeKoreanText;
+          translationIdx++;
+        } else if (oldAnalysis.negative_prompt !== analysisResult.negative_prompt) {
+          // 영어인 경우 그대로 사용
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            negative_prompt: analysisResult.negative_prompt,
+          };
+          updatedKoreanCache.negativePrompt = analysisResult.negative_prompt;
+        }
+        
+        // user_custom_prompt는 translateAndUpdateCache에서 제외 (세션 저장/이미지 생성 시에만 처리)
+      } else {
+        // 한글이 없는 경우 영어 그대로 사용
+        if (oldAnalysis.negative_prompt !== analysisResult.negative_prompt) {
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            negative_prompt: analysisResult.negative_prompt,
+          };
+          updatedKoreanCache.negativePrompt = analysisResult.negative_prompt;
+        }
+        // user_custom_prompt는 translateAndUpdateCache에서 제외
+      }
+
+      // positivePrompt는 변경된 섹션이 있을 때만 재생성 (이미 영어로 생성되므로 한글 번역 불필요)
+      // 사용자가 한글로 편집한 경우에만 캐시에 저장되므로, 여기서는 영어 원본만 사용
+      if (hasAnyChanges) {
+        // positivePrompt는 buildUnifiedPrompt로 생성되므로 별도 처리 불필요
+        // 한글 캐시는 기존 캐시 유지 (사용자가 수정하지 않은 경우)
+      }
+
+      // 영어 원본 상태 업데이트
+      setAnalysisResult(updatedAnalysis);
+
+      // 세션 업데이트 (최신 updatedAnalysis 사용)
+      const updatedSession: Session = {
+        ...currentSession,
+        analysis: updatedAnalysis,
+        koreanAnalysis: updatedKoreanCache,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const updatedSessions = sessions.map((s) =>
+        s.id === currentSession.id ? updatedSession : s
+      );
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+      await saveSessions(updatedSessions);
+      console.log('✅ [자동 번역] 번역 완료 및 캐싱 갱신');
+    } catch (error) {
+      console.error('❌ [자동 번역] 번역 오류:', error);
+      throw error;
     }
   };
 
@@ -336,12 +732,51 @@ function App() {
         onProgress: (message) => {
           console.log('📊 진행 상황:', message);
         },
-        onComplete: (result) => {
+        onComplete: async (result) => {
           setAnalysisResult(result);
           setIsAnalyzing(false);
           console.log('✅ 분석 완료:', result);
 
-          if (isRefinementMode) {
+          // 신규 세션 생성 후 이미지 분석 시 영어 -> 한글 번역 및 캐싱 후 세션 저장
+          if (!isRefinementMode) {
+            console.log('🌐 [신규 분석] 번역 시작...');
+            try {
+              // 전체 분석 결과 번역
+              const koreanCache = await translateAnalysisResult(result);
+              
+              // user_custom_prompt 영어 번역 추가
+              if (result.user_custom_prompt && containsKorean(result.user_custom_prompt)) {
+                koreanCache.customPromptEnglish = await translateToEnglish(
+                  apiKey,
+                  result.user_custom_prompt
+                );
+              } else if (result.user_custom_prompt) {
+                koreanCache.customPromptEnglish = result.user_custom_prompt;
+              }
+
+              // 자동으로 세션 생성 및 저장
+              const newSession: Session = {
+                id: Date.now().toString(),
+                name: `세션 ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+                type: 'STYLE',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                referenceImages: uploadedImages,
+                analysis: result,
+                koreanAnalysis: koreanCache,
+                imageCount: uploadedImages.length,
+              };
+
+              const updatedSessions = [...sessions, newSession];
+              setSessions(updatedSessions);
+              setCurrentSession(newSession);
+              await saveSessions(updatedSessions);
+              console.log('✅ [신규 분석] 번역 완료 및 세션 저장');
+            } catch (error) {
+              console.error('❌ [신규 분석] 번역 오류:', error);
+              // 번역 실패해도 분석 결과는 표시
+            }
+          } else {
             console.log('✨ 분석 강화 완료!');
           }
         },
@@ -395,67 +830,149 @@ function App() {
       return;
     }
 
-    // 번역 캐시 확인 및 생성
-    let koreanCache: KoreanAnalysisCache | undefined;
+    setSaveProgress({
+      stage: 'idle',
+      message: '',
+      percentage: 0,
+      estimatedSecondsLeft: 0,
+    });
 
-    if (currentSession?.koreanAnalysis) {
-      // 기존 번역 캐시 재사용
-      console.log('♻️ 기존 번역 캐시 재사용');
-      koreanCache = currentSession.koreanAnalysis;
-    } else {
-      // 새로 번역 실행
-      console.log('🌐 번역 실행 중...');
-      koreanCache = await translateAnalysisResult(analysisResult);
-    }
-
-    let updatedSessions: Session[];
-    let sessionToSave: Session;
-
-    // 기존 세션 업데이트 or 새 세션 생성
-    if (currentSession) {
-      // 기존 세션 업데이트
-      console.log('🔄 기존 세션 업데이트 모드');
-      sessionToSave = {
-        ...currentSession,
-        name: sessionName,
-        type: sessionType,
-        updatedAt: new Date().toISOString(),
-        referenceImages: uploadedImages,
-        analysis: analysisResult,
-        koreanAnalysis: koreanCache,
-        imageCount: uploadedImages.length,
-      };
-
-      // 세션 목록에서 기존 세션을 찾아서 교체
-      updatedSessions = sessions.map((s) => (s.id === currentSession.id ? sessionToSave : s));
-      console.log('   - 기존 세션 업데이트됨:', sessionToSave.id);
-    } else {
-      // 새 세션 생성
-      console.log('✨ 새 세션 생성 모드');
-      sessionToSave = {
-        id: Date.now().toString(),
-        name: sessionName,
-        type: sessionType,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        referenceImages: uploadedImages,
-        analysis: analysisResult,
-        koreanAnalysis: koreanCache,
-        imageCount: uploadedImages.length,
-      };
-
-      // 세션 목록에 추가
-      updatedSessions = [...sessions, sessionToSave];
-      console.log('   - 새 세션 생성됨:', sessionToSave.id);
-    }
-
-    console.log('📦 저장할 세션:', sessionToSave);
-    setSessions(updatedSessions);
-    console.log('📋 업데이트된 세션 목록:', updatedSessions.length, '개');
-
-    // Tauri Store에 저장
     try {
+      // 변경된 내용이 있으면 번역 진행
+      let koreanCache: KoreanAnalysisCache | undefined;
+
+      if (currentSession) {
+        // 기존 세션: 변경된 내용이 있으면 번역, 없으면 기존 캐시 사용
+        if (hasChangesToTranslate()) {
+          console.log('🔄 변경된 내용이 있습니다. 번역을 진행합니다...');
+          setSaveProgress({
+            stage: 'translating',
+            message: '변경된 내용 번역 중...',
+            percentage: 0,
+            estimatedSecondsLeft: 0,
+          });
+          await translateAndUpdateCache((progress) => {
+            setSaveProgress({
+              stage: progress.stage as 'translating' | 'saving' | 'complete',
+              message: progress.message,
+              percentage: progress.percentage,
+              estimatedSecondsLeft: 0,
+            });
+          });
+          koreanCache = currentSession.koreanAnalysis;
+        } else {
+          console.log('♻️ 변경된 내용이 없습니다. 기존 캐시를 사용합니다.');
+          koreanCache = currentSession.koreanAnalysis;
+        }
+        
+        // user_custom_prompt 번역 처리 (세션 저장 시에만)
+        if (koreanCache && analysisResult.user_custom_prompt) {
+          setSaveProgress({
+            stage: 'translating',
+            message: '사용자 맞춤 프롬프트 번역 중...',
+            percentage: 85,
+            estimatedSecondsLeft: 0,
+          });
+          if (containsKorean(analysisResult.user_custom_prompt)) {
+            koreanCache.customPromptEnglish = await translateToEnglish(
+              apiKey,
+              analysisResult.user_custom_prompt
+            );
+          } else {
+            koreanCache.customPromptEnglish = analysisResult.user_custom_prompt;
+          }
+        }
+      } else {
+        // 새 세션: 전체 번역 실행
+        console.log('🌐 [새 세션] 전체 번역 실행 중...');
+        setSaveProgress({
+          stage: 'translating',
+          message: '전체 번역 중...',
+          percentage: 0,
+          estimatedSecondsLeft: 0,
+        });
+        koreanCache = await translateAnalysisResult(analysisResult);
+        
+        setSaveProgress({
+          stage: 'translating',
+          message: '사용자 맞춤 프롬프트 번역 중...',
+          percentage: 90,
+          estimatedSecondsLeft: 0,
+        });
+        
+        // user_custom_prompt 영어 번역 추가
+        if (analysisResult.user_custom_prompt && containsKorean(analysisResult.user_custom_prompt)) {
+          koreanCache.customPromptEnglish = await translateToEnglish(
+            apiKey,
+            analysisResult.user_custom_prompt
+          );
+        } else if (analysisResult.user_custom_prompt) {
+          koreanCache.customPromptEnglish = analysisResult.user_custom_prompt;
+        }
+      }
+
+      setSaveProgress({
+        stage: 'saving',
+        message: '세션 저장 중...',
+        percentage: 95,
+        estimatedSecondsLeft: 0,
+      });
+
+      let updatedSessions: Session[];
+      let sessionToSave: Session;
+
+      // 기존 세션 업데이트 or 새 세션 생성
+      if (currentSession) {
+        // 기존 세션 업데이트
+        console.log('🔄 기존 세션 업데이트 모드');
+        sessionToSave = {
+          ...currentSession,
+          name: sessionName,
+          type: sessionType,
+          updatedAt: new Date().toISOString(),
+          referenceImages: uploadedImages,
+          analysis: analysisResult,
+          koreanAnalysis: koreanCache || currentSession.koreanAnalysis,
+          imageCount: uploadedImages.length,
+        };
+
+        // 세션 목록에서 기존 세션을 찾아서 교체
+        updatedSessions = sessions.map((s) => (s.id === currentSession.id ? sessionToSave : s));
+        console.log('   - 기존 세션 업데이트됨:', sessionToSave.id);
+      } else {
+        // 새 세션 생성
+        console.log('✨ 새 세션 생성 모드');
+        sessionToSave = {
+          id: Date.now().toString(),
+          name: sessionName,
+          type: sessionType,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          referenceImages: uploadedImages,
+          analysis: analysisResult,
+          koreanAnalysis: koreanCache,
+          imageCount: uploadedImages.length,
+        };
+
+        // 세션 목록에 추가
+        updatedSessions = [...sessions, sessionToSave];
+        console.log('   - 새 세션 생성됨:', sessionToSave.id);
+      }
+
+      console.log('📦 저장할 세션:', sessionToSave);
+      setSessions(updatedSessions);
+      console.log('📋 업데이트된 세션 목록:', updatedSessions.length, '개');
+
+      // Tauri Store에 저장
       await saveSessions(updatedSessions);
+      
+      setSaveProgress({
+        stage: 'complete',
+        message: '저장 완료!',
+        percentage: 100,
+        estimatedSecondsLeft: 0,
+      });
+      
       alert(
         `세션 "${sessionName}"이(가) ${currentSession ? '업데이트' : '저장'}되었습니다!\n참조 이미지: ${uploadedImages.length}개`
       );
@@ -463,8 +980,24 @@ function App() {
 
       // 세션을 현재 세션으로 설정
       setCurrentSession(sessionToSave);
+      
+      // 2초 후 완료 메시지 숨김
+      setTimeout(() => {
+        setSaveProgress({
+          stage: 'idle',
+          message: '',
+          percentage: 0,
+          estimatedSecondsLeft: 0,
+        });
+      }, 2000);
     } catch (error) {
       console.error('❌ 세션 저장 오류:', error);
+      setSaveProgress({
+        stage: 'idle',
+        message: '',
+        percentage: 0,
+        estimatedSecondsLeft: 0,
+      });
       alert('세션 저장 실패: ' + (error as Error).message);
     }
   };
@@ -509,13 +1042,82 @@ function App() {
   const handleGenerateImage = async () => {
     console.log('🎨 이미지 생성 화면으로 전환');
 
-    // 세션이 없으면 자동으로 저장 먼저 수행
-    if (!currentSession) {
-      console.log('⚠️ 세션이 없습니다. 자동 저장을 먼저 수행합니다...');
-      await triggerManualSave();
+    if (!analysisResult) {
+      alert('분석 결과가 없습니다');
+      return;
     }
 
-    setCurrentView('generator');
+    try {
+      let koreanCache: KoreanAnalysisCache | undefined;
+      
+      // 변경된 내용이 있으면 번역 진행
+      if (currentSession && hasChangesToTranslate()) {
+        console.log('🔄 변경된 내용이 있습니다. 번역을 진행합니다...');
+        await translateAndUpdateCache();
+        koreanCache = currentSession.koreanAnalysis;
+      } else if (!currentSession) {
+        // 세션이 없으면 전체 번역 후 세션 생성
+        console.log('🌐 [새 세션] 전체 번역 실행 중...');
+        koreanCache = await translateAnalysisResult(analysisResult);
+      } else {
+        koreanCache = currentSession.koreanAnalysis;
+      }
+      
+      // user_custom_prompt 번역 처리 (이미지 생성 화면 이동 시에만)
+      if (koreanCache && analysisResult.user_custom_prompt) {
+        console.log('🌐 사용자 맞춤 프롬프트 번역 중...');
+        if (containsKorean(analysisResult.user_custom_prompt)) {
+          koreanCache.customPromptEnglish = await translateToEnglish(
+            apiKey,
+            analysisResult.user_custom_prompt
+          );
+        } else {
+          koreanCache.customPromptEnglish = analysisResult.user_custom_prompt;
+        }
+      }
+
+      // 세션 저장 또는 업데이트
+      if (!currentSession) {
+        // 새 세션 생성
+        const newSession: Session = {
+          id: Date.now().toString(),
+          name: `세션 ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
+          type: 'STYLE',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          referenceImages: uploadedImages,
+          analysis: analysisResult,
+          koreanAnalysis: koreanCache,
+          imageCount: uploadedImages.length,
+        };
+
+        const updatedSessions = [...sessions, newSession];
+        setSessions(updatedSessions);
+        setCurrentSession(newSession);
+        await saveSessions(updatedSessions);
+        console.log('✅ [이미지 생성] 번역 완료 및 세션 저장');
+      } else if (currentSession) {
+        // 기존 세션 업데이트 (user_custom_prompt 포함)
+        console.log('🔄 기존 세션 업데이트 (user_custom_prompt 포함)');
+        const updatedSession: Session = {
+          ...currentSession,
+          analysis: analysisResult,
+          koreanAnalysis: koreanCache,
+          updatedAt: new Date().toISOString(),
+        };
+        const updatedSessions = sessions.map((s) =>
+          s.id === currentSession.id ? updatedSession : s
+        );
+        setSessions(updatedSessions);
+        setCurrentSession(updatedSession);
+        await saveSessions(updatedSessions);
+      }
+
+      setCurrentView('generator');
+    } catch (error) {
+      console.error('❌ [이미지 생성] 번역/저장 오류:', error);
+      alert('번역 또는 저장 중 오류가 발생했습니다.');
+    }
   };
 
   const handleHistoryAdd = (entry: GenerationHistoryEntry) => {
@@ -675,33 +1277,45 @@ function App() {
                   if (analysisResult) {
                     const updated = { ...analysisResult, style };
                     setAnalysisResult(updated);
-                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
-                    triggerManualSave(updated);
+                    // 번역 없이 세션 저장 (통합 프롬프트에 즉시 반영)
+                    saveSessionWithoutTranslation(updated);
                   }
                 }}
                 onCharacterUpdate={(character) => {
                   if (analysisResult) {
                     const updated = { ...analysisResult, character };
                     setAnalysisResult(updated);
-                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
-                    triggerManualSave(updated);
+                    // 번역 없이 세션 저장 (통합 프롬프트에 즉시 반영)
+                    saveSessionWithoutTranslation(updated);
                   }
                 }}
                 onCompositionUpdate={(composition) => {
                   if (analysisResult) {
                     const updated = { ...analysisResult, composition };
                     setAnalysisResult(updated);
-                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
-                    triggerManualSave(updated);
+                    // 번역 없이 세션 저장 (통합 프롬프트에 즉시 반영)
+                    saveSessionWithoutTranslation(updated);
                   }
                 }}
                 onNegativePromptUpdate={(negativePrompt) => {
                   if (analysisResult) {
                     const updated = { ...analysisResult, negative_prompt: negativePrompt };
                     setAnalysisResult(updated);
-                    // 카드 저장 버튼 클릭시 번역 + 세션 자동 저장
-                    triggerManualSave(updated);
+                    // 번역 없이 세션 저장 (통합 프롬프트에 즉시 반영)
+                    saveSessionWithoutTranslation(updated);
                   }
+                }}
+                onStyleKoreanUpdate={(koreanStyle) => {
+                  updateKoreanCache({ style: koreanStyle });
+                }}
+                onCharacterKoreanUpdate={(koreanCharacter) => {
+                  updateKoreanCache({ character: koreanCharacter });
+                }}
+                onCompositionKoreanUpdate={(koreanComposition) => {
+                  updateKoreanCache({ composition: koreanComposition });
+                }}
+                onNegativePromptKoreanUpdate={(koreanNegativePrompt) => {
+                  updateKoreanCache({ negativePrompt: koreanNegativePrompt });
                 }}
               />
             ) : (
@@ -742,6 +1356,8 @@ function App() {
 
         {/* 진행 상태 표시 */}
         <ProgressIndicator {...progress} />
+        {/* 세션 저장 진행 상태 표시 */}
+        {saveProgress.stage !== 'idle' && <ProgressIndicator {...saveProgress} />}
       </div>
   );
 }

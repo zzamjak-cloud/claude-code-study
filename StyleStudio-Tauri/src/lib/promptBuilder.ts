@@ -1,7 +1,8 @@
 import { ImageAnalysisResult } from '../types/analysis';
+import { KoreanAnalysisCache } from '../types/session';
 
 /**
- * 분석 결과를 통합 프롬프트로 변환
+ * 분석 결과를 통합 프롬프트로 변환 (영어 원본 사용)
  */
 export function buildUnifiedPrompt(analysis: ImageAnalysisResult): {
   positivePrompt: string;
@@ -52,6 +53,66 @@ export function buildUnifiedPrompt(analysis: ImageAnalysisResult): {
 
   // Negative Prompt
   const negativePrompt = analysis.negative_prompt || '';
+
+  return {
+    positivePrompt,
+    negativePrompt,
+  };
+}
+
+/**
+ * 한글 캐시 정보를 사용하여 통합 프롬프트 생성 (화면 표시용)
+ */
+export function buildUnifiedPromptFromKorean(
+  _analysis: ImageAnalysisResult,
+  koreanCache: KoreanAnalysisCache
+): {
+  positivePrompt: string;
+  negativePrompt: string;
+} {
+  const parts: string[] = [];
+
+  // 1. 스타일 정보 (한글 캐시 사용)
+  if (koreanCache.style) {
+    const styleParts: string[] = [];
+
+    if (koreanCache.style.art_style) styleParts.push(koreanCache.style.art_style);
+    if (koreanCache.style.technique) styleParts.push(koreanCache.style.technique);
+    if (koreanCache.style.color_palette) styleParts.push(koreanCache.style.color_palette);
+    if (koreanCache.style.lighting) styleParts.push(koreanCache.style.lighting);
+    if (koreanCache.style.mood) styleParts.push(koreanCache.style.mood);
+
+    if (styleParts.length > 0) {
+      parts.push(styleParts.join(', '));
+    }
+  }
+
+  // 2. 캐릭터 정보 (한글 캐시 사용)
+  if (koreanCache.character) {
+    const characterParts: string[] = [];
+
+    if (koreanCache.character.gender) characterParts.push(koreanCache.character.gender);
+    if (koreanCache.character.age_group) characterParts.push(koreanCache.character.age_group);
+    if (koreanCache.character.hair) characterParts.push(koreanCache.character.hair);
+    if (koreanCache.character.eyes) characterParts.push(koreanCache.character.eyes);
+    if (koreanCache.character.face) characterParts.push(koreanCache.character.face);
+    if (koreanCache.character.outfit) characterParts.push(koreanCache.character.outfit);
+    if (koreanCache.character.accessories) characterParts.push(koreanCache.character.accessories);
+    if (koreanCache.character.body_proportions) characterParts.push(koreanCache.character.body_proportions);
+    if (koreanCache.character.limb_proportions) characterParts.push(koreanCache.character.limb_proportions);
+    if (koreanCache.character.torso_shape) characterParts.push(koreanCache.character.torso_shape);
+    if (koreanCache.character.hand_style) characterParts.push(koreanCache.character.hand_style);
+
+    if (characterParts.length > 0) {
+      parts.push(characterParts.join(', '));
+    }
+  }
+
+  // Positive Prompt 생성
+  const positivePrompt = parts.filter(Boolean).join(', ');
+
+  // Negative Prompt (한글 캐시 사용)
+  const negativePrompt = koreanCache.negativePrompt || '';
 
   return {
     positivePrompt,

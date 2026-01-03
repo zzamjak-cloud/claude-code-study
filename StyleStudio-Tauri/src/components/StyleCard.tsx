@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Palette, Edit2, Save, X, Languages } from 'lucide-react';
 import { StyleAnalysis } from '../types/analysis';
-import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
 import { useFieldEditor } from '../hooks/useFieldEditor';
 
 interface StyleCardProps {
@@ -9,14 +8,12 @@ interface StyleCardProps {
   apiKey: string;
   koreanStyle?: StyleAnalysis; // 캐시된 한국어 번역
   onUpdate?: (style: StyleAnalysis) => void;
+  onKoreanUpdate?: (koreanStyle: StyleAnalysis) => void;
 }
 
-export function StyleCard({ style, apiKey, koreanStyle: koreanStyleProp, onUpdate }: StyleCardProps) {
+export function StyleCard({ style, apiKey, koreanStyle: koreanStyleProp, onUpdate, onKoreanUpdate }: StyleCardProps) {
   // 로컬 한글 상태 (즉시 업데이트용)
   const [koreanStyleDisplay, setKoreanStyleDisplay] = useState<StyleAnalysis>(style);
-  const [isInitialTranslating, setIsInitialTranslating] = useState(false);
-
-  const { translateBatchToKorean } = useGeminiTranslator();
 
   // useFieldEditor 훅 사용
   const {
@@ -40,53 +37,29 @@ export function StyleCard({ style, apiKey, koreanStyle: koreanStyleProp, onUpdat
     onKoreanUpdate: (updated) => {
       // 한글 캐시 즉시 업데이트 (화면 반영)
       setKoreanStyleDisplay(updated);
+      // 세션의 한글 캐시도 업데이트
+      if (onKoreanUpdate) {
+        onKoreanUpdate(updated);
+      }
     },
   });
 
-  // style prop이 변경되면 로컬 상태 동기화
+  // 영어 원본이 변경되면 한글 표시도 영어 원본으로 업데이트 (번역은 나중에)
+  // 단, 사용자가 편집 중이거나 방금 저장한 경우는 제외
   useEffect(() => {
-    // 캐시된 번역이 있으면 사용
+    // 편집 중이 아니고, 캐시가 없거나 영어 원본이 변경되었으면 영어 원본 표시
+    if (!editingField) {
+      setKoreanStyleDisplay(style);
+    }
+  }, [style, editingField]);
+  
+  // 캐시가 업데이트되면 반영 (번역 버튼 클릭 시)
+  useEffect(() => {
     if (koreanStyleProp) {
       console.log('♻️ [StyleCard] 캐시된 번역 사용');
       setKoreanStyleDisplay(koreanStyleProp);
-      return;
     }
-
-    // 캐시가 없으면 번역 실행
-    const translateStyle = async () => {
-      if (!apiKey) return;
-
-      console.log('🌐 [StyleCard] 번역 실행 중...');
-      setIsInitialTranslating(true);
-      try {
-        const texts = [
-          style.art_style,
-          style.technique,
-          style.color_palette,
-          style.lighting,
-          style.mood,
-        ];
-
-        const translations = await translateBatchToKorean(apiKey, texts);
-
-        setKoreanStyleDisplay({
-          art_style: translations[0],
-          technique: translations[1],
-          color_palette: translations[2],
-          lighting: translations[3],
-          mood: translations[4],
-        });
-        console.log('✅ [StyleCard] 번역 완료');
-      } catch (error) {
-        console.error('❌ [StyleCard] 번역 오류:', error);
-        setKoreanStyleDisplay(style);
-      } finally {
-        setIsInitialTranslating(false);
-      }
-    };
-
-    translateStyle();
-  }, [style, apiKey, koreanStyleProp, translateBatchToKorean]);
+  }, [koreanStyleProp]);
 
   // Textarea 자동 높이 조정
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -191,12 +164,6 @@ export function StyleCard({ style, apiKey, koreanStyle: koreanStyleProp, onUpdat
                     <span>번역 중...</span>
                   </div>
                 )}
-              </div>
-            ) : isInitialTranslating ? (
-              // 초기 번역 중
-              <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-500 flex items-center gap-2">
-                <Languages size={14} className="animate-pulse" />
-                <span className="text-sm">번역 중...</span>
               </div>
             ) : (
               // 읽기 모드

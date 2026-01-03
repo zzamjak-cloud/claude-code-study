@@ -31,6 +31,7 @@ export interface GenerationHistoryEntry {
   timestamp: string; // ISO 8601
   prompt: string; // 사용된 프롬프트
   negativePrompt?: string; // 사용된 네거티브 프롬프트
+  additionalPrompt?: string; // 추가 포즈/동작 프롬프트 (원본 한글 또는 영어)
   imageBase64: string; // 생성된 이미지 (Base64)
   settings: GenerationSettings; // 사용된 설정
 }

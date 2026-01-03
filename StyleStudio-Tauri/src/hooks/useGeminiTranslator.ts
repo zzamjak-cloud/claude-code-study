@@ -126,6 +126,7 @@ IMPORTANT RULES:
 3. Preserve the meaning and nuance
 4. Output ONLY the English translation, no explanations
 5. If the input is already in English, return it as-is
+6. If the text contains both Korean and English, keep the English parts as-is and only translate the Korean parts
 
 Korean text to translate:
 ${koreanText}
@@ -171,6 +172,100 @@ English translation:`,
   };
 
   /**
+   * 여러 텍스트를 한 번에 영어로 번역 (API 호출 최적화)
+   */
+  const translateBatchToEnglish = async (
+    apiKey: string,
+    koreanTexts: string[]
+  ): Promise<string[]> => {
+    try {
+      if (koreanTexts.length === 0) {
+        return [];
+      }
+
+      console.log(`🌐 배치 번역 시작 (한국어→영어, ${koreanTexts.length}개 텍스트)`);
+
+      // 모든 텍스트를 하나의 프롬프트로 결합
+      const combinedText = koreanTexts
+        .map((text, idx) => `[${idx + 1}] ${text}`)
+        .join('\n');
+
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+      const requestBody = {
+        contents: [
+          {
+            parts: [
+              {
+                text: `You are a professional translator specializing in image generation prompts. Translate the following Korean texts into English for use in an AI image generation system. Keep the format exactly as shown with [number] prefix.
+
+IMPORTANT RULES:
+1. Translate each line naturally and accurately
+2. Keep technical terms and artistic terminology in English
+3. Preserve the meaning and nuance
+4. Preserve the [number] prefix for each line
+5. Output ONLY the translations, no explanations
+6. If a text is already in English, return it as-is
+7. If a text contains both Korean and English, keep the English parts as-is and only translate the Korean parts
+
+Korean texts to translate:
+${combinedText}
+
+English translations (keep [number] prefix):`,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          topK: 20,
+          topP: 0.8,
+        },
+      };
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ 배치 번역 API 오류:', response.status, errorText);
+        return koreanTexts; // 실패 시 원본 반환
+      }
+
+      const result = await response.json();
+      const translatedText = result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+
+      // 결과를 파싱하여 배열로 변환
+      const lines = translatedText.split('\n').filter((line: string) => line.trim());
+      const translations: string[] = [];
+
+      for (let i = 0; i < koreanTexts.length; i++) {
+        const linePrefix = `[${i + 1}]`;
+        const matchingLine = lines.find((line: string) => line.startsWith(linePrefix));
+
+        if (matchingLine) {
+          // [숫자] 제거하고 텍스트만 추출
+          translations.push(matchingLine.replace(linePrefix, '').trim());
+        } else {
+          // 매칭 실패 시 원본 사용
+          translations.push(koreanTexts[i]);
+        }
+      }
+
+      console.log('✅ 배치 번역 완료 (한국어→영어)');
+      return translations;
+    } catch (error) {
+      console.error('❌ 배치 번역 오류:', error);
+      return koreanTexts; // 오류 시 원본 반환
+    }
+  };
+
+  /**
    * 여러 텍스트를 한 번에 한국어로 번역 (API 호출 최적화)
    */
   const translateBatchToKorean = async (
@@ -200,9 +295,10 @@ English translation:`,
 
 IMPORTANT RULES:
 1. Translate each line naturally and fluently in Korean
-2. Keep technical terms in English if commonly used
+2. Keep technical terms in English if commonly used (e.g., "anime style", "chibi", "3D")
 3. Preserve the [number] prefix for each line
 4. Output ONLY the translations, no explanations
+5. If a text already contains Korean, keep the existing Korean parts and only translate the English parts that need translation
 
 English texts to translate:
 ${combinedText}
@@ -264,6 +360,7 @@ Korean translations (keep [number] prefix):`,
   return {
     translateToEnglish,
     translateToKorean,
+    translateBatchToEnglish,
     translateBatchToKorean,
     containsKorean,
   };

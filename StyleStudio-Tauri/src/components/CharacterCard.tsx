@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { User, Edit2, Save, X, Languages } from 'lucide-react';
 import { CharacterAnalysis } from '../types/analysis';
-import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
 import { useFieldEditor } from '../hooks/useFieldEditor';
 
 interface CharacterCardProps {
@@ -9,14 +8,12 @@ interface CharacterCardProps {
   apiKey: string;
   koreanCharacter?: CharacterAnalysis; // 캐시된 한국어 번역
   onUpdate?: (character: CharacterAnalysis) => void;
+  onKoreanUpdate?: (koreanCharacter: CharacterAnalysis) => void;
 }
 
-export function CharacterCard({ character, apiKey, koreanCharacter: koreanCharacterProp, onUpdate }: CharacterCardProps) {
+export function CharacterCard({ character, apiKey, koreanCharacter: koreanCharacterProp, onUpdate, onKoreanUpdate }: CharacterCardProps) {
   // 로컬 한글 상태 (즉시 업데이트용)
   const [koreanCharacterDisplay, setKoreanCharacterDisplay] = useState<CharacterAnalysis>(character);
-  const [isInitialTranslating, setIsInitialTranslating] = useState(false);
-
-  const { translateBatchToKorean } = useGeminiTranslator();
 
   // useFieldEditor 훅 사용
   const {
@@ -40,65 +37,29 @@ export function CharacterCard({ character, apiKey, koreanCharacter: koreanCharac
     onKoreanUpdate: (updated) => {
       // 한글 캐시 즉시 업데이트 (화면 반영)
       setKoreanCharacterDisplay(updated);
+      // 세션의 한글 캐시도 업데이트
+      if (onKoreanUpdate) {
+        onKoreanUpdate(updated);
+      }
     },
   });
 
-  // character prop이 변경되면 로컬 상태 동기화
+  // 영어 원본이 변경되면 한글 표시도 영어 원본으로 업데이트 (번역은 나중에)
+  // 단, 사용자가 편집 중이거나 방금 저장한 경우는 제외
   useEffect(() => {
-    // 캐시된 번역이 있으면 사용
+    // 편집 중이 아니고, 캐시가 없거나 영어 원본이 변경되었으면 영어 원본 표시
+    if (!editingField) {
+      setKoreanCharacterDisplay(character);
+    }
+  }, [character, editingField]);
+  
+  // 캐시가 업데이트되면 반영 (번역 버튼 클릭 시)
+  useEffect(() => {
     if (koreanCharacterProp) {
       console.log('♻️ [CharacterCard] 캐시된 번역 사용');
       setKoreanCharacterDisplay(koreanCharacterProp);
-      return;
     }
-
-    // 캐시가 없으면 번역 실행
-    const translateCharacter = async () => {
-      if (!apiKey) return;
-
-      console.log('🌐 [CharacterCard] 번역 실행 중...');
-      setIsInitialTranslating(true);
-      try {
-        const texts = [
-          character.gender,
-          character.age_group,
-          character.hair,
-          character.eyes,
-          character.face,
-          character.outfit,
-          character.accessories,
-          character.body_proportions,
-          character.limb_proportions,
-          character.torso_shape,
-          character.hand_style,
-        ];
-
-        const translations = await translateBatchToKorean(apiKey, texts);
-
-        setKoreanCharacterDisplay({
-          gender: translations[0],
-          age_group: translations[1],
-          hair: translations[2],
-          eyes: translations[3],
-          face: translations[4],
-          outfit: translations[5],
-          accessories: translations[6],
-          body_proportions: translations[7],
-          limb_proportions: translations[8],
-          torso_shape: translations[9],
-          hand_style: translations[10],
-        });
-        console.log('✅ [CharacterCard] 번역 완료');
-      } catch (error) {
-        console.error('❌ [CharacterCard] 번역 오류:', error);
-        setKoreanCharacterDisplay(character);
-      } finally {
-        setIsInitialTranslating(false);
-      }
-    };
-
-    translateCharacter();
-  }, [character, apiKey, koreanCharacterProp, translateBatchToKorean]);
+  }, [koreanCharacterProp]);
 
   // Textarea 자동 높이 조정
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -209,12 +170,6 @@ export function CharacterCard({ character, apiKey, koreanCharacter: koreanCharac
                     <span>번역 중...</span>
                   </div>
                 )}
-              </div>
-            ) : isInitialTranslating ? (
-              // 초기 번역 중
-              <div className="px-3 py-2 bg-gray-50 rounded-lg text-gray-500 flex items-center gap-2">
-                <Languages size={14} className="animate-pulse" />
-                <span className="text-sm">번역 중...</span>
               </div>
             ) : (
               // 읽기 모드

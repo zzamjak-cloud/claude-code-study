@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useGeminiTranslator } from './useGeminiTranslator';
 
 /**
  * 개별 필드 편집을 위한 커스텀 훅
@@ -29,9 +28,7 @@ export function useFieldEditor<T extends Record<string, any>>(
 ): UseFieldEditorReturn<T> {
   const [editingField, setEditingField] = useState<keyof T | null>(null);
   const [editedValue, setEditedValue] = useState('');
-  const [isTranslating, setIsTranslating] = useState(false);
-
-  const { translateToEnglish, translateToKorean, containsKorean } = useGeminiTranslator();
+  const [isTranslating] = useState(false); // 번역 없이 저장하므로 항상 false
 
   /**
    * 편집 모드 진입
@@ -46,9 +43,7 @@ export function useFieldEditor<T extends Record<string, any>>(
 
   /**
    * 필드 저장
-   * 1. 한글 감지 → 영어 번역
-   * 2. 영어 값으로 analysisData 업데이트
-   * 3. 영어 입력이었으면 한글로 번역하여 koreanData 업데이트
+   * 번역 없이 입력한 값을 그대로 저장 (영어 원본은 세션 저장 시에만 번역)
    */
   const saveField = async () => {
     if (!editingField) {
@@ -56,58 +51,36 @@ export function useFieldEditor<T extends Record<string, any>>(
       return;
     }
 
-    setIsTranslating(true);
-
     try {
-      let englishValue = editedValue.trim();
-      let koreanValue = editedValue.trim();
-      const isKoreanInput = containsKorean(editedValue);
+      const trimmedValue = editedValue.trim();
 
       console.log(`💾 [useFieldEditor] 저장 시작 (${editingField as string}):`, {
-        isKoreanInput,
-        value: editedValue,
+        value: trimmedValue,
       });
 
-      // 1. 한글 입력이면 영어로 번역
-      if (isKoreanInput) {
-        console.log('🌐 [useFieldEditor] 한글 → 영어 번역 중...');
-        englishValue = await translateToEnglish(props.apiKey, editedValue.trim());
-        console.log('✅ [useFieldEditor] 영어 번역 완료:', englishValue);
-        // 한글 값은 입력 그대로 사용
-        koreanValue = editedValue.trim();
-      } else {
-        // 2. 영어 입력이면 한글로 번역 (즉시 화면 표시용)
-        console.log('🌐 [useFieldEditor] 영어 → 한글 번역 중...');
-        koreanValue = await translateToKorean(props.apiKey, editedValue.trim());
-        console.log('✅ [useFieldEditor] 한글 번역 완료:', koreanValue);
-        // 영어 값은 입력 그대로 사용
-        englishValue = editedValue.trim();
-      }
-
-      // 3. 영어 값으로 분석 결과 업데이트
+      // 1. 입력한 값을 그대로 영어 원본에 저장 (번역 없이)
+      // 영어 원본은 세션 저장 시에만 번역됨
       const updatedAnalysis = {
         ...props.analysisData,
-        [editingField]: englishValue,
+        [editingField]: trimmedValue, // 입력한 값 그대로 저장 (번역 없이)
       };
       props.onUpdate(updatedAnalysis);
-      console.log('✅ [useFieldEditor] 영어 분석 결과 업데이트 완료');
+      console.log('✅ [useFieldEditor] 분석 결과 업데이트 완료 (번역 없이)');
 
-      // 4. 한글 캐시 업데이트 (즉시 화면 반영)
+      // 2. 한글 값은 입력한 그대로 저장 (통합 프롬프트에서 한글 캐시 사용)
       const updatedKorean = {
         ...props.koreanData,
-        [editingField]: koreanValue,
+        [editingField]: trimmedValue, // 한글 값 그대로 저장
       };
       props.onKoreanUpdate(updatedKorean);
-      console.log('✅ [useFieldEditor] 한글 캐시 업데이트 완료');
+      console.log('✅ [useFieldEditor] 한글 캐시 업데이트 (한글 값 그대로 저장)');
 
-      // 5. 편집 모드 종료
+      // 3. 편집 모드 종료
       setEditingField(null);
       setEditedValue('');
     } catch (error) {
       console.error('❌ [useFieldEditor] 저장 오류:', error);
       alert('저장 중 오류가 발생했습니다. 다시 시도해주세요.');
-    } finally {
-      setIsTranslating(false);
     }
   };
 

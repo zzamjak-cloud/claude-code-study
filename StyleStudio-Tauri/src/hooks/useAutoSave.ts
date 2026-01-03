@@ -3,7 +3,6 @@ import { ImageAnalysisResult } from '../types/analysis';
 import { Session, KoreanAnalysisCache } from '../types/session';
 import { detectChangedSections } from '../lib/analysisComparator';
 import { useGeminiTranslator } from './useGeminiTranslator';
-import { buildUnifiedPrompt } from '../lib/promptBuilder';
 
 // Props 인터페이스
 interface UseAutoSaveProps {
@@ -43,8 +42,6 @@ async function translateChangedSections(
   newAnalysis: ImageAnalysisResult,
   oldKoreanCache: KoreanAnalysisCache | undefined,
   translateBatchToKorean: (apiKey: string, texts: string[]) => Promise<string[]>,
-  translateToEnglish: (apiKey: string, text: string) => Promise<string>,
-  containsKorean: (text: string) => boolean,
   apiKey: string,
   onProgress?: (progress: TranslationProgress) => void
 ): Promise<KoreanAnalysisCache> {
@@ -64,35 +61,8 @@ async function translateChangedSections(
 
   console.log('📋 [선택적 번역] 변경된 섹션:', changedSections);
 
-  changedSections.forEach((section) => {
-    if (section === 'style') {
-      console.log('   - Style 섹션 필드 수집 중...');
-      Object.entries(newAnalysis.style).forEach(([field, value]) => {
-        fieldMap.push({ section: 'style', field, index: textsToTranslate.length });
-        textsToTranslate.push(value);
-      });
-    }
-    if (section === 'character') {
-      console.log('   - Character 섹션 필드 수집 중...');
-      Object.entries(newAnalysis.character).forEach(([field, value]) => {
-        fieldMap.push({ section: 'character', field, index: textsToTranslate.length });
-        textsToTranslate.push(value);
-      });
-    }
-    if (section === 'composition') {
-      console.log('   - Composition 섹션 필드 수집 중...');
-      Object.entries(newAnalysis.composition).forEach(([field, value]) => {
-        fieldMap.push({ section: 'composition', field, index: textsToTranslate.length });
-        textsToTranslate.push(value);
-      });
-    }
-    if (section === 'prompts') {
-      console.log('   - Prompts 섹션 필드 수집 중...');
-      // negative_prompt만 번역 (positivePrompt는 style/character/composition에서 자동 생성됨)
-      fieldMap.push({ section: 'prompts', field: 'negative', index: textsToTranslate.length });
-      textsToTranslate.push(newAnalysis.negative_prompt);
-    }
-  });
+  // style, character, composition, prompts는 통합 프롬프트의 번역 버튼을 통해 수동으로 번역하므로 자동 번역 제거
+  // 변경 감지만 하고 번역은 하지 않음
 
   // 변경된 필드가 없으면 캐시 그대로 반환
   if (textsToTranslate.length === 0) {
@@ -130,26 +100,10 @@ async function translateChangedSections(
     }
   });
 
-  // style, character, composition 중 하나라도 변경되면 positivePrompt 재생성 및 번역
-  const needsPositivePromptUpdate = changedSections.some((section) =>
-    ['style', 'character', 'composition'].includes(section)
-  );
+  // style, character, composition 변경 시 positivePrompt 재생성은 하지만 번역은 통합 프롬프트의 번역 버튼에서 처리
+  // (자동 저장에서는 번역하지 않음)
 
-  if (needsPositivePromptUpdate) {
-    console.log('🔄 [선택적 번역] positivePrompt 재생성 중...');
-    const { positivePrompt } = buildUnifiedPrompt(newAnalysis);
-    const [translatedPositive] = await translateBatchToKorean(apiKey, [positivePrompt]);
-    mergedCache.positivePrompt = translatedPositive;
-  }
-
-  // user_custom_prompt 번역 (병렬 처리 가능하지만 간단하게 순차 처리)
-  if (newAnalysis.user_custom_prompt && containsKorean(newAnalysis.user_custom_prompt)) {
-    console.log('🌐 [선택적 번역] 사용자 맞춤 프롬프트 영어 번역 중...');
-    mergedCache.customPromptEnglish = await translateToEnglish(
-      apiKey,
-      newAnalysis.user_custom_prompt
-    );
-  }
+  // user_custom_prompt 번역은 세션 저장 버튼 클릭 시에만 수행 (자동 저장에서는 제외)
 
   console.log('✅ [선택적 번역] 완료');
   return mergedCache;
@@ -168,7 +122,7 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
     estimatedSecondsLeft: 0,
   });
 
-  const { translateBatchToKorean, translateToEnglish, containsKorean } = useGeminiTranslator();
+  const { translateBatchToKorean } = useGeminiTranslator();
 
   // 수동 저장 실행 (카드 저장 버튼 클릭시 호출)
   const triggerSave = async (updatedAnalysis?: ImageAnalysisResult) => {
@@ -213,8 +167,6 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
         analysisToSave,
         props.currentSession?.koreanAnalysis,
         translateBatchToKorean,
-        translateToEnglish,
-        containsKorean,
         props.apiKey,
         (translationProgress) => {
           const percentage = (translationProgress.current / translationProgress.total) * 70; // 70%까지 번역

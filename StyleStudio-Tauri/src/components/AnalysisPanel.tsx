@@ -5,6 +5,7 @@ import { CharacterCard } from './CharacterCard';
 import { CompositionCard } from './CompositionCard';
 import { NegativePromptCard } from './NegativePromptCard';
 import { UnifiedPromptCard } from './UnifiedPromptCard';
+import { CustomPromptCard } from './CustomPromptCard';
 import { Session } from '../types/session';
 
 import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from '../types/analysis';
@@ -28,6 +29,10 @@ interface AnalysisPanelProps {
   onCharacterUpdate?: (character: CharacterAnalysis) => void;
   onCompositionUpdate?: (composition: CompositionAnalysis) => void;
   onNegativePromptUpdate?: (negativePrompt: string) => void;
+  onStyleKoreanUpdate?: (koreanStyle: StyleAnalysis) => void;
+  onCharacterKoreanUpdate?: (koreanCharacter: CharacterAnalysis) => void;
+  onCompositionKoreanUpdate?: (koreanComposition: CompositionAnalysis) => void;
+  onNegativePromptKoreanUpdate?: (koreanNegativePrompt: string) => void;
 }
 
 export function AnalysisPanel({
@@ -48,6 +53,10 @@ export function AnalysisPanel({
   onCharacterUpdate,
   onCompositionUpdate,
   onNegativePromptUpdate,
+  onStyleKoreanUpdate,
+  onCharacterKoreanUpdate,
+  onCompositionKoreanUpdate,
+  onNegativePromptKoreanUpdate,
 }: AnalysisPanelProps) {
   if (images.length === 0) {
     return null;
@@ -165,17 +174,6 @@ export function AnalysisPanel({
           <div className="space-y-4">
             {/* 액션 버튼 (상단) - 아이콘만 한 라인에 3개 */}
             <div className="flex gap-2 pb-4 border-b border-gray-200">
-              {/* 이미지 생성 버튼 */}
-              {onGenerateImage && (
-                <button
-                  onClick={onGenerateImage}
-                  className="flex-1 flex items-center justify-center p-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
-                  title="이미지 생성하기"
-                >
-                  <Wand2 size={20} />
-                </button>
-              )}
-
               {/* 분석 강화 버튼 */}
               <button
                 onClick={onAnalyze}
@@ -195,47 +193,64 @@ export function AnalysisPanel({
                   <Save size={20} />
                 </button>
               )}
+
+              {/* 이미지 생성 버튼 */}
+              {onGenerateImage && (
+                <button
+                  onClick={onGenerateImage}
+                  className="flex-1 flex items-center justify-center p-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
+                  title="이미지 생성하기"
+                >
+                  <Wand2 size={20} />
+                </button>
+              )}
             </div>
 
-            {/* 통합 프롬프트 카드 (최상단) */}
-            <UnifiedPromptCard
+            {/* 1. 사용자 맞춤 프롬프트 카드 */}
+            <CustomPromptCard
               analysis={analysisResult}
-              apiKey={apiKey}
-              koreanPositivePrompt={koreanAnalysis?.positivePrompt}
-              koreanNegativePrompt={koreanAnalysis?.negativePrompt}
               onCustomPromptChange={onCustomPromptChange}
             />
 
-            {/* 스타일 카드 */}
+            {/* 2. 스타일 카드 */}
             <StyleCard
               style={analysisResult.style}
               apiKey={apiKey}
               koreanStyle={koreanAnalysis?.style}
               onUpdate={onStyleUpdate}
+              onKoreanUpdate={onStyleKoreanUpdate}
             />
 
-            {/* 캐릭터 카드 */}
+            {/* 3. 캐릭터 카드 */}
             <CharacterCard
               character={analysisResult.character}
               apiKey={apiKey}
               koreanCharacter={koreanAnalysis?.character}
               onUpdate={onCharacterUpdate}
+              onKoreanUpdate={onCharacterKoreanUpdate}
             />
 
-            {/* 구도 카드 */}
+            {/* 4. 구도 카드 */}
             <CompositionCard
               composition={analysisResult.composition}
               apiKey={apiKey}
               koreanComposition={koreanAnalysis?.composition}
               onUpdate={onCompositionUpdate}
+              onKoreanUpdate={onCompositionKoreanUpdate}
             />
 
-            {/* 부정 프롬프트 카드 */}
+            {/* 5. 부정 프롬프트 카드 */}
             <NegativePromptCard
               negativePrompt={analysisResult.negative_prompt}
-              apiKey={apiKey}
               koreanNegativePrompt={koreanAnalysis?.negativePrompt}
               onUpdate={onNegativePromptUpdate}
+              onKoreanUpdate={onNegativePromptKoreanUpdate}
+            />
+
+            {/* 6. 통합 프롬프트 카드 (최하단) */}
+            <UnifiedPromptCard
+              analysis={analysisResult}
+              koreanAnalysis={koreanAnalysis}
             />
           </div>
         )}

@@ -23,7 +23,7 @@ export function ImageGeneratorPanel({
   analysis,
   referenceImages,
   sessionType,
-  customPromptEnglish,
+  customPromptEnglish: _customPromptEnglish, // 사용하지 않음 - 항상 최신 값 번역
   generationHistory = [],
   onHistoryAdd,
   onHistoryDelete,
@@ -66,20 +66,31 @@ export function ImageGeneratorPanel({
       setIsTranslating(true);
       setProgressMessage('프롬프트를 영어로 변환 중...');
 
-      // 사용자 맞춤 프롬프트: 캐시가 있으면 사용, 없으면 번역
+      // 사용자 맞춤 프롬프트: 항상 최신 값 확인 후 번역 (캐시 무시)
       let translatedUserCustomPrompt = '';
-      if (customPromptEnglish) {
-        console.log('♻️ 캐시된 사용자 맞춤 프롬프트 사용');
-        translatedUserCustomPrompt = customPromptEnglish;
-      } else if (analysis.user_custom_prompt) {
-        console.log('🌐 사용자 맞춤 프롬프트 번역 중...');
-        translatedUserCustomPrompt = await translateToEnglish(apiKey, analysis.user_custom_prompt);
+      if (analysis.user_custom_prompt) {
+        // 한글이 포함되어 있으면 번역, 영어면 그대로 사용
+        if (containsKorean(analysis.user_custom_prompt)) {
+          console.log('🌐 사용자 맞춤 프롬프트 번역 중...');
+          translatedUserCustomPrompt = await translateToEnglish(apiKey, analysis.user_custom_prompt);
+        } else {
+          console.log('♻️ 사용자 맞춤 프롬프트는 이미 영어입니다');
+          translatedUserCustomPrompt = analysis.user_custom_prompt;
+        }
       }
 
       // 추가 프롬프트: 항상 번역 (매번 새로 입력되는 값)
-      const translatedAdditionalPrompt = additionalPrompt.trim()
-        ? await translateToEnglish(apiKey, additionalPrompt.trim())
-        : '';
+      let translatedAdditionalPrompt = '';
+      if (additionalPrompt.trim()) {
+        // 한글이 포함되어 있으면 번역, 영어면 그대로 사용
+        if (containsKorean(additionalPrompt.trim())) {
+          console.log('🌐 추가 프롬프트 번역 중...');
+          translatedAdditionalPrompt = await translateToEnglish(apiKey, additionalPrompt.trim());
+        } else {
+          console.log('♻️ 추가 프롬프트는 이미 영어입니다');
+          translatedAdditionalPrompt = additionalPrompt.trim();
+        }
+      }
 
       setIsTranslating(false);
       console.log('✅ 번역 완료');
@@ -150,6 +161,7 @@ export function ImageGeneratorPanel({
                 timestamp: new Date().toISOString(),
                 prompt: finalPrompt,
                 negativePrompt: editableNegativePrompt || negativePrompt,
+                additionalPrompt: additionalPrompt.trim() || undefined, // 추가 포즈/동작 프롬프트 (원본)
                 imageBase64: dataUrl,
                 settings: {
                   aspectRatio: aspectRatio,
@@ -242,6 +254,11 @@ export function ImageGeneratorPanel({
     // Negative Prompt 복원
     if (entry.negativePrompt) {
       setEditableNegativePrompt(entry.negativePrompt);
+    }
+
+    // 추가 포즈/동작 프롬프트 복원
+    if (entry.additionalPrompt) {
+      setAdditionalPrompt(entry.additionalPrompt);
     }
 
     // 생성된 이미지 표시

@@ -76,14 +76,7 @@ export function detectChangedSections(
     changed.push('composition');
   }
 
-  // Prompts 비교 (negative_prompt와 user_custom_prompt)
-  if (
-    oldAnalysis.negative_prompt !== newAnalysis.negative_prompt ||
-    oldAnalysis.user_custom_prompt !== newAnalysis.user_custom_prompt
-  ) {
-    console.log('💬 [변경 감지] Prompts 변경됨');
-    changed.push('prompts');
-  }
+  // Prompts는 번역 버튼을 통해 수동으로 번역하므로 변경 감지 제거
 
   // 변경 사항 요약 로그
   if (changed.length === 0) {
