@@ -266,6 +266,36 @@ function processListItem(lines: string[], startIdx: number, endIdx: number, curr
 }
 
 /**
+ * URL 유효성 검증
+ */
+function isValidUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false
+  }
+
+  const trimmedUrl = url.trim()
+  
+  // 빈 문자열 체크
+  if (trimmedUrl.length === 0) {
+    return false
+  }
+
+  // 기본 URL 형식 체크 (http:// 또는 https://로 시작)
+  if (!/^https?:\/\//i.test(trimmedUrl)) {
+    return false
+  }
+
+  // URL 생성자로 유효성 검증
+  try {
+    const urlObj = new URL(trimmedUrl)
+    // 호스트명이 있는지 확인
+    return urlObj.hostname.length > 0
+  } catch {
+    return false
+  }
+}
+
+/**
  * 인라인 서식 파싱 (굵게, 링크 등)
  */
 function parseInlineFormatting(text: string): NotionRichText[] {
@@ -299,13 +329,25 @@ function parseInlineFormatting(text: string): NotionRichText[] {
     }
     // [링크 텍스트](URL)인 경우
     else if (match[4] && match[5]) {
-      richText.push({
-        type: 'text',
-        text: {
-          content: match[4],
-          link: { url: match[5] }
-        },
-      })
+      const url = match[5].trim()
+      
+      // URL 유효성 검증
+      if (isValidUrl(url)) {
+        richText.push({
+          type: 'text',
+          text: {
+            content: match[4],
+            link: { url: url }
+          },
+        })
+      } else {
+        // 유효하지 않은 URL은 일반 텍스트로 처리
+        console.warn('⚠️ 유효하지 않은 URL 감지, 일반 텍스트로 처리:', url)
+        richText.push({
+          type: 'text',
+          text: { content: `[${match[4]}](${url})` },
+        })
+      }
     }
 
     lastIndex = match.index + match[0].length

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, MessageSquare, Trash2, Save, Upload, FileText, Search, FileEdit } from 'lucide-react'
+import { Plus, MessageSquare, Trash2, Save, Upload, FileText, FileEdit, Search } from 'lucide-react'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { useAppStore, ChatSession, SessionType } from '../store/useAppStore'
@@ -30,7 +30,9 @@ export function Sidebar() {
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
 
   // 현재 탭에 맞는 세션만 필터링
-  const filteredSessions = sessions.filter(s => s.type === currentSessionType)
+  const filteredSessions = sessions
+    .filter(s => s.type === currentSessionType)
+    .sort((a, b) => b.updatedAt - a.updatedAt)
 
   // 새 세션 생성 - 템플릿 선택 모달 표시
   const handleNewChat = () => {
@@ -244,9 +246,7 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="space-y-1">
-            {filteredSessions
-              .sort((a, b) => b.updatedAt - a.updatedAt)
-              .map((session) => (
+            {filteredSessions.map((session) => (
                 <div
                   key={session.id}
                   onClick={() => handleSelectSession(session.id)}

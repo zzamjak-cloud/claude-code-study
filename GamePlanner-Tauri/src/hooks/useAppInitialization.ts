@@ -81,6 +81,9 @@ export function useAppInitialization(options: UseAppInitializationOptions = {}) 
           useAppStore.setState({ currentAnalysisTemplateId: settings.currentAnalysisTemplateId })
         }
 
+        // 레퍼런스는 이제 세션 내부에 저장되므로 별도 로드 불필요
+        console.log('📚 레퍼런스는 세션별로 관리됩니다.')
+
         // 설정 마이그레이션
         const migratedSettings = migrateSettings(settings)
 

@@ -32,6 +32,12 @@ export interface SessionSlice {
   createAnalysisSession: (gameName: string) => string
   updateAnalysisStatus: (sessionId: string, status: string, notionUrl?: string) => void
   convertAnalysisToPlanning: (analysisSessionId: string) => string
+
+  // 버전 관리 (Phase 1)
+  createVersion: (sessionId: string, description?: string) => string
+  restoreVersion: (sessionId: string, versionId: string) => void
+  getVersions: (sessionId: string) => import('../../types/version').DocumentVersion[]
+  compareVersions: (sessionId: string, versionId1: string, versionId2: string) => import('../../types/version').VersionDiff | null
 }
 
 export const createSessionSlice: StateCreator<
@@ -291,6 +297,205 @@ export const createSessionSlice: StateCreator<
     }))
 
     return newSession.id
+  },
+
+  // 버전 생성
+  createVersion: (sessionId: string, description?: string) => {
+    const state = get()
+    const session = state.sessions.find(s => s.id === sessionId)
+    if (!session) {
+      throw new Error('세션을 찾을 수 없습니다.')
+    }
+
+    const versions = session.versions || []
+    const currentVersionNumber = session.currentVersionNumber || 0
+    const newVersionNumber = currentVersionNumber + 1
+
+    const newVersion: import('../../types/version').DocumentVersion = {
+      id: `version-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      versionNumber: newVersionNumber,
+      markdownContent: session.markdownContent,
+      messages: [...session.messages],
+      createdAt: Date.now(),
+      createdBy: 'user',
+      description,
+    }
+
+    set((state) => ({
+      sessions: state.sessions.map(s => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            versions: [...versions, newVersion],
+            currentVersionNumber: newVersionNumber,
+          }
+        }
+        return s
+      }),
+    }))
+
+    console.log('📸 버전 생성:', {
+      sessionId,
+      versionNumber: newVersionNumber,
+      description,
+    })
+
+    return newVersion.id
+  },
+
+  // 버전 복원
+  restoreVersion: (sessionId: string, versionId: string) => {
+    const state = get()
+    const session = state.sessions.find(s => s.id === sessionId)
+    if (!session || !session.versions) {
+      throw new Error('세션 또는 버전을 찾을 수 없습니다.')
+    }
+
+    const version = session.versions.find(v => v.id === versionId)
+    if (!version) {
+      throw new Error('버전을 찾을 수 없습니다.')
+    }
+
+    // 현재 상태를 새 버전으로 저장 (복원 전 백업)
+    const currentVersionNumber = session.currentVersionNumber || 0
+    const backupVersion: import('../../types/version').DocumentVersion = {
+      id: `version-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      versionNumber: currentVersionNumber,
+      markdownContent: session.markdownContent,
+      messages: [...session.messages],
+      createdAt: Date.now(),
+      createdBy: 'user',
+      description: '복원 전 자동 백업',
+    }
+
+    set((state) => {
+      const updatedSessions = state.sessions.map(s => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            markdownContent: version.markdownContent,
+            messages: [...version.messages],
+            versions: [...(s.versions || []), backupVersion],
+            updatedAt: Date.now(),
+          }
+        }
+        return s
+      })
+
+      // 현재 세션이면 상태도 업데이트
+      if (state.currentSessionId === sessionId) {
+        return {
+          sessions: updatedSessions,
+          messages: [...version.messages],
+          markdownContent: version.markdownContent,
+        }
+      }
+
+      return { sessions: updatedSessions }
+    })
+
+    console.log('🔄 버전 복원:', {
+      sessionId,
+      versionId,
+      versionNumber: version.versionNumber,
+    })
+  },
+
+  // 버전 목록 가져오기
+  getVersions: (sessionId: string) => {
+    const state = get()
+    const session = state.sessions.find(s => s.id === sessionId)
+    return session?.versions || []
+  },
+
+  // 버전 비교
+  compareVersions: (sessionId: string, versionId1: string, versionId2: string) => {
+    const state = get()
+    const session = state.sessions.find(s => s.id === sessionId)
+    if (!session || !session.versions) {
+      return null
+    }
+
+    const version1 = session.versions.find(v => v.id === versionId1)
+    const version2 = session.versions.find(v => v.id === versionId2)
+
+    if (!version1 || !version2) {
+      return null
+    }
+
+    // 간단한 텍스트 비교 (실제로는 더 정교한 diff 알고리즘 사용 가능)
+    const content1 = version1.markdownContent
+    const content2 = version2.markdownContent
+
+    // 섹션 추출 (간단한 구현)
+    const extractSections = (content: string) => {
+      const sections: string[] = []
+      const lines = content.split('\n')
+      let currentSection = ''
+      for (const line of lines) {
+        if (line.startsWith('# ')) {
+          if (currentSection) sections.push(currentSection.trim())
+          currentSection = line + '\n'
+        } else {
+          currentSection += line + '\n'
+        }
+      }
+      if (currentSection) sections.push(currentSection.trim())
+      return sections
+    }
+
+    const sections1 = extractSections(content1)
+    const sections2 = extractSections(content2)
+
+    const added: string[] = []
+    const removed: string[] = []
+    const modified: Array<{ section: string; before: string; after: string }> = []
+
+    // 간단한 비교 로직
+    const sectionMap1 = new Map<string, string>()
+    const sectionMap2 = new Map<string, string>()
+
+    sections1.forEach(section => {
+      const title = section.split('\n')[0] || ''
+      sectionMap1.set(title, section)
+    })
+
+    sections2.forEach(section => {
+      const title = section.split('\n')[0] || ''
+      sectionMap2.set(title, section)
+    })
+
+    // 추가된 섹션
+    sectionMap2.forEach((content, title) => {
+      if (!sectionMap1.has(title)) {
+        added.push(title)
+      }
+    })
+
+    // 삭제된 섹션
+    sectionMap1.forEach((content, title) => {
+      if (!sectionMap2.has(title)) {
+        removed.push(title)
+      }
+    })
+
+    // 수정된 섹션
+    sectionMap1.forEach((content1, title) => {
+      const content2 = sectionMap2.get(title)
+      if (content2 && content1 !== content2) {
+        modified.push({
+          section: title,
+          before: content1,
+          after: content2,
+        })
+      }
+    })
+
+    return {
+      added,
+      removed,
+      modified,
+    }
   },
 })
 

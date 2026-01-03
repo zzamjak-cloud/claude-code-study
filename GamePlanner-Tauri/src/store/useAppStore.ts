@@ -5,6 +5,7 @@ import { createSessionSlice, SessionSlice } from './slices/sessionSlice'
 import { createTemplateSlice, TemplateSlice } from './slices/templateSlice'
 import { createSettingsSlice, SettingsSlice } from './slices/settingsSlice'
 import { createUiSlice, UiSlice } from './slices/uiSlice'
+import { createChecklistSlice, ChecklistSlice } from './slices/checklistSlice'
 
 // 공통 타입 export
 export interface Message {
@@ -33,10 +34,17 @@ export interface ChatSession {
 
   // 템플릿 연동
   templateId?: string
+
+  // 버전 관리 (Phase 1)
+  versions?: import('../types/version').DocumentVersion[]
+  currentVersionNumber?: number
+
+  // 체크리스트 및 검증 (Phase 1)
+  validation?: import('../types/checklist').DocumentValidation
 }
 
 // 통합된 App State 타입
-export type AppState = SessionSlice & TemplateSlice & SettingsSlice & UiSlice
+export type AppState = SessionSlice & TemplateSlice & SettingsSlice & UiSlice & ChecklistSlice
 
 // 스토어 생성
 export const useAppStore = create<AppState>()((...a) => ({
@@ -44,4 +52,5 @@ export const useAppStore = create<AppState>()((...a) => ({
   ...createTemplateSlice(...a),
   ...createSettingsSlice(...a),
   ...createUiSlice(...a),
+  ...createChecklistSlice(...a),
 }))

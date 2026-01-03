@@ -118,7 +118,7 @@ export function useMessageHandler() {
             setMarkdownContent(markdown)
             callbacks.onMarkdownUpdate?.(markdown)
           },
-          onComplete: (finalChatText) => {
+          onComplete: async (finalChatText) => {
             updateAnalysisStatus(currentSession.id, 'completed')
             if (finalChatText.trim()) {
               addMessage({ role: 'assistant', content: finalChatText })
