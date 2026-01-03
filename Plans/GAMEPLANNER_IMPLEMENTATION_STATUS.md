@@ -1,7 +1,7 @@
 # Game Planner - 구현 현황 문서
 
 > **최종 업데이트**: 2025-01-27
-> **구현 완료**: Phase 1, Phase 2, Phase 3, Phase 3.5 (템플릿 시스템 고도화)
+> **구현 완료**: Phase 1, Phase 2, Phase 3, Phase 3.5 (템플릿 시스템 고도화), Phase 3.6 (파일 최적화 및 안정성 강화)
 > **다음 단계**: Phase 4 - 고급 기능 및 최적화
 
 ---
@@ -14,7 +14,8 @@
 4. [Phase 1 구현 내용](#phase-1-구현-내용)
 5. [Phase 2 구현 내용](#phase-2-구현-내용)
 6. [Phase 3 구현 내용](#phase-3-구현-내용)
-7. [핵심 컴포넌트](#핵심-컴포넌트)
+7. [Phase 3.6: 파일 최적화 및 안정성 강화](#phase-36-파일-최적화-및-안정성-강화)
+8. [핵심 컴포넌트](#핵심-컴포넌트)
 8. [데이터 구조](#데이터-구조)
 9. [프롬프트 엔지니어링](#프롬프트-엔지니어링)
 10. [다음 단계](#다음-단계)
@@ -339,20 +340,27 @@ export interface PromptTemplate {
 
 ### ✅ 3-2. 세션 자동 저장
 
-**구현 완료** - `src/App.tsx`, `src/lib/store.ts`
+**구현 완료** - `src/hooks/useAutoSave.ts`, `src/lib/store.ts`
 
 #### 자동 저장 메커니즘
 
 1. **디바운스 저장**
    - 세션 변경 시 500ms 후 자동 저장
    - 불필요한 저장 방지
+   - `useAutoSave` 훅으로 자동화
 
-2. **설정 보존**
+2. **즉시 저장 시스템** (Phase 3.6)
+   - 중요한 변화 지점마다 즉시 저장
+   - 버전 저장/복원, 검증 실행, 레퍼런스 파일 변경, 채팅 완료 시
+   - `saveSessionImmediately()` 유틸리티 함수 사용
+
+3. **설정 보존**
    - 세션 저장 시 API Key 등 설정 보존
    - 저장 후 검증 로직
 
-3. **세션 마이그레이션**
+4. **세션 마이그레이션**
    - 기존 세션의 `type`, `templateId` 자동 마이그레이션
+   - `referenceFiles` 필드 자동 추가 (v3 마이그레이션)
    - 하위 호환성 유지
 
 ### ✅ 3-3. Notion 연동
@@ -408,6 +416,61 @@ export interface PromptTemplate {
    - 자동 스크롤 (새 내용 추가 시)
    - 수동 스크롤 가능
 
+4. **탭 인터페이스**
+   - 미리보기 / 버전 / 검증 / 레퍼런스 탭
+   - 분석 세션에서는 레퍼런스 탭 숨김 (무의미한 기능)
+   - 각 탭별 전용 컴포넌트 렌더링
+
+### ✅ 3-5. 버전 관리 시스템
+
+**구현 완료** - `src/components/VersionHistory.tsx`, `src/store/slices/sessionSlice.ts`
+
+#### 주요 기능
+
+1. **버전 스냅샷 저장**
+   - 현재 기획서 상태를 버전으로 저장
+   - 버전별 설명 추가 가능
+   - 자동 타임스탬프 및 버전 번호 관리
+
+2. **버전 복원**
+   - 이전 버전으로 복원 가능
+   - 복원 전 현재 버전 자동 백업
+   - 복원 후 즉시 세션 저장
+
+3. **버전 비교**
+   - 두 버전 간 차이점 비교
+   - 변경된 내용 하이라이트
+
+4. **버전 히스토리**
+   - 모든 버전 목록 표시
+   - 생성 시간 및 설명 표시
+   - 버전별 상세 정보 확인
+
+### ✅ 3-6. 문서 검증 시스템
+
+**구현 완료** - `src/components/ChecklistPanel.tsx`, `src/store/slices/checklistSlice.ts`
+
+#### 주요 기능
+
+1. **체크리스트 기반 검증**
+   - 시장 분석, 게임 디자인, 수익화, 밸런싱 등 카테고리별 검증
+   - 각 항목별 완성도 체크
+   - AI 자동 검증 지원
+
+2. **검증 결과 표시**
+   - 카테고리별 점수 표시
+   - 전체 완성도 점수 계산
+   - 개선이 필요한 항목 하이라이트
+
+3. **도움말 시스템**
+   - 검증 기능 상세 설명 팝업
+   - 검증 항목 및 방법 안내
+   - 점수 기준 및 팁 제공
+
+4. **수동 체크리스트 관리**
+   - 사용자가 직접 항목 체크/해제 가능
+   - 변경 시 즉시 세션 저장
+
 ---
 
 ## 핵심 컴포넌트
@@ -450,15 +513,19 @@ const [currentSessionType, setCurrentSessionType] = useState<SessionType>(Sessio
 - 대화 히스토리 표시
 - 스트리밍 응답 실시간 표시
 - 로딩 상태 표시
+- 파일 첨부 기능 제거 (레퍼런스 탭으로 통합)
 
 ### 4. MarkdownPreview (마크다운 프리뷰)
 
-**역할**: 기획서/분석 보고서 실시간 렌더링
+**역할**: 기획서/분석 보고서 실시간 렌더링 및 관리
 
 **주요 기능**:
 - 마크다운 실시간 렌더링
 - 스크롤 관리
 - 스타일링 (Typography)
+- 탭 인터페이스 (미리보기 / 버전 / 검증 / 레퍼런스)
+- 복사 및 다운로드 기능
+- Notion 저장 기능
 
 ### 5. SettingsModal (설정 모달)
 
@@ -488,6 +555,36 @@ const [currentSessionType, setCurrentSessionType] = useState<SessionType>(Sessio
 - 템플릿 미리보기
 - 템플릿 선택 및 세션 생성
 
+### 8. VersionHistory (버전 관리)
+
+**역할**: 문서 버전 히스토리 관리
+
+**주요 기능**:
+- 버전 스냅샷 저장
+- 버전 복원
+- 버전 비교
+- 버전 목록 표시
+
+### 9. ChecklistPanel (검증 패널)
+
+**역할**: 기획서 검증 및 체크리스트 관리
+
+**주요 기능**:
+- AI 기반 문서 검증
+- 체크리스트 항목 관리
+- 검증 결과 표시
+- 도움말 시스템
+
+### 10. ReferenceManager (레퍼런스 파일 관리)
+
+**역할**: 참조 파일 등록 및 관리
+
+**주요 기능**:
+- 파일 등록 및 삭제
+- 파일 요약 생성 및 보기
+- 파일 정보 표시
+- 도움말 시스템
+
 ---
 
 ## 데이터 구조
@@ -511,6 +608,46 @@ export interface ChatSession {
   
   // 템플릿 연동
   templateId?: string             // 사용된 템플릿 ID
+  
+  // 버전 관리 (Phase 1)
+  versions?: DocumentVersion[]    // 문서 버전 히스토리
+  currentVersionNumber?: number   // 현재 버전 번호
+  
+  // 레퍼런스 파일 (Phase 3.6)
+  referenceFiles?: ReferenceFile[] // 참조 파일 목록 (기획 세션 전용)
+}
+```
+
+### ReferenceFile
+
+```typescript
+export interface ReferenceFile {
+  id: string                      // UUID
+  fileName: string                // 파일명
+  filePath: string                // 파일 경로
+  fileType: string                // 파일 타입 (pdf, xlsx, csv, md, txt 등)
+  content: string                 // 파싱된 텍스트 내용
+  summary?: string                // 파일 내용 요약 (비용 최적화용)
+  metadata?: {
+    pageCount?: number            // PDF 페이지 수
+    sheetCount?: number           // Excel 시트 수
+  }
+  createdAt: number               // 생성 시간
+  updatedAt: number               // 수정 시간
+}
+```
+
+### DocumentVersion
+
+```typescript
+export interface DocumentVersion {
+  id: string                      // UUID
+  versionNumber: number           // 버전 번호
+  markdownContent: string         // 해당 버전의 기획서 내용
+  messages: Message[]             // 해당 버전의 대화 히스토리
+  createdAt: number               // 생성 시간
+  createdBy: string               // 생성자 ('user' | 'system')
+  description?: string            // 버전 설명
 }
 ```
 
@@ -717,51 +854,151 @@ export interface PromptTemplate {
 
 ---
 
+## Phase 3.6: 파일 최적화 및 안정성 강화
+
+### ✅ 3.6-1. 레퍼런스 파일 관리 시스템
+
+**구현 완료** - `src/components/ReferenceManager.tsx`, `src/types/referenceFile.ts`
+
+#### 주요 기능
+
+1. **파일 등록 및 관리**
+   - PDF, Excel, CSV, Markdown, Text 파일 지원
+   - Google Spreadsheet URL 지원
+   - 세션별 레퍼런스 파일 관리
+   - 파일 삭제 (확인 다이얼로그 포함)
+
+2. **파일 요약 생성**
+   - AI 기반 자동 요약 생성 (1000자 이상 파일)
+   - 간단한 텍스트 기반 요약 (AI 없이)
+   - 요약 캐싱 (`ReferenceFile.summary` 필드)
+   - 요약 보기 모달 (파일 정보, 요약, 전체 내용)
+
+3. **도움말 시스템**
+   - 레퍼런스 파일 역할 및 사용법 설명
+   - 지원 파일 형식 안내
+   - 활용 팁 및 주의사항 제공
+
+4. **세션별 관리**
+   - 기획 세션에서만 레퍼런스 탭 표시
+   - 분석 세션에서는 레퍼런스 탭 숨김
+   - 각 세션별 독립적인 파일 관리
+
+### ✅ 3.6-2. 파일 최적화 시스템
+
+**구현 완료** - `src/lib/utils/fileOptimization.ts`
+
+#### 비용 최적화 전략
+
+1. **관련 파일 필터링**
+   - 사용자 메시지 키워드 추출
+   - 파일명, 요약, 내용 기반 관련성 점수 계산
+   - 관련성 높은 파일만 선택 (최대 3개)
+   - 점수 기반 정렬
+
+2. **파일 크기 제한**
+   - 최대 파일 크기: 10만자 (약 25,000 토큰)
+   - 파일 등록 시 크기 검증
+   - 초과 시 자동 잘라내기 (문장 단위)
+
+3. **스마트 파일 포함**
+   - 파일이 크면(>10만자): 요약만 사용
+   - 파일이 중간 크기면(5천~10만자): 요약 + 일부 내용
+   - 파일이 작으면(<5천자): 전체 내용 사용
+
+4. **요약 시스템**
+   - AI 요약: 500자 이내로 핵심 내용 요약
+   - 간단한 요약: 첫/마지막 문단 기반
+   - 요약 캐싱으로 반복 요약 방지
+
+#### 최적화 효과
+
+- **비용 절감**: 70-85% 예상 절감
+- **관련 파일만 포함**: 불필요한 토큰 사용 방지
+- **요약 우선 사용**: 대용량 파일도 효율적 처리
+
+### ✅ 3.6-3. 즉시 저장 시스템
+
+**구현 완료** - `src/lib/utils/sessionSave.ts`
+
+#### 즉시 저장 지점
+
+1. **버전 관리**
+   - 버전 저장 시 즉시 저장
+   - 버전 복원 시 즉시 저장
+
+2. **검증 시스템**
+   - 검증 실행 완료 시 즉시 저장
+   - 체크리스트 항목 토글 시 즉시 저장
+
+3. **레퍼런스 파일**
+   - 파일 등록 시 즉시 저장
+   - 파일 삭제 시 즉시 저장
+
+4. **채팅 및 내용 생성**
+   - 마크다운 업데이트 시 실시간 저장 (비동기)
+   - 채팅 완료 시 즉시 저장
+   - 기획 세션 및 분석 세션 모두 적용
+
+#### 안정성 개선
+
+- **이중 보호**: 즉시 저장 + 자동 저장(디바운스)
+- **데이터 손실 방지**: 중요한 변화 지점마다 즉시 저장
+- **에러 처리**: 저장 실패 시에도 앱 동작 유지
+
+### ✅ 3.6-4. UI/UX 개선
+
+**구현 완료** - `src/components/ChatPanel.tsx`, `src/components/MarkdownPreview.tsx`
+
+1. **채팅 영역 파일 첨부 제거**
+   - 채팅 영역에서 파일 첨부 기능 완전 제거
+   - 레퍼런스 탭을 통해서만 파일 등록
+   - UI 단순화 및 혼란 방지
+
+2. **조건부 레퍼런스 탭**
+   - 기획 세션에서만 레퍼런스 탭 표시
+   - 분석 세션에서는 레퍼런스 탭 숨김
+   - 세션 타입별 적절한 기능만 제공
+
+3. **레퍼런스 파일 요약 보기**
+   - 각 파일 항목에 요약 보기 아이콘 추가
+   - 모달로 파일 정보, 요약, 전체 내용 확인
+   - 요약이 없는 경우 안내 메시지 표시
+
+---
+
 ## 다음 단계
 
 ### Phase 4: 고급 기능 및 최적화
 
-#### 4-1. 세션 검색 기능
-
-**추가 필요**:
-- 사이드바에 검색 입력창
-- 세션 제목/내용 검색
-- 실시간 필터링
-
-#### 4-2. 세션 통계 및 분석
-
-**추가 필요**:
-- 세션별 메시지 수 통계
-- 작성된 기획서/분석 보고서 개수
-- 가장 많이 사용된 템플릿
-
-#### 4-3. 템플릿 공유 기능
-
-**추가 필요**:
-- 템플릿 내보내기/가져오기
-- 템플릿 마켓플레이스 (선택)
-- 템플릿 버전 관리
-
-#### 4-4. 고급 편집 기능
+#### 4-1. 고급 편집 기능
 
 **추가 필요**:
 - 마크다운 에디터 (직접 편집)
 - 이미지 삽입 지원
 - 표 편집기
 
-#### 4-5. 협업 기능
+#### 4-2. 템플릿 공유 기능
+
+**추가 필요**:
+- 템플릿 내보내기/가져오기
+- 템플릿 마켓플레이스 (선택)
+- 템플릿 버전 관리
+
+#### 4-3. 협업 기능
 
 **추가 필요**:
 - 세션 공유 링크 생성
 - 실시간 협업 (선택)
 - 댓글 시스템
 
-#### 4-6. 성능 최적화
+#### 4-4. 성능 최적화
 
 **추가 필요**:
 - 대용량 세션 처리
 - 이미지 최적화
 - 오프라인 모드 지원
+- RAG 패턴 도입 (벡터 DB 활용)
 
 ---
 
@@ -788,8 +1025,16 @@ export interface PromptTemplate {
 ### 4. 상태 관리 패턴
 
 - **Zustand 사용**: 간단하고 효율적인 전역 상태
-- **세션 자동 저장**: 디바운스로 성능 최적화
-- **마이그레이션**: 하위 호환성 유지
+- **Slice 패턴**: 세션, 템플릿, 설정, UI, 체크리스트로 분리
+- **세션 자동 저장**: 디바운스 + 즉시 저장 이중 보호
+- **마이그레이션**: 하위 호환성 유지 (v1, v2, v3)
+
+### 5. 파일 최적화 패턴
+
+- **관련 파일 필터링**: 키워드 기반 관련성 점수 계산
+- **요약 우선 사용**: 대용량 파일은 요약만 포함
+- **스마트 포함 전략**: 파일 크기에 따라 요약/전체/일부 선택
+- **비용 절감**: 70-85% 예상 토큰 절감
 
 ---
 
@@ -811,6 +1056,7 @@ export interface PromptTemplate {
 
 - **Store 크기**: 대용량 세션 저장 시 성능 저하 가능
 - **동시 저장**: Lock 메커니즘으로 해결했으나 완벽하지 않음
+- **즉시 저장**: 중요한 변화 지점마다 저장하여 데이터 손실 방지
 
 ---
 
@@ -829,10 +1075,17 @@ GamePlanner-Tauri/
 │   │   ├── TemplateEditorModal.tsx
 │   │   ├── AnalysisResult.tsx
 │   │   ├── Header.tsx
-│   │   └── Resizer.tsx
+│   │   ├── Resizer.tsx
+│   │   ├── VersionHistory.tsx
+│   │   ├── ChecklistPanel.tsx
+│   │   ├── ReferenceManager.tsx
+│   │   └── ErrorBoundary.tsx
 │   ├── hooks/               # 커스텀 훅
 │   │   ├── useGeminiChat.ts
-│   │   └── useGameAnalysis.ts
+│   │   ├── useGameAnalysis.ts
+│   │   ├── useMessageHandler.ts
+│   │   ├── useAppInitialization.ts
+│   │   └── useAutoSave.ts
 │   ├── lib/                 # 유틸리티 및 라이브러리
 │   │   ├── store.ts
 │   │   ├── systemInstruction.ts
@@ -840,11 +1093,38 @@ GamePlanner-Tauri/
 │   │   ├── notionBlocks.ts
 │   │   ├── templateDefaults.ts
 │   │   ├── emojiData.ts
-│   │   └── utils.ts
+│   │   ├── utils/
+│   │   │   ├── session.ts
+│   │   │   ├── markdown.ts
+│   │   │   ├── fileParser.ts
+│   │   │   ├── fileOptimization.ts
+│   │   │   └── sessionSave.ts
+│   │   ├── services/
+│   │   │   ├── geminiService.ts
+│   │   │   └── storageService.ts
+│   │   ├── migrations/
+│   │   │   ├── migrationManager.ts
+│   │   │   ├── v1.ts
+│   │   │   ├── v2.ts
+│   │   │   └── v3.ts
+│   │   └── constants/
+│   │       ├── api.ts
+│   │       ├── session.ts
+│   │       └── ui.ts
 │   ├── store/               # 상태 관리
-│   │   └── useAppStore.ts
+│   │   ├── useAppStore.ts
+│   │   └── slices/
+│   │       ├── sessionSlice.ts
+│   │       ├── templateSlice.ts
+│   │       ├── settingsSlice.ts
+│   │       ├── uiSlice.ts
+│   │       └── checklistSlice.ts
 │   ├── types/               # TypeScript 타입 정의
-│   │   └── promptTemplate.ts
+│   │   ├── promptTemplate.ts
+│   │   ├── referenceFile.ts
+│   │   ├── version.ts
+│   │   ├── checklist.ts
+│   │   └── gemini.ts
 │   ├── App.tsx              # 메인 앱
 │   ├── main.tsx             # 엔트리 포인트
 │   └── index.css            # 전역 스타일
@@ -942,13 +1222,19 @@ GamePlanner-Tauri/
 
 ---
 
-**문서 버전**: 2.0
+**문서 버전**: 2.1
 **작성일**: 2025-01-01
 **최종 업데이트**: 2025-01-27
 **주요 업데이트**: 
 - Phase 3.5 (템플릿 시스템 고도화) 내용 추가
+- Phase 3.6 (파일 최적화 및 안정성 강화) 내용 추가
 - 이모지 피커, 줌 기능, 프롬프트 엔지니어링 개선 사항 반영
 - 마크다운 렌더링 개선 및 UI/UX 개선 사항 반영
 - 번역 기능 제거 사항 반영
+- 레퍼런스 파일 관리 시스템 추가
+- 파일 최적화 시스템 (관련 파일 필터링, 요약 생성) 추가
+- 즉시 저장 시스템 추가
+- 버전 관리 및 검증 시스템 추가
+- 채팅 영역 파일 첨부 제거 및 레퍼런스 탭 조건부 표시
 **다음 업데이트 예정**: Phase 4 완료 시
 

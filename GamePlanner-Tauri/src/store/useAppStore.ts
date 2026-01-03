@@ -41,6 +41,9 @@ export interface ChatSession {
 
   // 체크리스트 및 검증 (Phase 1)
   validation?: import('../types/checklist').DocumentValidation
+
+  // 참조 파일 (레퍼런스)
+  referenceFiles?: import('../types/referenceFile').ReferenceFile[]
 }
 
 // 통합된 App State 타입

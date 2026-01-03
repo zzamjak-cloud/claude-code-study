@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { History, RotateCcw, GitCompare, X, Save } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { DocumentVersion, VersionDiff } from '../types/version'
+import { VersionDiff } from '../types/version'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import { saveSessionImmediately } from '../lib/utils/sessionSave'
 
 interface VersionHistoryProps {
   sessionId: string
@@ -24,7 +25,7 @@ export function VersionHistory({ sessionId, onClose }: VersionHistoryProps) {
   const versions = getVersions(sessionId)
   const isCurrentSession = currentSessionId === sessionId
 
-  const handleCreateVersion = () => {
+  const handleCreateVersion = async () => {
     if (!markdownContent || markdownContent.trim().length === 0) {
       alert('저장할 기획서 내용이 없습니다.')
       return
@@ -33,6 +34,8 @@ export function VersionHistory({ sessionId, onClose }: VersionHistoryProps) {
       createVersion(sessionId, description || undefined)
       setDescription('')
       setShowCreateForm(false)
+      // 버전 저장 후 즉시 세션 저장
+      await saveSessionImmediately()
       alert('버전이 저장되었습니다!')
     } catch (error) {
       console.error('버전 생성 실패:', error)
@@ -40,9 +43,11 @@ export function VersionHistory({ sessionId, onClose }: VersionHistoryProps) {
     }
   }
 
-  const handleRestore = (versionId: string) => {
+  const handleRestore = async (versionId: string) => {
     if (confirm('이 버전으로 복원하시겠습니까? 현재 버전은 자동으로 백업됩니다.')) {
       restoreVersion(sessionId, versionId)
+      // 버전 복원 후 즉시 세션 저장
+      await saveSessionImmediately()
       onClose?.()
     }
   }

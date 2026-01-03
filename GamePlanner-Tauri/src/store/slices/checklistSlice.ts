@@ -2,7 +2,7 @@
 
 import { StateCreator } from 'zustand'
 import { ChecklistItem, ChecklistCategory, ChecklistResult, DocumentValidation } from '../../types/checklist'
-import { ChatSession } from '../useAppStore'
+import { AppState } from '../useAppStore'
 
 export interface ChecklistSlice {
   // 체크리스트 상태
@@ -449,14 +449,14 @@ function validateChecklistItems(
 }
 
 export const createChecklistSlice: StateCreator<
-  ChecklistSlice,
+  AppState,
   [],
   [],
   ChecklistSlice
 > = (set, get) => ({
   // 문서 검증
   validateDocument: async (sessionId: string) => {
-    const state = get() as ChecklistSlice & { sessions: ChatSession[] }
+    const state = get() as AppState
     const session = state.sessions.find(s => s.id === sessionId)
 
     if (!session || !session.markdownContent) {
@@ -517,9 +517,10 @@ export const createChecklistSlice: StateCreator<
     }
 
     // 세션에 검증 결과 저장
-    const fullState = get() as ChecklistSlice & { sessions: ChatSession[] }
-    set((state: any) => ({
-      sessions: state.sessions.map((s: ChatSession) => {
+    const currentState = get() as AppState
+    set({
+      ...currentState,
+      sessions: currentState.sessions.map((s) => {
         if (s.id === sessionId) {
           return {
             ...s,
@@ -528,7 +529,7 @@ export const createChecklistSlice: StateCreator<
         }
         return s
       }),
-    }))
+    })
 
     return validation
   },
@@ -543,7 +544,7 @@ export const createChecklistSlice: StateCreator<
 
   // 체크리스트 항목 업데이트
   updateChecklistItem: (sessionId: string, itemId: string, checked: boolean) => {
-    const state = get() as ChecklistSlice & { sessions: ChatSession[] }
+    const state = get() as AppState
     const session = state.sessions.find(s => s.id === sessionId)
 
     if (!session || !session.validation) {
@@ -571,8 +572,10 @@ export const createChecklistSlice: StateCreator<
     const checkedItems = allItems.filter(i => i.checked).length
     updatedValidation.overallScore = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0
 
-    set((state: any) => ({
-      sessions: state.sessions.map((s: ChatSession) => {
+    const currentState = get() as AppState
+    set({
+      ...currentState,
+      sessions: currentState.sessions.map((s) => {
         if (s.id === sessionId) {
           return {
             ...s,
@@ -581,12 +584,12 @@ export const createChecklistSlice: StateCreator<
         }
         return s
       }),
-    }))
+    })
   },
 
   // 검증 결과 가져오기
   getValidation: (sessionId: string) => {
-    const state = get() as ChecklistSlice & { sessions: ChatSession[] }
+    const state = get() as AppState
     const session = state.sessions.find(s => s.id === sessionId)
     return session?.validation
   },

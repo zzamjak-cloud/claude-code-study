@@ -1,6 +1,6 @@
 import { SYSTEM_INSTRUCTION } from '../lib/systemInstruction'
 import { Message } from '../store/useAppStore'
-import { GeminiContent, GeminiRequest, GeminiStreamChunk } from '../types/gemini'
+import { GeminiContent } from '../types/gemini'
 import { geminiService } from '../lib/services/geminiService'
 import { CHAT_HISTORY_LIMIT } from '../lib/constants/api'
 

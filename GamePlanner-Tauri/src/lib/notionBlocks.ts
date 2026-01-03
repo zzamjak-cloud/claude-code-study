@@ -3,7 +3,7 @@
  */
 
 import { fetch } from '@tauri-apps/plugin-http'
-import { NotionBlock, NotionParagraphBlock, NotionHeadingBlock, NotionBulletedListItemBlock, NotionNumberedListItemBlock, NotionDividerBlock } from '../types/notion'
+import { NotionBlock, NotionRichText, NotionBulletedListItemBlock } from '../types/notion'
 
 /**
  * 마크다운 텍스트를 Notion 블록 배열로 변환 (중첩 리스트 지원, 최대 2단계)
@@ -259,7 +259,7 @@ function processListItem(lines: string[], startIdx: number, endIdx: number, curr
 
   // 하위 항목이 있으면 children 추가
   if (children.length > 0) {
-    block.bulleted_list_item.children = children
+    (block as NotionBulletedListItemBlock).bulleted_list_item.children = children
   }
 
   return { block, nextIdx: i }
@@ -315,16 +315,34 @@ function parseInlineFormatting(text: string): NotionRichText[] {
         richText.push({
           type: 'text',
           text: { content: normalText },
+          annotations: {
+            bold: false,
+            italic: false,
+            strikethrough: false,
+            underline: false,
+            code: false,
+            color: 'default',
+          },
+          plain_text: normalText,
         })
       }
     }
 
     // **굵은 텍스트**인 경우
     if (match[2]) {
+      const boldText = match[2]
       richText.push({
         type: 'text',
-        text: { content: match[2] },
-        annotations: { bold: true },
+        text: { content: boldText },
+        annotations: {
+          bold: true,
+          italic: false,
+          strikethrough: false,
+          underline: false,
+          code: false,
+          color: 'default',
+        },
+        plain_text: boldText,
       })
     }
     // [링크 텍스트](URL)인 경우
@@ -332,20 +350,41 @@ function parseInlineFormatting(text: string): NotionRichText[] {
       const url = match[5].trim()
       
       // URL 유효성 검증
+      const linkText = match[4]
       if (isValidUrl(url)) {
         richText.push({
           type: 'text',
           text: {
-            content: match[4],
+            content: linkText,
             link: { url: url }
           },
+          annotations: {
+            bold: false,
+            italic: false,
+            strikethrough: false,
+            underline: false,
+            code: false,
+            color: 'default',
+          },
+          plain_text: linkText,
+          href: url,
         })
       } else {
         // 유효하지 않은 URL은 일반 텍스트로 처리
         console.warn('⚠️ 유효하지 않은 URL 감지, 일반 텍스트로 처리:', url)
+        const fallbackText = `[${linkText}](${url})`
         richText.push({
           type: 'text',
-          text: { content: `[${match[4]}](${url})` },
+          text: { content: fallbackText },
+          annotations: {
+            bold: false,
+            italic: false,
+            strikethrough: false,
+            underline: false,
+            code: false,
+            color: 'default',
+          },
+          plain_text: fallbackText,
         })
       }
     }
@@ -360,13 +399,34 @@ function parseInlineFormatting(text: string): NotionRichText[] {
       richText.push({
         type: 'text',
         text: { content: normalText },
+        annotations: {
+          bold: false,
+          italic: false,
+          strikethrough: false,
+          underline: false,
+          code: false,
+          color: 'default',
+        },
+        plain_text: normalText,
       })
     }
   }
 
   // 파싱된 텍스트가 없으면 원본 텍스트 반환
   if (richText.length === 0) {
-    return [{ type: 'text', text: { content: text } }]
+    return [{
+      type: 'text',
+      text: { content: text },
+      annotations: {
+        bold: false,
+        italic: false,
+        strikethrough: false,
+        underline: false,
+        code: false,
+        color: 'default',
+      },
+      plain_text: text,
+    }]
   }
 
   return richText

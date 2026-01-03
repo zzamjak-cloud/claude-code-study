@@ -2,7 +2,7 @@ import { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
-import { Copy, BookOpen, Check, Loader2, Download, History, CheckCircle2 } from 'lucide-react'
+import { Copy, BookOpen, Check, Loader2, Download, History, CheckCircle2, FileText } from 'lucide-react'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
@@ -11,6 +11,7 @@ import { createNotionPage } from '../lib/notionBlocks'
 import { extractGameNameFromPlanning, extractGameNameFromAnalysis, removeHtmlComments } from '../lib/utils/markdown'
 import { VersionHistory } from './VersionHistory'
 import { ChecklistPanel } from './ChecklistPanel'
+import { ReferenceManager } from './ReferenceManager'
 
 export function MarkdownPreview() {
   const {
@@ -23,7 +24,7 @@ export function MarkdownPreview() {
   } = useAppStore()
   const [isCopied, setIsCopied] = useState(false)
   const [isNotionLoading, setIsNotionLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'preview' | 'version' | 'checklist'>('preview')
+  const [activeTab, setActiveTab] = useState<'preview' | 'version' | 'checklist' | 'reference'>('preview')
 
   // 현재 세션 정보
   const currentSession = sessions.find((s) => s.id === currentSessionId)
@@ -179,6 +180,19 @@ export function MarkdownPreview() {
               <CheckCircle2 className="w-4 h-4" />
               검증
             </button>
+            {!isAnalysisMode && (
+              <button
+                onClick={() => setActiveTab('reference')}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
+                  activeTab === 'reference'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-muted'
+                }`}
+              >
+                <FileText className="w-4 h-4" />
+                레퍼런스
+              </button>
+            )}
           </div>
 
           {/* 액션 버튼 */}
@@ -186,50 +200,37 @@ export function MarkdownPreview() {
             {/* 복사 버튼 */}
             <button
               onClick={handleCopy}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background hover:bg-accent transition-colors text-sm font-medium"
-              title="기획서 복사"
+              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group"
+              title={isCopied ? "복사됨" : "기획서 복사"}
             >
               {isCopied ? (
-                <>
-                  <Check className="w-4 h-4 text-green-500" />
-                  <span>복사됨</span>
-                </>
+                <Check className="w-4 h-4 text-green-500" />
               ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  <span>복사</span>
-                </>
-              )}
-            </button>
-
-            {/* 노션 저장 버튼 */}
-            <button
-              onClick={handleSaveToNotion}
-              disabled={isNotionLoading}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-              title="노션에 저장"
-            >
-              {isNotionLoading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>저장 중...</span>
-                </>
-              ) : (
-                <>
-                  <BookOpen className="w-4 h-4" />
-                  <span>노션 저장</span>
-                </>
+                <Copy className="w-4 h-4" />
               )}
             </button>
 
             {/* 다운로드 버튼 */}
             <button
               onClick={handleDownload}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-background hover:bg-accent transition-colors text-sm font-medium"
+              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group"
               title="마크다운 파일로 저장"
             >
               <Download className="w-4 h-4" />
-              <span>다운로드</span>
+            </button>
+
+            {/* 노션 저장 버튼 */}
+            <button
+              onClick={handleSaveToNotion}
+              disabled={isNotionLoading}
+              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group disabled:opacity-50 disabled:cursor-not-allowed"
+              title="노션에 저장"
+            >
+              {isNotionLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <BookOpen className="w-4 h-4" />
+              )}
             </button>
           </div>
         </div>
@@ -267,8 +268,6 @@ export function MarkdownPreview() {
                   remarkPlugins={[remarkGfm]}
                   rehypePlugins={[rehypeRaw]}
                   components={{
-                    // HTML 주석 제거
-                    comment: () => null,
                     // 링크 스타일 개선
                     a: ({ node, ...props }) => (
                       <a {...props} className="text-primary hover:text-primary/80 underline decoration-primary/30 underline-offset-2 hover:decoration-primary transition-colors font-medium" target="_blank" rel="noopener noreferrer" />
@@ -321,6 +320,12 @@ export function MarkdownPreview() {
         {activeTab === 'checklist' && currentSessionId && (
           <div className="max-w-4xl mx-auto">
             <ChecklistPanel sessionId={currentSessionId} />
+          </div>
+        )}
+
+        {activeTab === 'reference' && currentSessionId && !isAnalysisMode && (
+          <div className="max-w-4xl mx-auto">
+            <ReferenceManager sessionId={currentSessionId} />
           </div>
         )}
       </div>

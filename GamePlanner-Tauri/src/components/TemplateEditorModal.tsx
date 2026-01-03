@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { X, Smile, Search, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react'
+import { X, Smile, Search, ZoomIn, ZoomOut } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { TemplateType } from '../types/promptTemplate'
+import { TemplateType, PromptTemplate } from '../types/promptTemplate'
 import { saveTemplates } from '../lib/store'
+import { validateTemplateName, validateTemplateContent } from '../lib/utils/template'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -179,28 +180,26 @@ export function TemplateEditorModal({
             return searchEmojis(query)
           },
           render: () => {
-            let component: ReactRenderer<{ items: EmojiItem[]; command: (item: EmojiItem) => void }>
+            let component: ReactRenderer<EmojiListRef, EmojiListProps>
             let popup: TippyInstance[]
 
             return {
-              onStart: (props: { clientRect?: () => DOMRect | null; editor: ReturnType<typeof useEditor> }) => {
+              onStart: (props: any) => {
+                const clientRect = props.clientRect || (() => new DOMRect())
+                const editor = props.editor
                 component = new ReactRenderer(EmojiList, {
                   props: {
-                    items: getDisplayEmojis(),
+                    items: searchEmojis(''),
                     command: (item: EmojiItem) => {
                       // 이모지 선택 시 처리
-                      props.editor.commands.insertContent(item.emoji)
+                      editor.commands.insertContent(item.emoji)
                     },
                   },
-                  editor: props.editor,
+                  editor: editor,
                 })
 
-                if (!props.clientRect) {
-                  return
-                }
-
                 popup = tippy('body', {
-                  getReferenceClientRect: props.clientRect,
+                  getReferenceClientRect: clientRect,
                   appendTo: () => document.body,
                   content: component.element,
                   showOnCreate: true,
@@ -210,31 +209,28 @@ export function TemplateEditorModal({
                 })
               },
 
-              onUpdate(props: { clientRect?: () => DOMRect | null }) {
+              onUpdate(props: any) {
+                const clientRect = props.clientRect || (() => new DOMRect())
                 component.updateProps({
-                  items: getDisplayEmojis(),
+                  items: searchEmojis(''),
                   command: (item: EmojiItem) => {
                     // 이모지 선택 시 처리
                     editor?.commands.insertContent(item.emoji)
                   },
                 })
 
-                if (!props.clientRect) {
-                  return
-                }
-
                 popup[0].setProps({
-                  getReferenceClientRect: props.clientRect,
+                  getReferenceClientRect: clientRect,
                 })
               },
 
-              onKeyDown(props: { event: KeyboardEvent }) {
-                if (props.event.key === 'Escape') {
+              onKeyDown(props: any) {
+                if (props.event?.key === 'Escape') {
                   popup[0].hide()
                   return true
                 }
 
-                return component.ref?.onKeyDown(props)
+                return component.ref?.onKeyDown?.(props) ?? false
               },
 
               onExit() {
@@ -243,7 +239,7 @@ export function TemplateEditorModal({
               },
             }
           },
-          command: ({ editor, range, props }: { editor: ReturnType<typeof useEditor>; range: { from: number; to: number }; props: EmojiItem }) => {
+          command: ({ editor, range, props }: any) => {
             // 이모지를 삽입하고 mention을 삭제
             const emojiItem = props as EmojiItem
             editor
@@ -367,8 +363,15 @@ export function TemplateEditorModal({
         updateTemplate(templateId, updateData)
       } else {
         // 신규 생성 또는 복제 모드: 새 템플릿 생성
+        if (!updateData.name) {
+          alert('템플릿 이름을 입력하세요.')
+          setIsSaving(false)
+          return
+        }
         addTemplate({
-          ...updateData,
+          name: updateData.name,
+          description: updateData.description || '',
+          content: updateData.content || '',
           type: templateType,
           isDefault: false,
         })

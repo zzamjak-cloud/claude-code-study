@@ -1,6 +1,6 @@
 // Gemini API 서비스 인터페이스 및 구현
 
-import { GeminiContent, GeminiRequest, GeminiStreamChunk } from '../../types/gemini'
+import { GeminiContent, GeminiStreamChunk } from '../../types/gemini'
 import { GEMINI_API_BASE_URL, GEMINI_MODELS, GEMINI_GENERATION_CONFIG } from '../constants/api'
 
 export interface IGeminiService {

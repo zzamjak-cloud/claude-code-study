@@ -94,7 +94,7 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
               <div
                 className={`max-w-[80%] rounded-lg px-4 py-2 ${
                   message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
+                    ? 'bg-gray-400 dark:bg-gray-600 text-white'
                     : 'bg-muted'
                 }`}
               >
@@ -138,20 +138,24 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
       {/* 입력 영역 */}
       <div className="border-t border-border p-4">
         <form onSubmit={handleSubmit} className="flex gap-2 items-end">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isAnalysisMode
-                ? '게임명을 입력하세요. 예시 Brawl Stars, Royale Match (Ctrl/Cmd + Enter로 전송)'
-                : '게임 아이디어를 입력하세요... (Ctrl/Cmd + Enter로 전송)'
-            }
-            className="flex-1 px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto"
-            style={{ minHeight: '96px' }}
-            disabled={isLoading}
-          />
+          <div className="flex-1">
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isAnalysisMode
+                  ? '게임명을 입력하세요. 예시 Brawl Stars, Royale Match (Ctrl/Cmd + Enter로 전송)'
+                  : '게임 아이디어를 입력하세요... (Ctrl/Cmd + Enter로 전송)'
+              }
+              className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto"
+              style={{ minHeight: '96px' }}
+              disabled={isLoading}
+            />
+          </div>
+          
+          {/* 전송 버튼 */}
           <button
             type="submit"
             disabled={!input.trim() || isLoading}

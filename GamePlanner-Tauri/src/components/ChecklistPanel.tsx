@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { CheckCircle2, Circle, AlertTriangle, RefreshCw, ChevronDown, ChevronRight, HelpCircle, X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { DocumentValidation, ChecklistCategory, ChecklistResult } from '../types/checklist'
+import { DocumentValidation, ChecklistCategory } from '../types/checklist'
+import { saveSessionImmediately } from '../lib/utils/sessionSave'
 
 interface ChecklistPanelProps {
   sessionId: string
@@ -38,6 +39,8 @@ export function ChecklistPanel({ sessionId }: ChecklistPanelProps) {
     try {
       const result = await validateDocument(sessionId)
       setValidation(result)
+      // 검증 완료 후 즉시 세션 저장
+      await saveSessionImmediately()
     } catch (error) {
       console.error('검증 실패:', error)
       alert('검증 중 오류가 발생했습니다.')
@@ -56,10 +59,12 @@ export function ChecklistPanel({ sessionId }: ChecklistPanelProps) {
     setExpandedCategories(newExpanded)
   }
 
-  const handleItemToggle = (itemId: string, checked: boolean) => {
+  const handleItemToggle = async (itemId: string, checked: boolean) => {
     updateChecklistItem(sessionId, itemId, checked)
     const updatedValidation = getValidation(sessionId)
     setValidation(updatedValidation)
+    // 체크리스트 항목 변경 후 즉시 세션 저장
+    await saveSessionImmediately()
   }
 
   const getScoreColor = (score: number) => {

@@ -187,23 +187,23 @@ export function Sidebar() {
           onClick={() => handleTabChange(SessionType.PLANNING)}
           className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 transition-colors ${
             currentSessionType === SessionType.PLANNING
-              ? 'bg-background border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+              ? 'bg-background border-t-2 border-l-2 border-r-2 border-primary text-primary font-semibold'
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 border-b-2 border-primary'
           }`}
         >
           <FileText className="w-4 h-4" />
-          <span className="font-medium text-sm">기획 세션</span>
+          <span className="font-medium text-sm">기획 작성</span>
         </button>
         <button
           onClick={() => handleTabChange(SessionType.ANALYSIS)}
           className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 transition-colors ${
             currentSessionType === SessionType.ANALYSIS
-              ? 'bg-background border-b-2 border-primary text-primary'
-              : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+              ? 'bg-background border-t-2 border-l-2 border-r-2 border-primary text-primary font-semibold'
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-400 dark:text-gray-500 hover:text-gray-500 dark:hover:text-gray-400 border-b-2 border-primary'
           }`}
         >
           <Search className="w-4 h-4" />
-          <span className="font-medium text-sm">분석 세션</span>
+          <span className="font-medium text-sm">게임 분석</span>
         </button>
       </div>
 

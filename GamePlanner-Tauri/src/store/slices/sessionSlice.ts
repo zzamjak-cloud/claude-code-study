@@ -20,6 +20,7 @@ export interface SessionSlice {
   loadSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
   updateCurrentSession: () => void
+  updateSession: (sessionId: string, updates: Partial<ChatSession>) => void
   getSessions: () => ChatSession[]
   importSession: (session: ChatSession) => void
 
@@ -173,6 +174,22 @@ export const createSessionSlice: StateCreator<
 
       return { sessions: updatedSessions }
     })
+  },
+
+  // 세션 업데이트
+  updateSession: (sessionId: string, updates: Partial<ChatSession>) => {
+    set((state) => ({
+      sessions: state.sessions.map((session) => {
+        if (session.id === sessionId) {
+          return {
+            ...session,
+            ...updates,
+            updatedAt: Date.now(),
+          }
+        }
+        return session
+      }),
+    }))
   },
 
   // 세션 목록 가져오기
@@ -466,14 +483,14 @@ export const createSessionSlice: StateCreator<
     })
 
     // 추가된 섹션
-    sectionMap2.forEach((content, title) => {
+    sectionMap2.forEach((_content, title) => {
       if (!sectionMap1.has(title)) {
         added.push(title)
       }
     })
 
     // 삭제된 섹션
-    sectionMap1.forEach((content, title) => {
+    sectionMap1.forEach((_content, title) => {
       if (!sectionMap2.has(title)) {
         removed.push(title)
       }

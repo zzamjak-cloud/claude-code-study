@@ -4,6 +4,8 @@ import { useAppStore, SessionType } from '../store/useAppStore'
 import { useGeminiChat } from './useGeminiChat'
 import { useGameAnalysis } from './useGameAnalysis'
 import { SYSTEM_INSTRUCTION } from '../lib/systemInstruction'
+import { filterRelevantFiles, validateFileSize, MAX_FILE_SIZE_CHARS } from '../lib/utils/fileOptimization'
+import { saveSessionImmediately } from '../lib/utils/sessionSave'
 
 interface MessageHandlerCallbacks {
   onChatUpdate?: (text: string) => void
@@ -15,9 +17,6 @@ interface MessageHandlerCallbacks {
 export function useMessageHandler() {
   const {
     apiKey,
-    sessions,
-    currentSessionId,
-    currentSessionType,
     addMessage,
     setMarkdownContent,
     setIsLoading,
@@ -117,6 +116,8 @@ export function useMessageHandler() {
           onMarkdownUpdate: (markdown) => {
             setMarkdownContent(markdown)
             callbacks.onMarkdownUpdate?.(markdown)
+            // 마크다운 업데이트 시 즉시 저장 (중요한 변화 지점)
+            saveSessionImmediately().catch(err => console.error('마크다운 업데이트 저장 실패:', err))
           },
           onComplete: async (finalChatText) => {
             updateAnalysisStatus(currentSession.id, 'completed')
@@ -124,6 +125,8 @@ export function useMessageHandler() {
               addMessage({ role: 'assistant', content: finalChatText })
             }
             setIsLoading(false)
+            // 분석 완료 후 즉시 세션 저장
+            await saveSessionImmediately()
             callbacks.onComplete?.(finalChatText)
           },
           onError: (error) => {
@@ -162,9 +165,69 @@ export function useMessageHandler() {
 
     // 템플릿 기반 시스템 프롬프트 로드
     const template = getTemplateById(currentSession?.templateId || currentPlanningTemplateId || 'default-planning')
-    const systemPrompt = template?.content || SYSTEM_INSTRUCTION
+    let systemPrompt = template?.content || SYSTEM_INSTRUCTION
+
+    // 참조 파일이 있으면 시스템 프롬프트에 추가 (최적화: 관련 파일만 필터링, 요약 우선 사용)
+    if (currentSession?.referenceFiles && currentSession.referenceFiles.length > 0) {
+      // 사용자 메시지와 관련된 파일만 필터링
+      const relevantFiles = filterRelevantFiles(currentSession.referenceFiles, message)
+      
+      if (relevantFiles.length > 0) {
+        const referenceContent = relevantFiles.map((file, index) => {
+          // 스마트 포함 전략:
+          // 1. 요약이 있고 파일이 크면 요약만 사용
+          // 2. 요약이 있지만 파일이 작으면 요약 + 전체 내용
+          // 3. 요약이 없으면 크기 제한 적용하여 전체 내용 사용
+          let content: string
+          let useSummary = false
+          let includeFullContent = false
+          
+          if (file.summary && file.summary.length > 0) {
+            // 요약이 있는 경우
+            if (file.content.length > MAX_FILE_SIZE_CHARS) {
+              // 파일이 크면 요약만 사용
+              content = file.summary
+              useSummary = true
+            } else if (file.content.length > 5000) {
+              // 파일이 중간 크기면 요약 + 일부 내용
+              const validation = validateFileSize(file.content)
+              const truncatedContent = validation.truncated || file.content
+              content = `${file.summary}\n\n---\n\n[전체 내용 일부]\n${truncatedContent}`
+              useSummary = true
+              includeFullContent = true
+            } else {
+              // 파일이 작으면 전체 내용 사용
+              content = file.content
+            }
+          } else {
+            // 요약이 없으면 크기 제한 적용하여 전체 내용 사용
+            const validation = validateFileSize(file.content)
+            content = validation.truncated || file.content
+          }
+          
+          const sizeInfo = useSummary && file.content.length > MAX_FILE_SIZE_CHARS
+            ? ` (요약 포함, 원본 ${(file.content.length / 1000).toFixed(0)}K자)`
+            : includeFullContent
+            ? ` (요약 + 일부 내용, 원본 ${(file.content.length / 1000).toFixed(0)}K자)`
+            : file.content.length > content.length
+            ? ` (${(file.content.length / 1000).toFixed(0)}K자 중 일부만 포함됨)`
+            : ''
+          
+          return `[참조 파일 ${index + 1}: ${file.fileName} (${file.fileType})${sizeInfo}]\n${content}`
+        }).join('\n\n---\n\n')
+        
+        const fileCountInfo = currentSession.referenceFiles.length > relevantFiles.length
+          ? `\n(참고: 총 ${currentSession.referenceFiles.length}개 참조 파일 중 사용자 요청과 관련된 ${relevantFiles.length}개만 포함했습니다)`
+          : ''
+        
+        systemPrompt += `\n\n---\n\n# 참조 파일${fileCountInfo}\n다음 참조 파일들의 내용을 참고하여 기획서를 작성하세요. 이 파일들의 내용을 분석하고 기획서에 반영하세요.\n\n${referenceContent}`
+      }
+    }
 
     console.log('📋 사용 중인 기획 템플릿:', template?.name || '기본 기획 템플릿')
+    if (currentSession?.referenceFiles && currentSession.referenceFiles.length > 0) {
+      console.log('📎 참조 파일 개수:', currentSession.referenceFiles.length)
+    }
 
     // 사용자 메시지 추가
     addMessage({ role: 'user', content: message })
@@ -182,12 +245,16 @@ export function useMessageHandler() {
           onMarkdownUpdate: (markdown) => {
             setMarkdownContent(markdown)
             callbacks.onMarkdownUpdate?.(markdown)
+            // 마크다운 업데이트 시 즉시 저장 (중요한 변화 지점)
+            saveSessionImmediately().catch(err => console.error('마크다운 업데이트 저장 실패:', err))
           },
-          onComplete: (finalChatText) => {
+          onComplete: async (finalChatText) => {
             if (finalChatText.trim()) {
               addMessage({ role: 'assistant', content: finalChatText })
             }
             setIsLoading(false)
+            // 채팅 완료 후 즉시 세션 저장
+            await saveSessionImmediately()
             callbacks.onComplete?.(finalChatText)
           },
           onError: (error) => {

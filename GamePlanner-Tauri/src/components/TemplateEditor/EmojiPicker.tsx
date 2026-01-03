@@ -68,7 +68,7 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
               }`}
               title={category.name}
             >
-              <span className="text-xl">{category.emoji}</span>
+              <span className="text-xl">{category.icon}</span>
             </button>
           ))}
         </div>
@@ -76,9 +76,9 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
         {/* 이모지 리스트 */}
         <div className="flex-1 overflow-y-auto p-4">
           <div className="grid grid-cols-8 gap-2">
-            {displayEmojis.map((emoji) => (
+            {displayEmojis.map((emoji, index) => (
               <button
-                key={emoji.id}
+                key={`${emoji.name}-${index}`}
                 onClick={() => {
                   onSelect(emoji)
                   onClose()

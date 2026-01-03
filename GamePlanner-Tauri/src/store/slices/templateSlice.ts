@@ -2,6 +2,7 @@
 
 import { StateCreator } from 'zustand'
 import { PromptTemplate } from '../../types/promptTemplate'
+import { generateTemplateId } from '../../lib/utils/session'
 
 export interface TemplateSlice {
   // 템플릿 상태

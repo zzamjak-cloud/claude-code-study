@@ -14,7 +14,7 @@ import { CHAT_PANEL_WIDTH } from './lib/constants/ui'
 
 function App() {
   const [showSettings, setShowSettings] = useState(false)
-  const [chatPanelWidth, setChatPanelWidth] = useState(CHAT_PANEL_WIDTH.DEFAULT)
+  const [chatPanelWidth, setChatPanelWidth] = useState<number>(CHAT_PANEL_WIDTH.DEFAULT)
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState('')
   const { apiKey } = useAppStore()
 

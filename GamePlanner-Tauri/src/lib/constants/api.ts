@@ -15,5 +15,5 @@ export const GEMINI_GENERATION_CONFIG = {
   maxOutputTokens: 8192,
 } as const
 
-export const CHAT_HISTORY_LIMIT = 10 // 최근 대화 히스토리 개수
+export const CHAT_HISTORY_LIMIT = 8 // 최근 대화 히스토리 개수 (비용 최적화를 위해 10 → 8로 축소)
 
