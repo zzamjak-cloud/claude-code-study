@@ -3,12 +3,7 @@
  */
 
 import { fetch } from '@tauri-apps/plugin-http'
-
-interface NotionBlock {
-  object: string
-  type: string
-  [key: string]: any
-}
+import { NotionBlock, NotionParagraphBlock, NotionHeadingBlock, NotionBulletedListItemBlock, NotionNumberedListItemBlock, NotionDividerBlock } from '../types/notion'
 
 /**
  * 마크다운 텍스트를 Notion 블록 배열로 변환 (중첩 리스트 지원, 최대 2단계)
@@ -273,8 +268,8 @@ function processListItem(lines: string[], startIdx: number, endIdx: number, curr
 /**
  * 인라인 서식 파싱 (굵게, 링크 등)
  */
-function parseInlineFormatting(text: string): any[] {
-  const richText: any[] = []
+function parseInlineFormatting(text: string): NotionRichText[] {
+  const richText: NotionRichText[] = []
 
   // 혼합 패턴: **굵은 텍스트**, [링크 텍스트](URL)
   // 링크와 볼드를 모두 찾아서 순서대로 처리

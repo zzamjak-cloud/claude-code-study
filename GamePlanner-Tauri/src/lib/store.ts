@@ -1,5 +1,8 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { PromptTemplate } from '../types/promptTemplate'
+import { ChatSession } from '../store/useAppStore'
+import { Settings, SaveSettingsParams } from '../types/store'
+import { migrateSettings } from './migrations'
 
 /**
  * 전역 Store 인스턴스 관리
@@ -63,14 +66,14 @@ export async function saveStore(): Promise<void> {
 /**
  * 설정 값을 가져옵니다
  */
-export async function getSettings() {
+export async function getSettings(): Promise<Settings> {
   const store = await getStore()
 
   const geminiApiKey = await store.get<string>('gemini_api_key')
   const notionApiKey = await store.get<string>('notion_api_key')
   const notionPlanningDatabaseId = await store.get<string>('notion_planning_database_id')
   const notionAnalysisDatabaseId = await store.get<string>('notion_analysis_database_id')
-  const chatSessions = await store.get<any>('chat_sessions')
+  const chatSessions = await store.get<ChatSession[]>('chat_sessions')
 
   // 마이그레이션: 기존 notion_database_id 확인
   const oldNotionDbId = await store.get<string>('notion_database_id')
@@ -80,7 +83,7 @@ export async function getSettings() {
   const currentPlanningTemplateId = await store.get<string>('current_planning_template_id')
   const currentAnalysisTemplateId = await store.get<string>('current_analysis_template_id')
 
-  return {
+  const rawSettings: Settings = {
     geminiApiKey,
     notionApiKey,
     notionPlanningDatabaseId,
@@ -91,17 +94,15 @@ export async function getSettings() {
     currentPlanningTemplateId,
     currentAnalysisTemplateId,
   }
+
+  // 설정 마이그레이션 적용
+  return migrateSettings(rawSettings)
 }
 
 /**
  * 설정 값을 저장합니다
  */
-export async function saveSettings(settings: {
-  geminiApiKey?: string
-  notionApiKey?: string
-  notionPlanningDatabaseId?: string
-  notionAnalysisDatabaseId?: string
-}) {
+export async function saveSettings(settings: SaveSettingsParams): Promise<void> {
   const store = await getStore()
 
   if (settings.geminiApiKey !== undefined) {
@@ -123,7 +124,7 @@ export async function saveSettings(settings: {
 /**
  * 세션을 저장합니다 (설정 값 보존)
  */
-export async function saveSessions(sessions: any[]) {
+export async function saveSessions(sessions: ChatSession[]): Promise<void> {
   const store = await getStore()
 
   // 세션 저장 전 현재 설정 값들을 다시 확인하여 보존
@@ -160,7 +161,7 @@ export async function saveSessions(sessions: any[]) {
 /**
  * 템플릿을 저장합니다
  */
-export async function saveTemplates(templates: PromptTemplate[]) {
+export async function saveTemplates(templates: PromptTemplate[]): Promise<void> {
   const store = await getStore()
   await store.set('prompt_templates', templates)
   await saveStore()

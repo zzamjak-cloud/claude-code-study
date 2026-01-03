@@ -55,7 +55,7 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
     // Ctrl/Cmd + Enter로 전송
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault()
-      handleSubmit(e as any)
+      handleSubmit(e)
     }
   }
 

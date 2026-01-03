@@ -8,6 +8,7 @@ import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { useAppStore, SessionType } from '../store/useAppStore'
 import { createNotionPage } from '../lib/notionBlocks'
+import { extractGameNameFromPlanning, extractGameNameFromAnalysis, removeHtmlComments } from '../lib/utils/markdown'
 
 export function MarkdownPreview() {
   const {
@@ -26,30 +27,11 @@ export function MarkdownPreview() {
   const isAnalysisMode = currentSession?.type === SessionType.ANALYSIS
 
   // 마크다운에서 게임명 추출 (노션 저장 시 정확한 제목 사용)
-  const extractGameName = (): string => {
-    if (!markdownContent) {
-      return currentSession?.title || '게임 기획서'
-    }
-
-    if (isAnalysisMode) {
-      // 분석 보고서: "<!-- ANALYSIS_TITLE: 게임명 게임 분석 보고서 -->"
-      const match = markdownContent.match(/<!--\s*ANALYSIS_TITLE:\s*(.+?)\s*게임\s*분석\s*보고서\s*-->/m)
-      if (match) {
-        return match[1].trim()
-      }
-    } else {
-      // 기획서: "🎮 **게임명 게임 기획서**"
-      const match = markdownContent.match(/^🎮\s*\*\*(.+?)\s*게임\s*기획서\*\*/m)
-      if (match) {
-        return match[1].trim()
-      }
-    }
-
-    // 추출 실패 시 세션 제목 사용
-    return currentSession?.title || '게임 기획서'
-  }
-
-  const gameName = extractGameName()
+  const gameName = markdownContent
+    ? (isAnalysisMode
+        ? extractGameNameFromAnalysis(markdownContent)
+        : extractGameNameFromPlanning(markdownContent)) || currentSession?.title || '게임 기획서'
+    : currentSession?.title || '게임 기획서'
 
   // 파일명 생성 (세션 타입에 따라)
   const getFileName = () => {
@@ -260,7 +242,7 @@ export function MarkdownPreview() {
                   ),
                 }}
               >
-                {markdownContent.replace(/<!--[\s\S]*?-->/g, '')}
+                {removeHtmlComments(markdownContent)}
               </ReactMarkdown>
             </div>
           </div>

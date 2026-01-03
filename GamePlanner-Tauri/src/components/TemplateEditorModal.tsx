@@ -179,13 +179,19 @@ export function TemplateEditorModal({
             return searchEmojis(query)
           },
           render: () => {
-            let component: ReactRenderer<any>
+            let component: ReactRenderer<{ items: EmojiItem[]; command: (item: EmojiItem) => void }>
             let popup: TippyInstance[]
 
             return {
-              onStart: (props: any) => {
+              onStart: (props: { clientRect?: () => DOMRect | null; editor: ReturnType<typeof useEditor> }) => {
                 component = new ReactRenderer(EmojiList, {
-                  props,
+                  props: {
+                    items: getDisplayEmojis(),
+                    command: (item: EmojiItem) => {
+                      // 이모지 선택 시 처리
+                      props.editor.commands.insertContent(item.emoji)
+                    },
+                  },
                   editor: props.editor,
                 })
 
@@ -204,8 +210,14 @@ export function TemplateEditorModal({
                 })
               },
 
-              onUpdate(props: any) {
-                component.updateProps(props)
+              onUpdate(props: { clientRect?: () => DOMRect | null }) {
+                component.updateProps({
+                  items: getDisplayEmojis(),
+                  command: (item: EmojiItem) => {
+                    // 이모지 선택 시 처리
+                    editor?.commands.insertContent(item.emoji)
+                  },
+                })
 
                 if (!props.clientRect) {
                   return
@@ -216,7 +228,7 @@ export function TemplateEditorModal({
                 })
               },
 
-              onKeyDown(props: any) {
+              onKeyDown(props: { event: KeyboardEvent }) {
                 if (props.event.key === 'Escape') {
                   popup[0].hide()
                   return true
@@ -231,7 +243,7 @@ export function TemplateEditorModal({
               },
             }
           },
-          command: ({ editor, range, props }: any) => {
+          command: ({ editor, range, props }: { editor: ReturnType<typeof useEditor>; range: { from: number; to: number }; props: EmojiItem }) => {
             // 이모지를 삽입하고 mention을 삭제
             const emojiItem = props as EmojiItem
             editor
@@ -325,8 +337,9 @@ export function TemplateEditorModal({
     if (!editor) return
 
     // 유효성 검사
-    if (!name.trim()) {
-      alert('템플릿 이름을 입력하세요.')
+    const nameValidation = validateTemplateName(name)
+    if (!nameValidation.valid) {
+      alert(nameValidation.error)
       return
     }
 
@@ -334,20 +347,16 @@ export function TemplateEditorModal({
     const html = editor.getHTML()
     const markdown = turndownService.turndown(html)
 
-    if (markdown.length < 50) {
-      alert('템플릿 내용이 너무 짧습니다. (최소 50자)')
-      return
-    }
-
-    if (markdown.length > 50000) {
-      alert('템플릿 내용이 너무 깁니다. (최대 50,000자)')
+    const contentValidation = validateTemplateContent(markdown)
+    if (!contentValidation.valid) {
+      alert(contentValidation.error)
       return
     }
 
     setIsSaving(true)
 
     try {
-      const updateData: any = {
+      const updateData: Partial<PromptTemplate> = {
         name: name.trim(),
         description: description.trim(),
         content: markdown,

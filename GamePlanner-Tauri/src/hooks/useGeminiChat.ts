@@ -1,5 +1,8 @@
 import { SYSTEM_INSTRUCTION } from '../lib/systemInstruction'
 import { Message } from '../store/useAppStore'
+import { GeminiContent, GeminiRequest, GeminiStreamChunk } from '../types/gemini'
+import { geminiService } from '../lib/services/geminiService'
+import { CHAT_HISTORY_LIMIT } from '../lib/constants/api'
 
 interface StreamCallbacks {
   onChatUpdate: (text: string) => void
@@ -25,7 +28,7 @@ export function useGeminiChat() {
       }
 
       // 대화 히스토리 구성
-      const contents: any[] = []
+      const contents: GeminiContent[] = []
 
       // 1. 시스템 지시문을 첫 메시지로 추가 (동적 프롬프트 지원)
       let systemMessage = systemPrompt || SYSTEM_INSTRUCTION  // fallback
@@ -45,9 +48,9 @@ export function useGeminiChat() {
         parts: [{ text: '네, 이해했습니다. 게임 기획 전문가로서 도와드리겠습니다.' }]
       })
 
-      // 3. 이전 대화 히스토리 추가 (최근 10개만)
+      // 3. 이전 대화 히스토리 추가
       if (chatHistory && chatHistory.length > 0) {
-        const recentHistory = chatHistory.slice(-10)
+        const recentHistory = chatHistory.slice(-CHAT_HISTORY_LIMIT)
         for (const msg of recentHistory) {
           contents.push({
             role: msg.role === 'user' ? 'user' : 'model',
@@ -69,101 +72,46 @@ export function useGeminiChat() {
         총메시지수: contents.length
       })
 
-      // Fetch API로 직접 호출 (스트리밍)
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse&key=${cleanApiKey}`
-
       console.log('API 요청 시작...')
 
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: contents,
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 8192,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`API 오류 (${response.status}): ${errorText}`)
-      }
-
-      console.log('스트리밍 시작...')
-
-      if (!response.body) {
-        throw new Error('응답 스트림을 사용할 수 없습니다')
-      }
-
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-
       let fullResponse = ''
-      let buffer = ''
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) {
-          console.log('스트리밍 완료')
-          break
-        }
+      // Gemini 서비스를 통한 스트리밍 호출
+      await geminiService.streamGenerateContent(cleanApiKey, contents, {
+        onChunk: (chunk) => {
+          if (chunk.candidates && chunk.candidates[0]?.content?.parts) {
+            const text = chunk.candidates[0].content.parts[0]?.text || ''
+            if (text) {
+              fullResponse += text
+              console.log('텍스트 수신:', text.substring(0, 50) + '...')
 
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
+              // <markdown_content> 태그 파싱
+              const parts = fullResponse.split(/<markdown_content>|<\/markdown_content>/)
 
-        // 마지막 불완전한 줄은 buffer에 남겨둠
-        buffer = lines.pop() || ''
+              let chatText = ''
+              let markdownContent = ''
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6).trim()
-            if (!jsonStr || jsonStr === '[DONE]') continue
-
-            try {
-              const data = JSON.parse(jsonStr)
-              if (data.candidates && data.candidates[0]?.content?.parts) {
-                const text = data.candidates[0].content.parts[0]?.text || ''
-                if (text) {
-                  fullResponse += text
-                  console.log('텍스트 수신:', text.substring(0, 50) + '...')
-
-                  // <markdown_content> 태그 파싱
-                  const parts = fullResponse.split(/<markdown_content>|<\/markdown_content>/)
-
-                  let chatText = ''
-                  let markdownContent = ''
-
-                  if (parts.length === 1) {
-                    // markdown_content 태그가 없음
-                    chatText = fullResponse
-                    callbacks.onChatUpdate(chatText)
-                  } else if (parts.length === 2) {
-                    // markdown_content 태그가 열렸지만 아직 닫히지 않음
-                    chatText = parts[0]
-                    markdownContent = parts[1]
-                    callbacks.onChatUpdate(chatText)
-                    callbacks.onMarkdownUpdate(markdownContent)
-                  } else if (parts.length >= 3) {
-                    // markdown_content 태그가 열리고 닫힘
-                    chatText = parts[0] + (parts[2] || '')
-                    markdownContent = parts[1]
-                    callbacks.onChatUpdate(chatText)
-                    callbacks.onMarkdownUpdate(markdownContent)
-                  }
-                }
+              if (parts.length === 1) {
+                // markdown_content 태그가 없음
+                chatText = fullResponse
+                callbacks.onChatUpdate(chatText)
+              } else if (parts.length === 2) {
+                // markdown_content 태그가 열렸지만 아직 닫히지 않음
+                chatText = parts[0]
+                markdownContent = parts[1]
+                callbacks.onChatUpdate(chatText)
+                callbacks.onMarkdownUpdate(markdownContent)
+              } else if (parts.length >= 3) {
+                // markdown_content 태그가 열리고 닫힘
+                chatText = parts[0] + (parts[2] || '')
+                markdownContent = parts[1]
+                callbacks.onChatUpdate(chatText)
+                callbacks.onMarkdownUpdate(markdownContent)
               }
-            } catch (e) {
-              console.warn('JSON 파싱 오류:', e, jsonStr)
             }
           }
-        }
-      }
+        },
+      })
 
       console.log('전체 응답:', fullResponse.substring(0, 100) + '...')
 
