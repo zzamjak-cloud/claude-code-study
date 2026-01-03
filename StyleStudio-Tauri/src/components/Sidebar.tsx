@@ -59,7 +59,7 @@ export function Sidebar({
       // 마우스 위치 업데이트 (드래그 프리뷰용)
       setDragPosition({ x: e.clientX, y: e.clientY });
 
-      const listRect = listRef.current.getBoundingClientRect();
+      // const listRect = listRef.current.getBoundingClientRect();
       const items = listRef.current.querySelectorAll('[data-session-index]');
 
       let newDragOverIndex: number | null = null;

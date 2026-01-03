@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Copy, Languages } from 'lucide-react';
+import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2 } from 'lucide-react';
 import { ImageAnalysisResult } from '../types/analysis';
-import { SessionType, GenerationHistoryEntry, GenerationSettings } from '../types/session';
+import { SessionType, GenerationHistoryEntry } from '../types/session';
 import { buildUnifiedPrompt } from '../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../hooks/useGeminiImageGenerator';
 import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
@@ -14,6 +14,7 @@ interface ImageGeneratorPanelProps {
   customPromptEnglish?: string; // 캐시된 사용자 맞춤 프롬프트 영어 번역
   generationHistory?: GenerationHistoryEntry[];
   onHistoryAdd?: (entry: GenerationHistoryEntry) => void;
+  onHistoryDelete?: (entryId: string) => void;
   onBack?: () => void;
 }
 
@@ -25,6 +26,7 @@ export function ImageGeneratorPanel({
   customPromptEnglish,
   generationHistory = [],
   onHistoryAdd,
+  onHistoryDelete,
   onBack,
 }: ImageGeneratorPanelProps) {
   const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
@@ -47,7 +49,7 @@ export function ImageGeneratorPanel({
   const [temperature, setTemperature] = useState<number>(1.0);
   const [topK, setTopK] = useState<number>(40);
   const [topP, setTopP] = useState<number>(0.95);
-  const [referenceStrength, setReferenceStrength] = useState<number>(0.8);
+  const [referenceStrength, setReferenceStrength] = useState<number>(1.0);
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -217,8 +219,12 @@ export function ImageGeneratorPanel({
     }
   };
 
+  // 삭제 확인 상태
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
   // 히스토리에서 설정 복원
-  const handleRestoreFromHistory = (entry: GenerationHistoryEntry) => {
+  const handleRestoreFromHistory = (e: React.MouseEvent, entry: GenerationHistoryEntry) => {
+    e.stopPropagation();
     console.log('🔄 히스토리에서 설정 복원:', entry.id);
 
     // 이미지 설정 복원
@@ -231,7 +237,7 @@ export function ImageGeneratorPanel({
     setTemperature(entry.settings.temperature ?? 1.0);
     setTopK(entry.settings.topK ?? 40);
     setTopP(entry.settings.topP ?? 0.95);
-    setReferenceStrength(entry.settings.referenceStrength ?? 0.8);
+    setReferenceStrength(entry.settings.referenceStrength ?? 1.0);
 
     // Negative Prompt 복원
     if (entry.negativePrompt) {
@@ -242,6 +248,25 @@ export function ImageGeneratorPanel({
     setGeneratedImage(entry.imageBase64);
 
     alert('설정이 복원되었습니다. 프롬프트를 수정한 후 "이미지 생성"을 클릭하세요.');
+  };
+
+  // 히스토리 삭제 요청
+  const handleDeleteHistory = (e: React.MouseEvent, entryId: string) => {
+    e.stopPropagation();
+    setDeleteConfirm(entryId);
+  };
+
+  // 삭제 확인
+  const confirmDelete = () => {
+    if (deleteConfirm && onHistoryDelete) {
+      onHistoryDelete(deleteConfirm);
+      setDeleteConfirm(null);
+    }
+  };
+
+  // 삭제 취소
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
   };
 
   return (
@@ -336,6 +361,20 @@ export function ImageGeneratorPanel({
                   : '한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.'}
               </p>
             </div>
+
+            {/* 생성 버튼 (추가 프롬프트 바로 아래) */}
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
+                isGenerating
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:shadow-xl'
+              }`}
+            >
+              <Wand2 size={20} />
+              <span>{isGenerating ? '생성 중...' : '이미지 생성'}</span>
+            </button>
 
             {/* 비율 선택 */}
             <div>
@@ -567,20 +606,6 @@ export function ImageGeneratorPanel({
               )}
             </div>
 
-            {/* 생성 버튼 */}
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
-                isGenerating
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:shadow-xl'
-              }`}
-            >
-              <Wand2 size={20} />
-              <span>{isGenerating ? '생성 중...' : '이미지 생성'}</span>
-            </button>
-
             {/* 진행 상태 */}
             {progressMessage && (
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
@@ -635,8 +660,7 @@ export function ImageGeneratorPanel({
                 {generationHistory.slice().reverse().map((entry) => (
                   <div
                     key={entry.id}
-                    className="group relative cursor-pointer"
-                    onClick={() => handleRestoreFromHistory(entry)}
+                    className="group relative"
                     title={`생성 시간: ${new Date(entry.timestamp).toLocaleString()}`}
                   >
                     <div className="aspect-square bg-gray-100 rounded-md overflow-hidden border-2 border-transparent group-hover:border-purple-500 transition-all">
@@ -646,11 +670,23 @@ export function ImageGeneratorPanel({
                         className="w-full h-full object-cover"
                       />
                     </div>
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-70 rounded-md transition-all flex items-center justify-center">
-                      <div className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-center">
-                        <Copy size={16} className="mx-auto mb-1" />
-                        <p className="text-xs font-semibold">복원</p>
-                      </div>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-70 rounded-md transition-all flex items-center justify-center gap-2">
+                      <button
+                        onClick={(e) => handleRestoreFromHistory(e, entry)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-green-600 hover:bg-green-700 rounded text-white"
+                        title="복원"
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                      {onHistoryDelete && (
+                        <button
+                          onClick={(e) => handleDeleteHistory(e, entry.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-red-600 hover:bg-red-700 rounded text-white"
+                          title="삭제"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -659,6 +695,33 @@ export function ImageGeneratorPanel({
           )}
         </div>
       </div>
+
+      {/* 삭제 확인 다이얼로그 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-xl max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">히스토리 삭제</h3>
+            <p className="text-gray-600 mb-6">
+              이 생성 히스토리를 삭제하시겠습니까?<br />
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -26,9 +26,9 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
         const appWindow = getCurrentWindow();
 
         unlisten = await appWindow.onDragDropEvent((event) => {
-          if (event.payload.type === 'hover') {
+          if (event.payload.type === 'enter' || event.payload.type === 'over') {
             setIsDragging(true);
-          } else if (event.payload.type === 'drop' || event.payload.type === 'cancel') {
+          } else if (event.payload.type === 'drop' || event.payload.type === 'leave') {
             setIsDragging(false);
           }
         });

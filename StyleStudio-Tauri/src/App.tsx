@@ -39,7 +39,7 @@ function App() {
   const lastDropTimeRef = useRef(0);
 
   // 자동 저장 Hook
-  const { isSaving, progress, triggerManualSave } = useAutoSave({
+  const { progress, triggerManualSave } = useAutoSave({
     currentSession,
     analysisResult,
     apiKey,
@@ -543,6 +543,33 @@ function App() {
     }
   };
 
+  const handleHistoryDelete = (entryId: string) => {
+    console.log('🗑️ 히스토리 삭제:', entryId);
+
+    // 현재 세션이 있으면 히스토리에서 삭제
+    if (currentSession) {
+      const updatedSession: Session = {
+        ...currentSession,
+        generationHistory: (currentSession.generationHistory || []).filter(
+          (entry) => entry.id !== entryId
+        ),
+        updatedAt: new Date().toISOString(),
+      };
+
+      setCurrentSession(updatedSession);
+
+      // 세션 목록 업데이트
+      const updatedSessions = sessions.map((s) =>
+        s.id === updatedSession.id ? updatedSession : s
+      );
+      setSessions(updatedSessions);
+
+      // 저장
+      saveSessions(updatedSessions);
+      console.log('✅ 히스토리 삭제 완료');
+    }
+  };
+
   const handleBackToAnalysis = () => {
     console.log('📊 분석 화면으로 복귀');
     setCurrentView('analysis');
@@ -687,6 +714,7 @@ function App() {
                   customPromptEnglish={currentSession?.koreanAnalysis?.customPromptEnglish}
                   generationHistory={currentSession?.generationHistory}
                   onHistoryAdd={handleHistoryAdd}
+                  onHistoryDelete={handleHistoryDelete}
                   onBack={handleBackToAnalysis}
                 />
               )

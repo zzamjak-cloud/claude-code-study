@@ -208,10 +208,9 @@ export function useGeminiAnalyzer() {
 
       // JSON 파싱
       let analysisResult: ImageAnalysisResult;
+      let jsonText = text; // catch 블록에서도 접근 가능하도록 try 블록 밖에서 선언
       try {
         console.log('🔍 JSON 파싱 시도...');
-
-        let jsonText = text;
 
         // 1단계: ```json ``` 또는 ``` ``` 코드 블록 제거
         if (text.includes('```')) {

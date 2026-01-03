@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { ImageAnalysisResult } from '../types/analysis';
 import { Session, KoreanAnalysisCache } from '../types/session';
 import { detectChangedSections } from '../lib/analysisComparator';

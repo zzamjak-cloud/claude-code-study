@@ -27,7 +27,7 @@ export function UnifiedPromptCard({
   const [isTranslating, setIsTranslating] = useState(false);
 
   const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
-  const { translateBatchToKorean, containsKorean } = useGeminiTranslator();
+  const { translateBatchToKorean } = useGeminiTranslator();
 
   // analysis가 변경될 때 customPrompt 업데이트
   useEffect(() => {
