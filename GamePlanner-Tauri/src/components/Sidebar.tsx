@@ -212,7 +212,7 @@ export function Sidebar() {
         <div className="flex gap-2">
           <button
             onClick={handleNewChat}
-            className="flex-1 flex items-center justify-center p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="flex-1 flex items-center justify-center p-2 rounded-lg bg-muted hover:bg-accent transition-colors"
             title={currentSessionType === SessionType.PLANNING ? '새 게임 기획' : '게임 분석'}
           >
             <Plus className="w-4 h-4" />
