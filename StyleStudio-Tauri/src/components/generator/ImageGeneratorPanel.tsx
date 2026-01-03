@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2 } from 'lucide-react';
-import { ImageAnalysisResult } from '../types/analysis';
-import { SessionType, GenerationHistoryEntry } from '../types/session';
-import { buildUnifiedPrompt } from '../lib/promptBuilder';
-import { useGeminiImageGenerator } from '../hooks/useGeminiImageGenerator';
-import { useGeminiTranslator } from '../hooks/useGeminiTranslator';
+import { ImageAnalysisResult } from '../../types/analysis';
+import { SessionType, GenerationHistoryEntry } from '../../types/session';
+import { buildUnifiedPrompt } from '../../lib/promptBuilder';
+import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
+import { useTranslation } from '../../hooks/useTranslation';
+import { logger } from '../../lib/logger';
 
 interface ImageGeneratorPanelProps {
   apiKey: string;
@@ -29,9 +30,12 @@ export function ImageGeneratorPanel({
   onHistoryDelete,
   onBack,
 }: ImageGeneratorPanelProps) {
-  const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
+  const { positivePrompt, negativePrompt } = useMemo(
+    () => buildUnifiedPrompt(analysis),
+    [analysis]
+  );
   const { generateImage } = useGeminiImageGenerator();
-  const { translateToEnglish, containsKorean } = useGeminiTranslator();
+  const { translateCustomPrompt, containsKorean } = useTranslation();
 
   const [additionalPrompt, setAdditionalPrompt] = useState('');
   const [isTranslating, setIsTranslating] = useState(false);
@@ -71,10 +75,10 @@ export function ImageGeneratorPanel({
       if (analysis.user_custom_prompt) {
         // 한글이 포함되어 있으면 번역, 영어면 그대로 사용
         if (containsKorean(analysis.user_custom_prompt)) {
-          console.log('🌐 사용자 맞춤 프롬프트 번역 중...');
-          translatedUserCustomPrompt = await translateToEnglish(apiKey, analysis.user_custom_prompt);
+          logger.debug('🌐 사용자 맞춤 프롬프트 번역 중...');
+          translatedUserCustomPrompt = await translateCustomPrompt(apiKey, analysis.user_custom_prompt);
         } else {
-          console.log('♻️ 사용자 맞춤 프롬프트는 이미 영어입니다');
+          logger.debug('♻️ 사용자 맞춤 프롬프트는 이미 영어입니다');
           translatedUserCustomPrompt = analysis.user_custom_prompt;
         }
       }
@@ -84,18 +88,18 @@ export function ImageGeneratorPanel({
       if (additionalPrompt.trim()) {
         // 한글이 포함되어 있으면 번역, 영어면 그대로 사용
         if (containsKorean(additionalPrompt.trim())) {
-          console.log('🌐 추가 프롬프트 번역 중...');
-          translatedAdditionalPrompt = await translateToEnglish(apiKey, additionalPrompt.trim());
+          logger.debug('🌐 추가 프롬프트 번역 중...');
+          translatedAdditionalPrompt = await translateCustomPrompt(apiKey, additionalPrompt.trim());
         } else {
-          console.log('♻️ 추가 프롬프트는 이미 영어입니다');
+          logger.debug('♻️ 추가 프롬프트는 이미 영어입니다');
           translatedAdditionalPrompt = additionalPrompt.trim();
         }
       }
 
       setIsTranslating(false);
-      console.log('✅ 번역 완료');
-      console.log('   - 사용자 맞춤 프롬프트:', translatedUserCustomPrompt);
-      console.log('   - 추가 프롬프트:', translatedAdditionalPrompt);
+      logger.debug('✅ 번역 완료');
+      logger.debug('   - 사용자 맞춤 프롬프트:', translatedUserCustomPrompt);
+      logger.debug('   - 추가 프롬프트:', translatedAdditionalPrompt);
 
       // 2단계: 최종 프롬프트 구성 (영어 사용)
       let finalPrompt = '';
@@ -121,7 +125,7 @@ export function ImageGeneratorPanel({
         }
       }
 
-      console.log('🎨 최종 프롬프트 (영어):', finalPrompt);
+      logger.debug('🎨 최종 프롬프트 (영어):', finalPrompt);
 
       // 3단계: 이미지 생성
       await generateImage(
@@ -144,7 +148,7 @@ export function ImageGeneratorPanel({
         {
           onProgress: (message) => {
             setProgressMessage(message);
-            console.log('📊 진행:', message);
+            logger.debug('📊 진행:', message);
           },
           onComplete: (imageBase64) => {
             const dataUrl = `data:image/png;base64,${imageBase64}`;
@@ -152,7 +156,7 @@ export function ImageGeneratorPanel({
             setIsGenerating(false);
             setIsTranslating(false);
             setProgressMessage('');
-            console.log('✅ 생성 완료');
+            logger.debug('✅ 생성 완료');
 
             // 히스토리에 추가
             if (onHistoryAdd) {
@@ -175,14 +179,14 @@ export function ImageGeneratorPanel({
                 },
               };
               onHistoryAdd(historyEntry);
-              console.log('📜 히스토리에 추가됨:', historyEntry.id);
+              logger.debug('📜 히스토리에 추가됨:', historyEntry.id);
             }
           },
           onError: (error) => {
             setIsGenerating(false);
             setIsTranslating(false);
             setProgressMessage('');
-            console.error('❌ 생성 오류:', error);
+            logger.error('❌ 생성 오류:', error);
             alert('이미지 생성 실패: ' + error.message);
           },
         }
@@ -191,7 +195,7 @@ export function ImageGeneratorPanel({
       setIsGenerating(false);
       setIsTranslating(false);
       setProgressMessage('');
-      console.error('❌ 프롬프트 변환 또는 생성 오류:', error);
+      logger.error('❌ 프롬프트 변환 또는 생성 오류:', error);
       alert('오류 발생: ' + (error as Error).message);
     }
   };
@@ -224,9 +228,9 @@ export function ImageGeneratorPanel({
       // Blob URL 해제
       setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
 
-      console.log('✅ 이미지 다운로드 완료');
+      logger.debug('✅ 이미지 다운로드 완료');
     } catch (error) {
-      console.error('❌ 다운로드 오류:', error);
+      logger.error('❌ 다운로드 오류:', error);
       alert('이미지 다운로드에 실패했습니다: ' + (error as Error).message);
     }
   };
@@ -237,7 +241,7 @@ export function ImageGeneratorPanel({
   // 히스토리에서 설정 복원
   const handleRestoreFromHistory = (e: React.MouseEvent, entry: GenerationHistoryEntry) => {
     e.stopPropagation();
-    console.log('🔄 히스토리에서 설정 복원:', entry.id);
+    logger.debug('🔄 히스토리에서 설정 복원:', entry.id);
 
     // 이미지 설정 복원
     setAspectRatio(entry.settings.aspectRatio);

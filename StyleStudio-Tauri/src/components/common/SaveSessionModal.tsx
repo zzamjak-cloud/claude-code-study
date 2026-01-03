@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Save, Palette, User } from 'lucide-react';
-import { Session, SessionType } from '../types/session';
+import { Session, SessionType } from '../../types/session';
+import { logger } from '../../lib/logger';
 
 interface SaveSessionModalProps {
   isOpen: boolean;
@@ -18,7 +19,7 @@ export function SaveSessionModal({ isOpen, onClose, onSave, currentSession }: Sa
     if (isOpen && currentSession) {
       setSessionName(currentSession.name);
       setSessionType(currentSession.type);
-      console.log('📝 기존 세션 정보로 초기화:', currentSession.name, currentSession.type);
+      logger.debug('📝 기존 세션 정보로 초기화:', currentSession.name, currentSession.type);
     } else if (isOpen && !currentSession) {
       setSessionName('');
       setSessionType('STYLE');

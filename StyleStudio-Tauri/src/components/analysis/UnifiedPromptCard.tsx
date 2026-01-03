@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Copy, Check, Sparkles } from 'lucide-react';
-import { ImageAnalysisResult } from '../types/analysis';
-import { buildUnifiedPrompt, buildUnifiedPromptFromKorean } from '../lib/promptBuilder';
-import { KoreanAnalysisCache } from '../types/session';
+import { ImageAnalysisResult } from '../../types/analysis';
+import { buildUnifiedPrompt, buildUnifiedPromptFromKorean } from '../../lib/promptBuilder';
+import { KoreanAnalysisCache } from '../../types/session';
+import { logger } from '../../lib/logger';
 
 interface UnifiedPromptCardProps {
   analysis: ImageAnalysisResult;
@@ -38,7 +39,7 @@ export function UnifiedPromptCard({
         setTimeout(() => setCopiedNegative(false), 2000);
       }
     } catch (error) {
-      console.error('복사 실패:', error);
+      logger.error('복사 실패:', error);
       alert('클립보드 복사 실패');
     }
   };

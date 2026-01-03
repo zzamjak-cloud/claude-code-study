@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Palette, User, Trash2, ImagePlus, Save, FolderOpen, Settings, GripVertical } from 'lucide-react';
-import { Session } from '../types/session';
+import { Session } from '../../types/session';
+import { logger } from '../../lib/logger';
 
 interface SidebarProps {
   sessions: Session[];
@@ -48,7 +49,7 @@ export function Sidebar({
 
         // 임계값을 넘으면 드래그 시작
         if (distance > DRAG_THRESHOLD) {
-          console.log('✨ 드래그 활성화:', draggedIndex);
+          logger.debug('✨ 드래그 활성화:', draggedIndex);
           setIsDragging(true);
           setDragPosition({ x: e.clientX, y: e.clientY });
         }
@@ -82,14 +83,14 @@ export function Sidebar({
 
     const handleMouseUp = () => {
       if (isDragging && draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex && onReorderSessions) {
-        console.log('💧 드롭 발생:', { from: draggedIndex, to: dragOverIndex });
+        logger.debug('💧 드롭 발생:', { from: draggedIndex, to: dragOverIndex });
 
         const reorderedSessions = [...sessions];
         const [draggedSession] = reorderedSessions.splice(draggedIndex, 1);
         reorderedSessions.splice(dragOverIndex, 0, draggedSession);
 
         onReorderSessions(reorderedSessions);
-        console.log(`✅ 세션 ${draggedIndex}를 ${dragOverIndex}로 이동 완료`);
+        logger.debug(`✅ 세션 ${draggedIndex}를 ${dragOverIndex}로 이동 완료`);
       }
 
       setIsDragging(false);
@@ -115,7 +116,7 @@ export function Sidebar({
       return;
     }
 
-    console.log('🎯 마우스 다운:', index);
+    logger.debug('🎯 마우스 다운:', index);
     setDraggedIndex(index);
     dragStartX.current = e.clientX;
     dragStartY.current = e.clientY;

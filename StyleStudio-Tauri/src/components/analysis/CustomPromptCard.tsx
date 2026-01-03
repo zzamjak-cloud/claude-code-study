@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Edit3, Sparkles } from 'lucide-react';
-import { ImageAnalysisResult } from '../types/analysis';
+import { ImageAnalysisResult } from '../../types/analysis';
 
 interface CustomPromptCardProps {
   analysis: ImageAnalysisResult;

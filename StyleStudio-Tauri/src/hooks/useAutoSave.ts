@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ImageAnalysisResult } from '../types/analysis';
 import { Session, KoreanAnalysisCache } from '../types/session';
 import { detectChangedSections } from '../lib/analysisComparator';
-import { useGeminiTranslator } from './useGeminiTranslator';
+import { logger } from '../lib/logger';
 
 // Props 인터페이스
 interface UseAutoSaveProps {
@@ -27,23 +27,14 @@ interface UseAutoSaveReturn {
   triggerManualSave: (updatedAnalysis?: ImageAnalysisResult) => Promise<void>;
 }
 
-// 진행 상태 인터페이스
-interface TranslationProgress {
-  current: number;
-  total: number;
-}
 
 /**
  * 선택적 번역 함수 (변경된 섹션만 번역)
- * Hook 외부 함수로 정의하여 translator 함수들을 파라미터로 받음
+ * 현재는 번역을 수행하지 않고 기존 캐시를 반환 (번역은 세션 저장 시에만 수행)
  */
 async function translateChangedSections(
   changedSections: ('style' | 'character' | 'composition' | 'prompts')[],
-  newAnalysis: ImageAnalysisResult,
-  oldKoreanCache: KoreanAnalysisCache | undefined,
-  translateBatchToKorean: (apiKey: string, texts: string[]) => Promise<string[]>,
-  apiKey: string,
-  onProgress?: (progress: TranslationProgress) => void
+  oldKoreanCache: KoreanAnalysisCache | undefined
 ): Promise<KoreanAnalysisCache> {
   // 변경되지 않은 섹션은 기존 캐시 재사용
   const mergedCache: KoreanAnalysisCache = {
@@ -55,57 +46,12 @@ async function translateChangedSections(
     customPromptEnglish: oldKoreanCache?.customPromptEnglish,
   };
 
-  // 변경된 섹션의 필드만 수집
-  const textsToTranslate: string[] = [];
-  const fieldMap: Array<{ section: string; field: string; index: number }> = [];
+  logger.debug('📋 [선택적 번역] 변경된 섹션:', changedSections);
 
-  console.log('📋 [선택적 번역] 변경된 섹션:', changedSections);
+  // style, character, composition, prompts는 세션 저장 시에만 번역하므로 자동 저장에서는 번역하지 않음
+  // 변경 감지만 하고 기존 캐시 반환
 
-  // style, character, composition, prompts는 통합 프롬프트의 번역 버튼을 통해 수동으로 번역하므로 자동 번역 제거
-  // 변경 감지만 하고 번역은 하지 않음
-
-  // 변경된 필드가 없으면 캐시 그대로 반환
-  if (textsToTranslate.length === 0) {
-    console.log('✅ [선택적 번역] 변경 사항 없음 - 기존 캐시 반환');
-    return mergedCache;
-  }
-
-  console.log(`🌐 [선택적 번역] ${textsToTranslate.length}개 필드 번역 시작`);
-  onProgress?.({ current: 0, total: textsToTranslate.length });
-
-  // 배치 번역 (1번의 API 호출)
-  const translations = await translateBatchToKorean(apiKey, textsToTranslate);
-
-  onProgress?.({ current: textsToTranslate.length, total: textsToTranslate.length });
-
-  // 번역 결과를 적절한 섹션에 병합
-  fieldMap.forEach(({ section, field, index }) => {
-    const translation = translations[index];
-
-    if (section === 'style') {
-      mergedCache.style = mergedCache.style || { ...newAnalysis.style };
-      (mergedCache.style as any)[field] = translation;
-    } else if (section === 'character') {
-      mergedCache.character = mergedCache.character || { ...newAnalysis.character };
-      (mergedCache.character as any)[field] = translation;
-    } else if (section === 'composition') {
-      mergedCache.composition = mergedCache.composition || { ...newAnalysis.composition };
-      (mergedCache.composition as any)[field] = translation;
-    } else if (section === 'prompts') {
-      if (field === 'positive') {
-        mergedCache.positivePrompt = translation;
-      } else if (field === 'negative') {
-        mergedCache.negativePrompt = translation;
-      }
-    }
-  });
-
-  // style, character, composition 변경 시 positivePrompt 재생성은 하지만 번역은 통합 프롬프트의 번역 버튼에서 처리
-  // (자동 저장에서는 번역하지 않음)
-
-  // user_custom_prompt 번역은 세션 저장 버튼 클릭 시에만 수행 (자동 저장에서는 제외)
-
-  console.log('✅ [선택적 번역] 완료');
+  logger.debug('✅ [선택적 번역] 변경 사항 없음 - 기존 캐시 반환');
   return mergedCache;
 }
 
@@ -121,8 +67,6 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
     percentage: 0,
     estimatedSecondsLeft: 0,
   });
-
-  const { translateBatchToKorean } = useGeminiTranslator();
 
   // 수동 저장 실행 (카드 저장 버튼 클릭시 호출)
   const triggerSave = async (updatedAnalysis?: ImageAnalysisResult) => {
@@ -150,7 +94,7 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
 
       // 변경된 섹션이 없으면 저장 스킵
       if (changedSections.length === 0) {
-        console.log('⏭️ [자동 저장] 변경 사항 없음 - 저장 스킵');
+        logger.debug('⏭️ [자동 저장] 변경 사항 없음 - 저장 스킵');
         setProgress({
           stage: 'idle',
           message: '',
@@ -161,22 +105,10 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
         return;
       }
 
-      // 선택적 번역
+      // 선택적 번역 (현재는 번역하지 않고 기존 캐시 반환)
       const updatedKoreanAnalysis = await translateChangedSections(
         changedSections,
-        analysisToSave,
-        props.currentSession?.koreanAnalysis,
-        translateBatchToKorean,
-        props.apiKey,
-        (translationProgress) => {
-          const percentage = (translationProgress.current / translationProgress.total) * 70; // 70%까지 번역
-          setProgress({
-            stage: 'translating',
-            message: '번역 중',
-            percentage,
-            estimatedSecondsLeft: 0,
-          });
-        }
+        props.currentSession?.koreanAnalysis
       );
 
       setProgress({
@@ -221,7 +153,7 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
         estimatedSecondsLeft: 0,
       });
 
-      console.log('✅ [자동 저장] 완료:', sessionToSave.name);
+      logger.debug('✅ [자동 저장] 완료:', sessionToSave.name);
 
       // 2초 후 완료 메시지 숨김
       setTimeout(() => {
@@ -233,7 +165,7 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
         });
       }, 2000);
     } catch (error) {
-      console.error('❌ [자동 저장] 오류:', error);
+      logger.error('❌ [자동 저장] 오류:', error);
       setProgress({
         stage: 'idle',
         message: '',

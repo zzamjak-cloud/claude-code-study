@@ -1,3 +1,5 @@
+import { logger } from '../../lib/logger';
+
 /**
  * Gemini API를 사용한 한국어-영어 자동 번역 Hook
  *
@@ -31,7 +33,7 @@ export function useGeminiTranslator() {
         return englishText;
       }
 
-      console.log('🌐 영어 → 한국어 번역 시작 (화면 표시용)');
+      logger.debug('🌐 영어 → 한국어 번역 시작 (화면 표시용)');
 
       // Gemini 2.5 Flash API 사용 (더 높은 할당량)
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -75,7 +77,7 @@ Korean translation:`,
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ 번역 API 오류:', response.status, errorText);
+        logger.error('❌ 번역 API 오류:', response.status, errorText);
         return englishText;
       }
 
@@ -83,10 +85,10 @@ Korean translation:`,
       const translatedText =
         result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || englishText;
 
-      console.log('✅ 한국어 번역 완료');
+      logger.debug('✅ 한국어 번역 완료');
       return translatedText;
     } catch (error) {
-      console.error('❌ 번역 오류:', error);
+      logger.error('❌ 번역 오류:', error);
       return englishText;
     }
   };
@@ -108,7 +110,7 @@ Korean translation:`,
         return koreanText;
       }
 
-      console.log('🌐 한국어 → 영어 번역 시작:', koreanText);
+      logger.debug('🌐 한국어 → 영어 번역 시작:', koreanText);
 
       // Gemini 2.5 Flash API 사용 (더 높은 할당량)
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -153,7 +155,7 @@ English translation:`,
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ 번역 API 오류:', response.status, errorText);
+        logger.error('❌ 번역 API 오류:', response.status, errorText);
         // 번역 실패 시 원본 텍스트 반환
         return koreanText;
       }
@@ -162,10 +164,10 @@ English translation:`,
       const translatedText =
         result.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || koreanText;
 
-      console.log('✅ 번역 완료:', translatedText);
+      logger.debug('✅ 번역 완료:', translatedText);
       return translatedText;
     } catch (error) {
-      console.error('❌ 번역 오류:', error);
+      logger.error('❌ 번역 오류:', error);
       // 오류 발생 시 원본 텍스트 반환
       return koreanText;
     }
@@ -183,7 +185,7 @@ English translation:`,
         return [];
       }
 
-      console.log(`🌐 배치 번역 시작 (한국어→영어, ${koreanTexts.length}개 텍스트)`);
+      logger.debug(`🌐 배치 번역 시작 (한국어→영어, ${koreanTexts.length}개 텍스트)`);
 
       // 모든 텍스트를 하나의 프롬프트로 결합
       const combinedText = koreanTexts
@@ -233,7 +235,7 @@ English translations (keep [number] prefix):`,
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ 배치 번역 API 오류:', response.status, errorText);
+        logger.error('❌ 배치 번역 API 오류:', response.status, errorText);
         return koreanTexts; // 실패 시 원본 반환
       }
 
@@ -257,10 +259,10 @@ English translations (keep [number] prefix):`,
         }
       }
 
-      console.log('✅ 배치 번역 완료 (한국어→영어)');
+      logger.debug('✅ 배치 번역 완료 (한국어→영어)');
       return translations;
     } catch (error) {
-      console.error('❌ 배치 번역 오류:', error);
+      logger.error('❌ 배치 번역 오류:', error);
       return koreanTexts; // 오류 시 원본 반환
     }
   };
@@ -277,7 +279,7 @@ English translations (keep [number] prefix):`,
         return [];
       }
 
-      console.log(`🌐 배치 번역 시작 (${englishTexts.length}개 텍스트)`);
+      logger.debug(`🌐 배치 번역 시작 (${englishTexts.length}개 텍스트)`);
 
       // 모든 텍스트를 하나의 프롬프트로 결합
       const combinedText = englishTexts
@@ -325,7 +327,7 @@ Korean translations (keep [number] prefix):`,
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ 배치 번역 API 오류:', response.status, errorText);
+        logger.error('❌ 배치 번역 API 오류:', response.status, errorText);
         return englishTexts; // 실패 시 원본 반환
       }
 
@@ -349,10 +351,10 @@ Korean translations (keep [number] prefix):`,
         }
       }
 
-      console.log('✅ 배치 번역 완료');
+      logger.debug('✅ 배치 번역 완료');
       return translations;
     } catch (error) {
-      console.error('❌ 배치 번역 오류:', error);
+      logger.error('❌ 배치 번역 오류:', error);
       return englishTexts; // 오류 시 원본 반환
     }
   };

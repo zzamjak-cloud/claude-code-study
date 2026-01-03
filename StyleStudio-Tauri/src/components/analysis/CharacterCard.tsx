@@ -1,5 +1,5 @@
 import { User } from 'lucide-react';
-import { CharacterAnalysis } from '../types/analysis';
+import { CharacterAnalysis } from '../../types/analysis';
 import { AnalysisCard } from './AnalysisCard';
 
 interface CharacterCardProps {

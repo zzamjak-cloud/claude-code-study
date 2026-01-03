@@ -3,6 +3,7 @@ import { Upload, Image as ImageIcon, FolderOpen } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { logger } from '../../lib/logger';
 
 interface ImageUploadProps {
   onImageSelect: (imageData: string) => void;
@@ -33,9 +34,9 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
           }
         });
 
-        console.log('✅ [ImageUpload] 호버 리스너 등록 완료');
+        logger.debug('✅ [ImageUpload] 호버 리스너 등록 완료');
       } catch (error) {
-        console.error('❌ [ImageUpload] 호버 리스너 등록 실패:', error);
+        logger.error('❌ [ImageUpload] 호버 리스너 등록 실패:', error);
       }
     };
 
@@ -51,7 +52,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      console.log('📁 선택된 파일 개수:', files.length);
+      logger.debug('📁 선택된 파일 개수:', files.length);
       // 모든 파일을 읽기
       Array.from(files).forEach((file) => {
         readImageFile(file);
@@ -60,15 +61,15 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
   };
 
   const readImageFile = (file: File) => {
-    console.log('📖 파일 읽기 시작:', file.name);
+    logger.debug('📖 파일 읽기 시작:', file.name);
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
-      console.log('✅ 파일 읽기 완료, 데이터 길이:', result.length);
+      logger.debug('✅ 파일 읽기 완료, 데이터 길이:', result.length);
       onImageSelectRef.current(result);
     };
     reader.onerror = (e) => {
-      console.error('❌ 파일 읽기 실패:', e);
+      logger.error('❌ 파일 읽기 실패:', e);
     };
     reader.readAsDataURL(file);
   };
@@ -76,7 +77,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
   // Tauri로 이미지 로드
   const loadTauriImage = async (filePath: string) => {
     try {
-      console.log('📁 Tauri 파일 읽기:', filePath);
+      logger.debug('📁 Tauri 파일 읽기:', filePath);
       const fileData = await readFile(filePath);
 
       // Uint8Array를 base64로 변환
@@ -94,10 +95,10 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
                       ext === 'webp' ? 'image/webp' : 'image/png';
 
       const dataUrl = `data:${mimeType};base64,${base64}`;
-      console.log('✅ Tauri 파일 변환 완료, 데이터 길이:', dataUrl.length);
+      logger.debug('✅ Tauri 파일 변환 완료, 데이터 길이:', dataUrl.length);
       onImageSelectRef.current(dataUrl);
     } catch (error) {
-      console.error('❌ Tauri 파일 읽기 오류:', error);
+      logger.error('❌ Tauri 파일 읽기 오류:', error);
       alert('파일 읽기 오류: ' + (error as Error).message);
     }
   };
@@ -105,7 +106,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
   // Tauri dialog를 사용한 파일 선택
   const handleTauriFileSelect = async () => {
     try {
-      console.log('🗂️ Tauri dialog 열기');
+      logger.debug('🗂️ Tauri dialog 열기');
       const selected = await open({
         multiple: true,
         filters: [
@@ -119,19 +120,19 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
       if (selected) {
         // 배열인 경우 (다중 선택)
         if (Array.isArray(selected)) {
-          console.log('📁 선택된 파일 개수:', selected.length);
+          logger.debug('📁 선택된 파일 개수:', selected.length);
           for (const filePath of selected) {
             await loadTauriImage(filePath);
           }
         }
         // 단일 파일인 경우
         else if (typeof selected === 'string') {
-          console.log('📁 선택된 파일:', selected);
+          logger.debug('📁 선택된 파일:', selected);
           await loadTauriImage(selected);
         }
       }
     } catch (error) {
-      console.error('❌ Tauri 파일 선택 오류:', error);
+      logger.error('❌ Tauri 파일 선택 오류:', error);
       alert('파일 선택 오류: ' + (error as Error).message);
     }
   };

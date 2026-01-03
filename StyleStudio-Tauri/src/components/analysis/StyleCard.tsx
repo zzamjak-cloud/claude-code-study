@@ -1,5 +1,5 @@
 import { Palette } from 'lucide-react';
-import { StyleAnalysis } from '../types/analysis';
+import { StyleAnalysis } from '../../types/analysis';
 import { AnalysisCard } from './AnalysisCard';
 
 interface StyleCardProps {

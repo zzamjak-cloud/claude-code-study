@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { AlertTriangle, Edit2, Save, X } from 'lucide-react';
+import { logger } from '../../lib/logger';
 
 interface NegativePromptCardProps {
   negativePrompt: string;
@@ -32,7 +33,7 @@ export function NegativePromptCard({
   // 캐시가 업데이트되면 반영 (번역 버튼 클릭 시)
   useEffect(() => {
     if (koreanNegativeProp) {
-      console.log('♻️ [NegativePromptCard] 캐시된 번역 사용');
+      logger.debug('♻️ [NegativePromptCard] 캐시된 번역 사용');
       setKoreanPromptDisplay(koreanNegativeProp);
     }
   }, [koreanNegativeProp]);
@@ -45,14 +46,14 @@ export function NegativePromptCard({
     try {
       const trimmedValue = editedPrompt.trim();
 
-      console.log(`💾 [NegativePromptCard] 저장 시작:`, {
+      logger.debug(`💾 [NegativePromptCard] 저장 시작:`, {
         value: trimmedValue,
       });
 
       // 1. 입력한 값을 그대로 저장 (번역 없이)
       // 영어 원본은 세션 저장 시에만 번역됨
       onUpdate(trimmedValue);
-      console.log('✅ [NegativePromptCard] 값 저장 완료 (번역 없이)');
+      logger.debug('✅ [NegativePromptCard] 값 저장 완료 (번역 없이)');
 
       // 2. 한글 값은 입력한 그대로 저장 (통합 프롬프트에서 한글 캐시 사용)
       setKoreanPromptDisplay(trimmedValue);
@@ -65,7 +66,7 @@ export function NegativePromptCard({
       // 3. 편집 모드 종료
       setIsEditing(false);
     } catch (error) {
-      console.error('❌ [NegativePromptCard] 저장 오류:', error);
+      logger.error('❌ [NegativePromptCard] 저장 오류:', error);
       alert('저장 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsSaving(false);

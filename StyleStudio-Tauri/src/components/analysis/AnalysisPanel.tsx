@@ -1,21 +1,20 @@
 import { Sparkles, Save, RefreshCw, Plus, Trash2, Wand2 } from 'lucide-react';
-import { ImageAnalysisResult } from '../types/analysis';
+import { ImageAnalysisResult } from '../../types/analysis';
 import { StyleCard } from './StyleCard';
 import { CharacterCard } from './CharacterCard';
 import { CompositionCard } from './CompositionCard';
 import { NegativePromptCard } from './NegativePromptCard';
 import { UnifiedPromptCard } from './UnifiedPromptCard';
 import { CustomPromptCard } from './CustomPromptCard';
-import { Session } from '../types/session';
+import { Session } from '../../types/session';
 
-import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from '../types/analysis';
-import { KoreanAnalysisCache } from '../types/session';
+import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from '../../types/analysis';
+import { KoreanAnalysisCache } from '../../types/session';
 
 interface AnalysisPanelProps {
   images: string[];
   isAnalyzing: boolean;
   analysisResult: ImageAnalysisResult | null;
-  apiKey: string;
   koreanAnalysis?: KoreanAnalysisCache;
   onAnalyze: () => void;
   onSaveSession?: () => void;
@@ -39,7 +38,6 @@ export function AnalysisPanel({
   images,
   isAnalyzing,
   analysisResult,
-  apiKey,
   koreanAnalysis,
   onAnalyze,
   onSaveSession,
@@ -215,7 +213,6 @@ export function AnalysisPanel({
             {/* 2. 스타일 카드 */}
             <StyleCard
               style={analysisResult.style}
-              apiKey={apiKey}
               koreanStyle={koreanAnalysis?.style}
               onUpdate={onStyleUpdate}
               onKoreanUpdate={onStyleKoreanUpdate}
@@ -224,7 +221,6 @@ export function AnalysisPanel({
             {/* 3. 캐릭터 카드 */}
             <CharacterCard
               character={analysisResult.character}
-              apiKey={apiKey}
               koreanCharacter={koreanAnalysis?.character}
               onUpdate={onCharacterUpdate}
               onKoreanUpdate={onCharacterKoreanUpdate}
@@ -233,7 +229,6 @@ export function AnalysisPanel({
             {/* 4. 구도 카드 */}
             <CompositionCard
               composition={analysisResult.composition}
-              apiKey={apiKey}
               koreanComposition={koreanAnalysis?.composition}
               onUpdate={onCompositionUpdate}
               onKoreanUpdate={onCompositionKoreanUpdate}

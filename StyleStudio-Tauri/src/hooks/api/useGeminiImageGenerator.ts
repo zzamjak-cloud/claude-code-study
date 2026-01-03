@@ -1,4 +1,28 @@
-import { SessionType } from '../types/session';
+import { SessionType } from '../../types/session';
+import { logger } from '../../lib/logger';
+
+// Gemini API 타입 정의
+interface GeminiPart {
+  inline_data?: {
+    mime_type: string;
+    data: string;
+  };
+  text?: string;
+}
+
+interface GeminiImageConfig {
+  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  imageSize: '1K' | '2K' | '4K';
+}
+
+interface GeminiGenerationConfig {
+  responseModalities: string[];
+  imageConfig: GeminiImageConfig;
+  seed?: number;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+}
 
 interface ImageGenerationParams {
   prompt: string; // 서술적 문장 권장
@@ -35,11 +59,11 @@ export function useGeminiImageGenerator() {
         throw new Error('API Key가 비어있습니다');
       }
 
-      console.log('🎨 이미지 생성 시작');
-      console.log('   - 프롬프트 길이:', params.prompt.length);
-      console.log('   - 참조 이미지 개수:', params.referenceImages?.length || 0);
-      console.log('   - 비율:', params.aspectRatio || '1:1');
-      console.log('   - 크기:', params.imageSize || '2K');
+      logger.debug('🎨 이미지 생성 시작');
+      logger.debug('   - 프롬프트 길이:', params.prompt.length);
+      logger.debug('   - 참조 이미지 개수:', params.referenceImages?.length || 0);
+      logger.debug('   - 비율:', params.aspectRatio || '1:1');
+      logger.debug('   - 크기:', params.imageSize || '2K');
 
       callbacks.onProgress?.('이미지 생성 요청 중...');
 
@@ -47,14 +71,14 @@ export function useGeminiImageGenerator() {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${cleanApiKey}`;
 
       // contents 배열 구성: [참조 이미지들..., 프롬프트]
-      const parts: any[] = [];
+      const parts: GeminiPart[] = [];
 
       // 1. 참조 이미지가 있으면 먼저 추가 (최대 14개)
       const hasReferenceImages = params.referenceImages && params.referenceImages.length > 0;
 
       if (hasReferenceImages && params.referenceImages) {
         const maxImages = Math.min(params.referenceImages.length, 14);
-        console.log(`   - 참조 이미지 ${maxImages}개 추가 중...`);
+        logger.debug(`   - 참조 이미지 ${maxImages}개 추가 중...`);
 
         for (let i = 0; i < maxImages; i++) {
           const imageBase64 = params.referenceImages[i];
@@ -229,7 +253,7 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
       parts.push({ text: fullPrompt });
 
       // generationConfig 구성
-      const imageConfig: any = {
+      const imageConfig: GeminiImageConfig = {
         aspectRatio: params.aspectRatio || '1:1',
         imageSize: params.imageSize || '2K',
       };
@@ -239,10 +263,10 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
       // UI에는 표시되지만 실제 API 호출 시에는 사용되지 않음
       // if (hasReferenceImages && params.referenceStrength !== undefined) {
       //   imageConfig.referenceStrength = params.referenceStrength;
-      //   console.log('   - Reference Strength:', params.referenceStrength);
+      //   logger.debug('   - Reference Strength:', params.referenceStrength);
       // }
 
-      const generationConfig: any = {
+      const generationConfig: GeminiGenerationConfig = {
         responseModalities: ['IMAGE'], // 이미지만 응답
         imageConfig,
       };
@@ -250,19 +274,19 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
       // 고급 설정 추가 (값이 있을 때만)
       if (params.seed !== undefined) {
         generationConfig.seed = params.seed;
-        console.log('   - Seed:', params.seed);
+        logger.debug('   - Seed:', params.seed);
       }
       if (params.temperature !== undefined) {
         generationConfig.temperature = params.temperature;
-        console.log('   - Temperature:', params.temperature);
+        logger.debug('   - Temperature:', params.temperature);
       }
       if (params.topK !== undefined) {
         generationConfig.topK = params.topK;
-        console.log('   - Top-K:', params.topK);
+        logger.debug('   - Top-K:', params.topK);
       }
       if (params.topP !== undefined) {
         generationConfig.topP = params.topP;
-        console.log('   - Top-P:', params.topP);
+        logger.debug('   - Top-P:', params.topP);
       }
 
       const requestBody = {
@@ -270,7 +294,7 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
         generationConfig,
       };
 
-      console.log('🌐 API 요청 전송...');
+      logger.debug('🌐 API 요청 전송...');
       callbacks.onProgress?.('Gemini가 이미지를 생성하고 있습니다...');
 
       const response = await fetch(url, {
@@ -283,14 +307,14 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ API 오류:', response.status, errorText);
+        logger.error('❌ API 오류:', response.status, errorText);
         throw new Error(`API 오류 (${response.status}): ${errorText}`);
       }
 
       callbacks.onProgress?.('이미지 생성 완료, 로딩 중...');
 
       const result = await response.json();
-      console.log('✅ Gemini 응답 수신');
+      logger.debug('✅ Gemini 응답 수신');
 
       // 응답 파싱: candidates[0].content.parts[]
       const responseParts = result.candidates?.[0]?.content?.parts || [];
@@ -301,22 +325,22 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
       for (const part of responseParts) {
         if (part.inlineData) {
           imageBase64 = part.inlineData.data;
-          console.log('   - 이미지 데이터 수신 (길이:', imageBase64.length, ')');
+          logger.debug('   - 이미지 데이터 수신 (길이:', imageBase64.length, ')');
         } else if (part.text) {
           textResponse += part.text;
         }
       }
 
       if (!imageBase64) {
-        console.error('❌ 생성된 이미지 없음');
-        console.error('   - 응답:', JSON.stringify(result, null, 2));
+        logger.error('❌ 생성된 이미지 없음');
+        logger.error('   - 응답:', JSON.stringify(result, null, 2));
         throw new Error('생성된 이미지가 없습니다');
       }
 
-      console.log('✅ 이미지 생성 완료!');
+      logger.debug('✅ 이미지 생성 완료!');
       callbacks.onComplete(imageBase64, textResponse);
     } catch (error) {
-      console.error('이미지 생성 오류:', error);
+      logger.error('이미지 생성 오류:', error);
       callbacks.onError(
         error instanceof Error ? error : new Error('알 수 없는 오류가 발생했습니다')
       );

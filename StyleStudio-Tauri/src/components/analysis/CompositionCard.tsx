@@ -1,5 +1,5 @@
 import { Camera } from 'lucide-react';
-import { CompositionAnalysis } from '../types/analysis';
+import { CompositionAnalysis } from '../../types/analysis';
 import { AnalysisCard } from './AnalysisCard';
 
 interface CompositionCardProps {

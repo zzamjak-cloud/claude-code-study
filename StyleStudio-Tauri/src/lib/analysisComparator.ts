@@ -1,4 +1,5 @@
 import { ImageAnalysisResult } from '../types/analysis';
+import { logger } from './logger';
 
 /**
  * 간단한 해시 함수
@@ -21,11 +22,11 @@ function simpleHash(str: string): string {
  * @param data 해시할 섹션 데이터 (StyleAnalysis, CharacterAnalysis, CompositionAnalysis 등)
  * @returns 해시 문자열
  */
-export function hashSection(data: any): string {
-  if (!data) return '';
+export function hashSection(data: unknown): string {
+  if (!data || typeof data !== 'object') return '';
 
   // 객체의 키를 정렬하여 일관된 순서로 JSON 변환
-  const json = JSON.stringify(data, Object.keys(data).sort());
+  const json = JSON.stringify(data, Object.keys(data as Record<string, unknown>).sort());
   return simpleHash(json);
 }
 
@@ -42,7 +43,7 @@ export function detectChangedSections(
 ): ('style' | 'character' | 'composition' | 'prompts')[] {
   // 최초 분석인 경우 모든 섹션 반환
   if (!oldAnalysis) {
-    console.log('🆕 [변경 감지] 최초 분석 - 모든 섹션 번역 필요');
+    logger.debug('🆕 [변경 감지] 최초 분석 - 모든 섹션 번역 필요');
     return ['style', 'character', 'composition', 'prompts'];
   }
 
@@ -52,7 +53,7 @@ export function detectChangedSections(
   const oldStyleHash = hashSection(oldAnalysis.style);
   const newStyleHash = hashSection(newAnalysis.style);
   if (oldStyleHash !== newStyleHash) {
-    console.log('📝 [변경 감지] Style 섹션 변경됨');
+    logger.debug('📝 [변경 감지] Style 섹션 변경됨');
     changed.push('style');
   }
 
@@ -60,11 +61,11 @@ export function detectChangedSections(
   const oldCharacterHash = hashSection(oldAnalysis.character);
   const newCharacterHash = hashSection(newAnalysis.character);
   if (oldCharacterHash !== newCharacterHash) {
-    console.log('👤 [변경 감지] Character 섹션 변경됨');
-    console.log('   - 이전 해시:', oldCharacterHash);
-    console.log('   - 새 해시:', newCharacterHash);
-    console.log('   - 이전 데이터:', oldAnalysis.character);
-    console.log('   - 새 데이터:', newAnalysis.character);
+    logger.debug('👤 [변경 감지] Character 섹션 변경됨');
+    logger.debug('   - 이전 해시:', oldCharacterHash);
+    logger.debug('   - 새 해시:', newCharacterHash);
+    logger.debug('   - 이전 데이터:', oldAnalysis.character);
+    logger.debug('   - 새 데이터:', newAnalysis.character);
     changed.push('character');
   }
 
@@ -72,7 +73,7 @@ export function detectChangedSections(
   const oldCompositionHash = hashSection(oldAnalysis.composition);
   const newCompositionHash = hashSection(newAnalysis.composition);
   if (oldCompositionHash !== newCompositionHash) {
-    console.log('🎨 [변경 감지] Composition 섹션 변경됨');
+    logger.debug('🎨 [변경 감지] Composition 섹션 변경됨');
     changed.push('composition');
   }
 
@@ -80,9 +81,9 @@ export function detectChangedSections(
 
   // 변경 사항 요약 로그
   if (changed.length === 0) {
-    console.log('✅ [변경 감지] 변경 사항 없음 - 번역 스킵');
+    logger.debug('✅ [변경 감지] 변경 사항 없음 - 번역 스킵');
   } else {
-    console.log(`🔄 [변경 감지] ${changed.length}개 섹션 변경: ${changed.join(', ')}`);
+    logger.debug(`🔄 [변경 감지] ${changed.length}개 섹션 변경: ${changed.join(', ')}`);
   }
 
   return changed;

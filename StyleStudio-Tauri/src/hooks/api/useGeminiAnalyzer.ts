@@ -2,8 +2,9 @@ import {
   STYLE_ANALYZER_PROMPT,
   MULTI_IMAGE_ANALYZER_PROMPT,
   REFINEMENT_ANALYZER_PROMPT,
-} from '../lib/gemini/analysisPrompt';
-import { ImageAnalysisResult } from '../types/analysis';
+} from '../../lib/gemini/analysisPrompt';
+import { ImageAnalysisResult } from '../../types/analysis';
+import { logger } from '../../lib/logger';
 
 interface AnalysisCallbacks {
   onProgress: (message: string) => void;
@@ -29,18 +30,18 @@ export function useGeminiAnalyzer() {
         throw new Error('API Key가 비어있습니다');
       }
 
-      console.log('🔑 API Key 정보:');
-      console.log('   - 키 길이:', cleanApiKey.length);
-      console.log('   - 키 시작:', cleanApiKey.substring(0, 15) + '...');
-      console.log('   - 키 형식 확인:', cleanApiKey.startsWith('AIza') ? '✅ 올바른 형식' : '⚠️ 잘못된 형식');
+      logger.debug('🔑 API Key 정보:');
+      logger.debug('   - 키 길이:', cleanApiKey.length);
+      logger.debug('   - 키 시작:', cleanApiKey.substring(0, 15) + '...');
+      logger.debug('   - 키 형식 확인:', cleanApiKey.startsWith('AIza') ? '✅ 올바른 형식' : '⚠️ 잘못된 형식');
 
       // 이미지 배열 검증
       if (!imageBase64Array || imageBase64Array.length === 0) {
         throw new Error('분석할 이미지가 없습니다');
       }
 
-      console.log('📷 이미지 정보:');
-      console.log('   - 이미지 개수:', imageBase64Array.length);
+      logger.debug('📷 이미지 정보:');
+      logger.debug('   - 이미지 개수:', imageBase64Array.length);
 
       callbacks.onProgress(`${imageBase64Array.length}개의 이미지를 Gemini에 전송 중...`);
 
@@ -63,7 +64,7 @@ export function useGeminiAnalyzer() {
         };
       });
 
-      console.log('   - 처리된 이미지 parts:', imageParts.length);
+      logger.debug('   - 처리된 이미지 parts:', imageParts.length);
 
       // 프롬프트 선택 로직
       let analysisPrompt: string;
@@ -74,22 +75,22 @@ export function useGeminiAnalyzer() {
         const previousAnalysisJson = JSON.stringify(options.previousAnalysis, null, 2);
         analysisPrompt = REFINEMENT_ANALYZER_PROMPT(previousAnalysisJson);
         promptType = 'REFINEMENT';
-        console.log('📋 프롬프트 선택: REFINEMENT (분석 강화 모드)');
-        console.log('   - 기존 분석 결과 포함');
+        logger.debug('📋 프롬프트 선택: REFINEMENT (분석 강화 모드)');
+        logger.debug('   - 기존 분석 결과 포함');
       } else {
         // 일반 분석 모드: 이미지 개수에 따라 프롬프트 선택
         analysisPrompt =
           imageBase64Array.length > 1 ? MULTI_IMAGE_ANALYZER_PROMPT : STYLE_ANALYZER_PROMPT;
         promptType = imageBase64Array.length > 1 ? 'MULTI_IMAGE' : 'SINGLE_IMAGE';
-        console.log('📋 프롬프트 선택:', promptType);
+        logger.debug('📋 프롬프트 선택:', promptType);
       }
 
       // Gemini API 엔드포인트 (gemini-2.5-flash 사용)
       const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${cleanApiKey}`;
 
-      console.log('🌐 API 요청 정보:');
-      console.log('   - URL:', url.replace(cleanApiKey, 'API_KEY_MASKED'));
-      console.log('   - 모델:', 'gemini-2.5-flash');
+      logger.debug('🌐 API 요청 정보:');
+      logger.debug('   - URL:', url.replace(cleanApiKey, 'API_KEY_MASKED'));
+      logger.debug('   - 모델:', 'gemini-2.5-flash');
 
       callbacks.onProgress('Gemini가 이미지를 분석하고 있습니다...');
 
@@ -121,17 +122,17 @@ export function useGeminiAnalyzer() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ API 오류 발생:');
-        console.error('   - 상태 코드:', response.status);
-        console.error('   - 상태 텍스트:', response.statusText);
-        console.error('   - 응답 내용:', errorText);
+        logger.error('❌ API 오류 발생:');
+        logger.error('   - 상태 코드:', response.status);
+        logger.error('   - 상태 텍스트:', response.statusText);
+        logger.error('   - 응답 내용:', errorText);
 
         // 에러 내용 파싱 시도
         try {
           const errorJson = JSON.parse(errorText);
-          console.error('   - 파싱된 오류:', JSON.stringify(errorJson, null, 2));
+          logger.error('   - 파싱된 오류:', JSON.stringify(errorJson, null, 2));
         } catch {
-          console.error('   - 원본 오류:', errorText);
+          logger.error('   - 원본 오류:', errorText);
         }
 
         throw new Error(`API 오류 (${response.status}): ${errorText}`);
@@ -140,60 +141,60 @@ export function useGeminiAnalyzer() {
       callbacks.onProgress('분석 결과를 처리하고 있습니다...');
 
       const result = await response.json();
-      console.log('✅ Gemini 응답 수신 성공');
-      console.log('   - 전체 응답:', JSON.stringify(result, null, 2));
+      logger.debug('✅ Gemini 응답 수신 성공');
+      logger.debug('   - 전체 응답:', JSON.stringify(result, null, 2));
 
       // 응답에서 텍스트 추출
       const candidate = result.candidates?.[0];
 
       // 응답 차단 확인
       if (!candidate) {
-        console.error('❌ candidates가 없습니다');
+        logger.error('❌ candidates가 없습니다');
         throw new Error('Gemini 응답에 candidates가 없습니다. API 키나 요청을 확인하세요.');
       }
 
       // finishReason 확인
       const finishReason = candidate.finishReason;
-      console.log('   - finishReason:', finishReason);
+      logger.debug('   - finishReason:', finishReason);
 
       if (finishReason === 'SAFETY') {
-        console.error('❌ 안전 필터에 의해 차단됨');
-        console.error('   - safetyRatings:', candidate.safetyRatings);
+        logger.error('❌ 안전 필터에 의해 차단됨');
+        logger.error('   - safetyRatings:', candidate.safetyRatings);
         throw new Error('이미지가 안전 필터에 의해 차단되었습니다. 다른 이미지로 시도해주세요.');
       }
 
       if (finishReason === 'RECITATION') {
-        console.error('❌ 저작권 관련 차단');
+        logger.error('❌ 저작권 관련 차단');
         throw new Error('저작권 관련 문제로 분석이 차단되었습니다.');
       }
 
       if (finishReason === 'MAX_TOKENS') {
-        console.error('❌ 최대 토큰 수 초과로 응답 잘림');
+        logger.error('❌ 최대 토큰 수 초과로 응답 잘림');
         throw new Error('응답이 너무 길어서 잘렸습니다. 이미지 개수를 줄이거나 다시 시도해주세요.');
       }
 
       if (finishReason === 'OTHER' || finishReason === 'BLOCKLIST') {
-        console.error('❌ 기타 이유로 차단됨:', finishReason);
+        logger.error('❌ 기타 이유로 차단됨:', finishReason);
         throw new Error(`응답이 차단되었습니다: ${finishReason}`);
       }
 
       if (finishReason !== 'STOP') {
-        console.warn('⚠️ 비정상적인 finishReason:', finishReason);
-        console.warn('   - 응답이 완전하지 않을 수 있습니다');
+        logger.warn('⚠️ 비정상적인 finishReason:', finishReason);
+        logger.warn('   - 응답이 완전하지 않을 수 있습니다');
       }
 
       const text = candidate.content?.parts?.[0]?.text;
       if (!text) {
-        console.error('❌ 텍스트 추출 실패:');
-        console.error('   - candidate:', JSON.stringify(candidate, null, 2));
-        console.error('   - content:', candidate.content);
-        console.error('   - parts:', candidate.content?.parts);
-        console.error('   - finishReason:', finishReason);
-        console.error('   - safetyRatings:', candidate.safetyRatings);
+        logger.error('❌ 텍스트 추출 실패:');
+        logger.error('   - candidate:', JSON.stringify(candidate, null, 2));
+        logger.error('   - content:', candidate.content);
+        logger.error('   - parts:', candidate.content?.parts);
+        logger.error('   - finishReason:', finishReason);
+        logger.error('   - safetyRatings:', candidate.safetyRatings);
 
         // promptFeedback 확인
         if (result.promptFeedback) {
-          console.error('   - promptFeedback:', result.promptFeedback);
+          logger.error('   - promptFeedback:', result.promptFeedback);
           if (result.promptFeedback.blockReason) {
             throw new Error(`프롬프트가 차단되었습니다: ${result.promptFeedback.blockReason}`);
           }
@@ -202,34 +203,34 @@ export function useGeminiAnalyzer() {
         throw new Error('Gemini 응답에 텍스트가 없습니다. 이미지를 확인하거나 다시 시도해주세요.');
       }
 
-      console.log('📝 추출된 텍스트:');
-      console.log('   - 길이:', text.length);
-      console.log('   - 시작:', text.substring(0, 100) + '...');
+      logger.debug('📝 추출된 텍스트:');
+      logger.debug('   - 길이:', text.length);
+      logger.debug('   - 시작:', text.substring(0, 100) + '...');
 
       // JSON 파싱
       let analysisResult: ImageAnalysisResult;
       let jsonText = text; // catch 블록에서도 접근 가능하도록 try 블록 밖에서 선언
       try {
-        console.log('🔍 JSON 파싱 시도...');
+        logger.debug('🔍 JSON 파싱 시도...');
 
         // 1단계: ```json ``` 또는 ``` ``` 코드 블록 제거
         if (text.includes('```')) {
-          console.log('   - 코드 블록 감지, 제거 중...');
+          logger.debug('   - 코드 블록 감지, 제거 중...');
           // ```json ... ``` 패턴 매칭
           const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
           if (jsonBlockMatch) {
             jsonText = jsonBlockMatch[1];
-            console.log('   - ```json``` 블록 추출 성공');
+            logger.debug('   - ```json``` 블록 추출 성공');
           } else {
             // ``` ... ``` 패턴 매칭
             const codeBlockMatch = text.match(/```\s*([\s\S]*?)\s*```/);
             if (codeBlockMatch) {
               jsonText = codeBlockMatch[1];
-              console.log('   - ``` 블록 추출 성공');
+              logger.debug('   - ``` 블록 추출 성공');
             } else {
               // 백틱만 제거
               jsonText = text.replace(/```json|```/g, '');
-              console.log('   - 백틱 수동 제거');
+              logger.debug('   - 백틱 수동 제거');
             }
           }
         }
@@ -240,23 +241,23 @@ export function useGeminiAnalyzer() {
 
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
           jsonText = jsonText.substring(firstBrace, lastBrace + 1);
-          console.log('   - JSON 객체 추출 성공');
+          logger.debug('   - JSON 객체 추출 성공');
         }
 
         // 3단계: JSON 클린업 - trailing commas 제거
         // ,} 또는 ,] 패턴을 } 또는 ]로 변경
         jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1');
-        console.log('   - Trailing commas 제거 완료');
+        logger.debug('   - Trailing commas 제거 완료');
 
-        console.log('   - 최종 JSON 텍스트 (앞 300자):', jsonText.substring(0, 300));
-        console.log('   - 최종 JSON 텍스트 (전체 길이):', jsonText.length);
+        logger.debug('   - 최종 JSON 텍스트 (앞 300자):', jsonText.substring(0, 300));
+        logger.debug('   - 최종 JSON 텍스트 (전체 길이):', jsonText.length);
 
         // 4단계: JSON 파싱
         analysisResult = JSON.parse(jsonText.trim());
-        console.log('✅ JSON 파싱 성공');
-        console.log('   - 결과:', JSON.stringify(analysisResult, null, 2));
+        logger.debug('✅ JSON 파싱 성공');
+        logger.debug('   - 결과:', JSON.stringify(analysisResult, null, 2));
       } catch (parseError) {
-        console.error('❌ JSON 파싱 실패:', parseError);
+        logger.error('❌ JSON 파싱 실패:', parseError);
 
         // 에러 위치 정보 추출 (처리된 jsonText 기준)
         const errorMessage = (parseError as Error).message;
@@ -267,34 +268,34 @@ export function useGeminiAnalyzer() {
           const start = Math.max(0, errorPos - 100);
           const end = Math.min(jsonText.length, errorPos + 100);
 
-          console.error('   - 에러 발생 위치 주변 (±100자):', jsonText.substring(start, end));
-          console.error('   - 에러 위치:', errorPos);
+          logger.error('   - 에러 발생 위치 주변 (±100자):', jsonText.substring(start, end));
+          logger.error('   - 에러 위치:', errorPos);
         }
 
         // 전체 JSON 텍스트 출력 (처리된 jsonText)
-        console.error('   - 파싱 시도한 전체 JSON (길이:', jsonText.length, '):');
-        console.error(jsonText);
+        logger.error('   - 파싱 시도한 전체 JSON (길이:', jsonText.length, '):');
+        logger.error(jsonText);
 
         // 원본 텍스트도 출력
-        console.error('   - 원본 Gemini 응답 (길이:', text.length, '):');
-        console.error(text);
+        logger.error('   - 원본 Gemini 응답 (길이:', text.length, '):');
+        logger.error(text);
 
         throw new Error('분석 결과를 JSON으로 파싱할 수 없습니다. Gemini 응답 형식을 확인하세요.');
       }
 
       // 결과 검증
-      console.log('🔎 결과 검증 중...');
+      logger.debug('🔎 결과 검증 중...');
       if (
         !analysisResult.style ||
         !analysisResult.character ||
         !analysisResult.composition ||
         analysisResult.negative_prompt === undefined
       ) {
-        console.error('❌ 결과 형식 오류:');
-        console.error('   - style:', analysisResult.style);
-        console.error('   - character:', analysisResult.character);
-        console.error('   - composition:', analysisResult.composition);
-        console.error('   - negative_prompt:', analysisResult.negative_prompt);
+        logger.error('❌ 결과 형식 오류:');
+        logger.error('   - style:', analysisResult.style);
+        logger.error('   - character:', analysisResult.character);
+        logger.error('   - composition:', analysisResult.composition);
+        logger.error('   - negative_prompt:', analysisResult.negative_prompt);
         throw new Error('분석 결과가 올바른 형식이 아닙니다');
       }
 
@@ -305,11 +306,11 @@ export function useGeminiAnalyzer() {
         !analysisResult.character.torso_shape ||
         !analysisResult.character.hand_style
       ) {
-        console.warn('⚠️ 일부 필드 누락:');
-        console.warn('   - body_proportions:', analysisResult.character.body_proportions);
-        console.warn('   - limb_proportions:', analysisResult.character.limb_proportions);
-        console.warn('   - torso_shape:', analysisResult.character.torso_shape);
-        console.warn('   - hand_style:', analysisResult.character.hand_style);
+        logger.warn('⚠️ 일부 필드 누락:');
+        logger.warn('   - body_proportions:', analysisResult.character.body_proportions);
+        logger.warn('   - limb_proportions:', analysisResult.character.limb_proportions);
+        logger.warn('   - torso_shape:', analysisResult.character.torso_shape);
+        logger.warn('   - hand_style:', analysisResult.character.hand_style);
         // 누락된 필드에 기본값 설정
         if (!analysisResult.character.body_proportions) {
           analysisResult.character.body_proportions = 'not specified';
@@ -328,13 +329,13 @@ export function useGeminiAnalyzer() {
       // 분석 강화 모드인 경우 기존 사용자 맞춤 프롬프트 유지
       if (options?.previousAnalysis?.user_custom_prompt) {
         analysisResult.user_custom_prompt = options.previousAnalysis.user_custom_prompt;
-        console.log('✅ 사용자 맞춤 프롬프트 유지:', analysisResult.user_custom_prompt);
+        logger.debug('✅ 사용자 맞춤 프롬프트 유지:', analysisResult.user_custom_prompt);
       }
 
-      console.log('✅ 분석 완료!');
+      logger.debug('✅ 분석 완료!');
       callbacks.onComplete(analysisResult);
     } catch (error) {
-      console.error('Gemini 분석 오류:', error);
+      logger.error('Gemini 분석 오류:', error);
       callbacks.onError(
         error instanceof Error ? error : new Error('알 수 없는 오류가 발생했습니다')
       );
