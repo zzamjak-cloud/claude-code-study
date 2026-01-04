@@ -22,7 +22,8 @@ export function useTranslation() {
    */
   const translateAnalysisResult = async (
     apiKey: string,
-    analysis: ImageAnalysisResult
+    analysis: ImageAnalysisResult,
+    onProgress?: (progress: TranslationProgress) => void
   ): Promise<KoreanAnalysisCache> => {
     try {
       // 모든 필드를 하나의 배열로 모아서 한 번에 번역 (영어→한국어)
@@ -56,12 +57,21 @@ export function useTranslation() {
       ];
 
       // 한 번의 API 호출로 모든 필드 번역 (영어→한국어)
+      onProgress?.({ stage: 'translating', message: '전체 번역 중...', percentage: 0 });
       const translations = await translateBatchToKorean(apiKey, allTexts);
+      onProgress?.({ stage: 'translating', message: '번역 완료', percentage: 90 });
 
       // 사용자 맞춤 프롬프트를 영어로 번역 (한국어→영어, 이미지 생성용)
-      const customPromptEnglish = analysis.user_custom_prompt
-        ? await translateToEnglish(apiKey, analysis.user_custom_prompt)
-        : '';
+      let customPromptEnglish = '';
+      if (analysis.user_custom_prompt) {
+        if (containsKorean(analysis.user_custom_prompt)) {
+          onProgress?.({ stage: 'translating', message: '사용자 맞춤 프롬프트 번역 중...', percentage: 95 });
+          customPromptEnglish = await translateToEnglish(apiKey, analysis.user_custom_prompt);
+        }
+        // 이미 영어인 경우 번역하지 않음 (이미지 생성 시 직접 사용)
+      }
+      
+      onProgress?.({ stage: 'complete', message: '번역 완료!', percentage: 100 });
 
       const koreanCache: KoreanAnalysisCache = {
         style: {

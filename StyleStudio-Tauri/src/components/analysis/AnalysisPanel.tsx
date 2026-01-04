@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Sparkles, Save, RefreshCw, Plus, Trash2, Wand2 } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { StyleCard } from './StyleCard';
@@ -56,6 +57,8 @@ export function AnalysisPanel({
   onCompositionKoreanUpdate,
   onNegativePromptKoreanUpdate,
 }: AnalysisPanelProps) {
+  const [deleteImageConfirm, setDeleteImageConfirm] = useState<number | null>(null);
+
   if (images.length === 0) {
     return null;
   }
@@ -93,8 +96,12 @@ export function AnalysisPanel({
                 {/* 삭제 버튼 */}
                 {onRemoveImage && (
                   <button
-                    onClick={() => onRemoveImage(index)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteImageConfirm(index);
+                    }}
                     className="absolute top-2 right-2 p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    title="이미지 삭제"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -250,6 +257,51 @@ export function AnalysisPanel({
           </div>
         )}
       </div>
+
+      {/* 이미지 삭제 확인 다이얼로그 */}
+      {deleteImageConfirm !== null && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDeleteImageConfirm(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-sm w-full p-6 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2 text-gray-800">이미지 삭제 확인</h3>
+            <p className="text-gray-600 mb-6">
+              참조 이미지 #{deleteImageConfirm + 1}을(를) 삭제하시겠습니까?
+              <br />
+              이미지를 삭제하면 분석 내용도 함께 사라질 수 있습니다.
+              <br />
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteImageConfirm(null)}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-medium text-gray-700"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (onRemoveImage) {
+                    onRemoveImage(deleteImageConfirm);
+                  }
+                  setDeleteImageConfirm(null);
+                }}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors font-medium text-white"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

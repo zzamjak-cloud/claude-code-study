@@ -44,9 +44,9 @@ export function updateSession(
 export function updateSessionInList(
   sessions: Session[],
   sessionId: string,
-  updates: Partial<Session>
+  updatedSession: Session
 ): Session[] {
-  return sessions.map((s) => (s.id === sessionId ? updateSession(s, updates) : s));
+  return sessions.map((s) => (s.id === sessionId ? updatedSession : s));
 }
 
 /**

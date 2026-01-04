@@ -37,7 +37,8 @@ export function AnalysisCard<T extends Record<string, any>>({
   onKoreanUpdate,
 }: AnalysisCardProps<T>) {
   // 로컬 한글 상태 (즉시 업데이트용)
-  const [koreanDataDisplay, setKoreanDataDisplay] = useState<T>(data);
+  // 초기값: 캐시된 한국어가 있으면 사용, 없으면 영어 원본 사용
+  const [koreanDataDisplay, setKoreanDataDisplay] = useState<T>(koreanDataProp || data);
 
   // useFieldEditor 훅 사용
   const {
@@ -68,21 +69,26 @@ export function AnalysisCard<T extends Record<string, any>>({
   });
 
   // 영어 원본이 변경되면 한글 표시도 영어 원본으로 업데이트 (번역은 나중에)
-  // 단, 사용자가 편집 중이거나 방금 저장한 경우는 제외
+  // 영어 원본이 변경되었을 때만 업데이트 (편집 중이 아닐 때, 캐시가 없을 때만)
   useEffect(() => {
-    // 편집 중이 아니고, 캐시가 없거나 영어 원본이 변경되었으면 영어 원본 표시
-    if (!editingField) {
+    // 편집 중이 아니고, 캐시가 없을 때만 영어 원본 표시
+    if (!editingField && !koreanDataProp) {
       setKoreanDataDisplay(data);
     }
-  }, [data, editingField]);
+  }, [data, editingField, koreanDataProp]);
 
-  // 캐시가 업데이트되면 반영 (번역 버튼 클릭 시)
+  // 캐시가 업데이트되면 반영 (번역 완료 시)
   useEffect(() => {
     if (koreanDataProp) {
       logger.debug(`♻️ [${title}] 캐시된 번역 사용`);
-      setKoreanDataDisplay(koreanDataProp);
+      if (!editingField) {
+        setKoreanDataDisplay(koreanDataProp);
+      }
+    } else if (!editingField) {
+      // 캐시가 없으면 영어 원본 표시
+      setKoreanDataDisplay(data);
     }
-  }, [koreanDataProp, title]);
+  }, [koreanDataProp, data, editingField, title]);
 
   // Textarea 자동 높이 조정
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

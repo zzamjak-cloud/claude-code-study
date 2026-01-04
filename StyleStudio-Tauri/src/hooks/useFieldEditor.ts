@@ -32,13 +32,16 @@ export function useFieldEditor<T extends Record<string, any>>(
 
   /**
    * 편집 모드 진입
-   * 한글 번역된 값으로 초기화
+   * 한글 번역된 값으로 초기화 (없으면 영어 원본 사용)
    */
   const startEdit = (field: keyof T) => {
     logger.debug('✏️ [useFieldEditor] 편집 시작:', field);
     setEditingField(field);
     // 한글 값으로 초기화 (사용자가 한글로 편집할 수 있도록)
-    setEditedValue(String(props.koreanData[field]));
+    // 한글 캐시가 있으면 사용, 없으면 영어 원본 사용
+    const koreanValue = props.koreanData?.[field];
+    const englishValue = props.analysisData[field];
+    setEditedValue(String(koreanValue || englishValue || ''));
   };
 
   /**

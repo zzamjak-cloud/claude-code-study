@@ -33,6 +33,7 @@ export function Sidebar({
   const dragStartX = useRef<number>(0);
   const dragStartY = useRef<number>(0);
   const listRef = useRef<HTMLDivElement>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // 드래그로 인식하기 위한 최소 이동 거리 (픽셀)
   const DRAG_THRESHOLD = 5;
@@ -277,9 +278,7 @@ export function Sidebar({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`"${session.name}" 세션을 삭제하시겠습니까?`)) {
-                            onDeleteSession(session.id);
-                          }
+                          setDeleteConfirm(session.id);
                         }}
                         className="p-1.5 hover:bg-red-900/50 rounded transition-colors"
                         title="세션 삭제"
@@ -294,6 +293,49 @@ export function Sidebar({
           })
         )}
       </div>
+
+      {/* 삭제 확인 다이얼로그 */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDeleteConfirm(null);
+            }
+          }}
+        >
+          <div
+            className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2 text-white">세션 삭제 확인</h3>
+            <p className="text-gray-300 mb-6">
+              "{sessions.find((s) => s.id === deleteConfirm)?.name || '세션'}"을(를) 정말 삭제하시겠습니까?
+              <br />
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors font-medium text-white"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => {
+                  if (onDeleteSession) {
+                    onDeleteSession(deleteConfirm);
+                  }
+                  setDeleteConfirm(null);
+                }}
+                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors font-medium text-white"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

@@ -35,6 +35,12 @@ function App() {
     percentage: 0,
     estimatedSecondsLeft: 0,
   });
+  const [initialTranslationProgress, setInitialTranslationProgress] = useState({
+    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
+    message: '',
+    percentage: 0,
+    estimatedSecondsLeft: 0,
+  });
 
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage } =
@@ -62,7 +68,6 @@ function App() {
     translateAnalysisResult,
     hasChangesToTranslate,
     translateAndUpdateCache,
-    translateCustomPrompt,
   } = useTranslation();
   
   // 세션 저장 및 지속성 관리
@@ -121,7 +126,18 @@ function App() {
       return;
     }
 
-    const isRefinementMode = currentSession && analysisResult;
+    // 빈 세션인지 확인 (모든 필드가 빈 문자열인 경우)
+    const isEmptySession = currentSession && 
+      currentSession.analysis &&
+      currentSession.analysis.style.art_style === '' &&
+      currentSession.analysis.style.technique === '' &&
+      currentSession.analysis.character.gender === '' &&
+      currentSession.analysis.character.age_group === '' &&
+      currentSession.analysis.composition.pose === '' &&
+      currentSession.analysis.composition.angle === '' &&
+      currentSession.analysis.negative_prompt === '';
+
+    const isRefinementMode = currentSession && analysisResult && !isEmptySession;
 
     if (isRefinementMode) {
       const hasNewImages = uploadedImages.length > currentSession.imageCount;
@@ -153,24 +169,76 @@ function App() {
           setAnalysisResult(result);
           setIsAnalyzing(false);
 
-          if (!isRefinementMode) {
+          // 빈 세션이거나 신규 분석인 경우
+          if (isEmptySession || !isRefinementMode) {
             try {
-              const koreanCache = await translateAnalysisResult(apiKey, result);
+              setInitialTranslationProgress({
+                stage: 'translating',
+                message: '번역 준비 중...',
+                percentage: 0,
+                estimatedSecondsLeft: 0,
+              });
 
-              if (result.user_custom_prompt) {
-                koreanCache.customPromptEnglish = await translateCustomPrompt(
-                  apiKey,
-                  result.user_custom_prompt
-                );
+              const koreanCache = await translateAnalysisResult(
+                apiKey,
+                result,
+                (progress) => {
+                  setInitialTranslationProgress({
+                    stage: progress.stage as 'translating' | 'saving' | 'complete',
+                    message: progress.message,
+                    percentage: progress.percentage,
+                    estimatedSecondsLeft: 0,
+                  });
+                }
+              );
+
+              // 사용자 맞춤 프롬프트는 translateAnalysisResult 내부에서 처리됨
+              // 별도 번역 불필요
+
+              if (isEmptySession && currentSession) {
+                // 빈 세션인 경우 기존 세션 업데이트
+                const updatedSession = updateSession(currentSession, {
+                  analysis: result,
+                  referenceImages: uploadedImages,
+                  koreanAnalysis: koreanCache,
+                  imageCount: uploadedImages.length,
+                });
+                const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+                setSessions(updatedSessions);
+                setCurrentSession(updatedSession);
+                await persistSessions(updatedSessions);
+              } else {
+                // 신규 세션 생성
+                const newSession = createNewSession(result, uploadedImages, koreanCache);
+                const updatedSessions = addSessionToList(sessions, newSession);
+                setSessions(updatedSessions);
+                setCurrentSession(newSession);
+                await persistSessions(updatedSessions);
               }
 
-              const newSession = createNewSession(result, uploadedImages, koreanCache);
-              const updatedSessions = addSessionToList(sessions, newSession);
-              setSessions(updatedSessions);
-              setCurrentSession(newSession);
-              await persistSessions(updatedSessions);
+              setInitialTranslationProgress({
+                stage: 'complete',
+                message: '완료!',
+                percentage: 100,
+                estimatedSecondsLeft: 0,
+              });
+
+              setTimeout(() => {
+                setInitialTranslationProgress({
+                  stage: 'idle',
+                  message: '',
+                  percentage: 0,
+                  estimatedSecondsLeft: 0,
+                });
+              }, 2000);
             } catch (error) {
               logger.error('❌ [신규 분석] 번역 오류:', error);
+              setInitialTranslationProgress({
+                stage: 'idle',
+                message: '',
+                percentage: 0,
+                estimatedSecondsLeft: 0,
+              });
             }
           }
         },
@@ -203,7 +271,45 @@ function App() {
   };
 
   const handleReset = () => {
-    setCurrentSession(null);
+    // 빈 분석 결과 생성 (임시 세션용)
+    const emptyAnalysis: ImageAnalysisResult = {
+      style: {
+        art_style: '',
+        technique: '',
+        color_palette: '',
+        lighting: '',
+        mood: '',
+      },
+      character: {
+        gender: '',
+        age_group: '',
+        hair: '',
+        eyes: '',
+        face: '',
+        outfit: '',
+        accessories: '',
+        body_proportions: '',
+        limb_proportions: '',
+        torso_shape: '',
+        hand_style: '',
+      },
+      composition: {
+        pose: '',
+        angle: '',
+        background: '',
+        depth_of_field: '',
+      },
+      negative_prompt: '',
+    };
+
+    // 빈 세션 생성
+    const newSession = createNewSession(emptyAnalysis, [], undefined, 'STYLE');
+    const updatedSessions = addSessionToList(sessions, newSession);
+    setSessions(updatedSessions);
+    setCurrentSession(newSession);
+    persistSessions(updatedSessions);
+
+    // 상태 초기화
     setUploadedImages([]);
     setAnalysisResult(null);
     setCurrentView('analysis');
@@ -429,6 +535,7 @@ function App() {
       <ProgressIndicator {...progress} />
       {saveProgress.stage !== 'idle' && <ProgressIndicator {...saveProgress} />}
       {generateProgress.stage !== 'idle' && <ProgressIndicator {...generateProgress} />}
+      {initialTranslationProgress.stage !== 'idle' && <ProgressIndicator {...initialTranslationProgress} />}
       </div>
     </ErrorBoundary>
   );

@@ -18,25 +18,25 @@ export function NegativePromptCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrompt, setEditedPrompt] = useState(negativePrompt);
   // 로컬 한글 상태 (즉시 업데이트용)
-  const [koreanPromptDisplay, setKoreanPromptDisplay] = useState(negativePrompt);
+  // 초기값: 캐시된 한국어가 있으면 사용, 없으면 영어 원본 사용
+  const [koreanPromptDisplay, setKoreanPromptDisplay] = useState(
+    koreanNegativeProp || negativePrompt
+  );
   const [isSaving, setIsSaving] = useState(false);
 
-  // 네거티브 프롬프트 표시 (자동 번역 제거, 캐시만 사용)
-  // 영어 원본이 변경되면 한글 표시도 업데이트 (번역은 나중에)
-  useEffect(() => {
-    // 편집 중이 아니면 영어 원본 표시
-    if (!isEditing) {
-      setKoreanPromptDisplay(negativePrompt);
-    }
-  }, [negativePrompt, isEditing]);
-  
-  // 캐시가 업데이트되면 반영 (번역 버튼 클릭 시)
+  // 캐시가 업데이트되면 반영 (번역 완료 시)
   useEffect(() => {
     if (koreanNegativeProp) {
-      logger.debug('♻️ [NegativePromptCard] 캐시된 번역 사용');
-      setKoreanPromptDisplay(koreanNegativeProp);
+      logger.debug('♻️ [NegativePromptCard] 캐시된 번역 사용:', koreanNegativeProp);
+      if (!isEditing) {
+        setKoreanPromptDisplay(koreanNegativeProp);
+      }
+    } else if (!isEditing) {
+      // 캐시가 없으면 영어 원본 표시
+      logger.debug('⚠️ [NegativePromptCard] 캐시 없음, 영어 원본 사용');
+      setKoreanPromptDisplay(negativePrompt);
     }
-  }, [koreanNegativeProp]);
+  }, [koreanNegativeProp, negativePrompt, isEditing]);
 
   const handleSave = async () => {
     if (!onUpdate) return;
