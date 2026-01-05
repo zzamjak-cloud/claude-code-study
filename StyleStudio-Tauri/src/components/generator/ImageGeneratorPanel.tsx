@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2 } from 'lucide-react';
+import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
@@ -48,7 +48,7 @@ export function ImageGeneratorPanel({
 
   // 고급 설정
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [editableNegativePrompt, setEditableNegativePrompt] = useState(negativePrompt);
+  const [showHelp, setShowHelp] = useState(false);
   const [seed, setSeed] = useState<number | undefined>(undefined);
   const [temperature, setTemperature] = useState<number>(1.0);
   const [topK, setTopK] = useState<number>(40);
@@ -137,7 +137,7 @@ export function ImageGeneratorPanel({
         apiKey,
         {
           prompt: finalPrompt,
-          negativePrompt: editableNegativePrompt || negativePrompt,
+          negativePrompt: negativePrompt,
           referenceImages:
             sessionType === 'CHARACTER' || useReferenceImages ? referenceImages : undefined,
           aspectRatio: aspectRatio,
@@ -169,7 +169,7 @@ export function ImageGeneratorPanel({
                 id: `gen-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
                 timestamp: new Date().toISOString(),
                 prompt: finalPrompt,
-                negativePrompt: editableNegativePrompt || negativePrompt,
+                negativePrompt: negativePrompt,
                 additionalPrompt: additionalPrompt.trim() || undefined, // 추가 포즈/동작 프롬프트 (원본)
                 imageBase64: dataUrl,
                 settings: {
@@ -260,11 +260,6 @@ export function ImageGeneratorPanel({
     setTopP(entry.settings.topP ?? 0.95);
     setReferenceStrength(entry.settings.referenceStrength ?? 1.0);
 
-    // Negative Prompt 복원
-    if (entry.negativePrompt) {
-      setEditableNegativePrompt(entry.negativePrompt);
-    }
-
     // 추가 포즈/동작 프롬프트 복원
     if (entry.additionalPrompt) {
       setAdditionalPrompt(entry.additionalPrompt);
@@ -293,6 +288,32 @@ export function ImageGeneratorPanel({
   // 삭제 취소
   const cancelDelete = () => {
     setDeleteConfirm(null);
+  };
+
+  // 프리셋 적용
+  const applyPreset = (presetType: 'pose-variation' | 'character-design' | 'style-variation') => {
+    if (presetType === 'pose-variation') {
+      // 포즈/표정/동작 베리에이션 (캐릭터 외형 유지)
+      setSeed(undefined);
+      setTemperature(0.8);
+      setTopK(40);
+      setTopP(0.95);
+      setReferenceStrength(0.95);
+    } else if (presetType === 'character-design') {
+      // 다양한 캐릭터 디자인 (스타일 유지)
+      setSeed(undefined);
+      setTemperature(1.2);
+      setTopK(60);
+      setTopP(0.95);
+      setReferenceStrength(0.6);
+    } else if (presetType === 'style-variation') {
+      // 헤어/의상/악세사리 변경 (캐릭터 외형 유지)
+      setSeed(undefined);
+      setTemperature(1.0);
+      setTopK(50);
+      setTopP(0.90);
+      setReferenceStrength(0.85);
+    }
   };
 
   return (
@@ -361,7 +382,7 @@ export function ImageGeneratorPanel({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-semibold text-gray-700">
-                  {sessionType === 'CHARACTER' ? '추가 포즈/표정/동작 (선택)' : '추가 프롬프트 (선택)'}
+                  추가 프롬프트 (선택)
                 </label>
                 {containsKorean(additionalPrompt) && (
                   <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs text-blue-700">
@@ -382,9 +403,7 @@ export function ImageGeneratorPanel({
                 rows={3}
               />
               <p className="text-xs text-gray-500 mt-1">
-                {sessionType === 'CHARACTER'
-                  ? '한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.'
-                  : '한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.'}
+                한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.
               </p>
             </div>
 
@@ -514,16 +533,54 @@ export function ImageGeneratorPanel({
 
             {/* 고급 설정 */}
             <div className="border-t border-gray-200 pt-4">
-              <button
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <span className="text-sm font-semibold text-gray-700">고급 설정</span>
-                {showAdvanced ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowHelp(true)}
+                  className="p-3 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                  title="고급 설정 도움말"
+                >
+                  <HelpCircle size={20} />
+                </button>
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex-1 flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <span className="text-sm font-semibold text-gray-700">고급 설정</span>
+                  {showAdvanced ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </button>
+              </div>
 
               {showAdvanced && (
                 <div className="mt-4 space-y-4">
+                  {/* 프리셋 버튼 */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      프리셋
+                    </label>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => applyPreset('pose-variation')}
+                        className="w-full flex flex-col items-start p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
+                      >
+                        <span className="text-sm font-semibold text-blue-800">포즈/표정/동작 베리에이션</span>
+                        <span className="text-xs text-blue-600 mt-0.5">캐릭터 외형을 유지하면서 다양한 포즈와 표정</span>
+                      </button>
+                      <button
+                        onClick={() => applyPreset('character-design')}
+                        className="w-full flex flex-col items-start p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors border border-green-200"
+                      >
+                        <span className="text-sm font-semibold text-green-800">다양한 캐릭터 디자인</span>
+                        <span className="text-xs text-green-600 mt-0.5">참조 스타일로 다양한 캐릭터 생성</span>
+                      </button>
+                      <button
+                        onClick={() => applyPreset('style-variation')}
+                        className="w-full flex flex-col items-start p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200"
+                      >
+                        <span className="text-sm font-semibold text-purple-800">헤어/의상/악세사리 변경</span>
+                        <span className="text-xs text-purple-600 mt-0.5">캐릭터 외형을 유지하면서 스타일 변형</span>
+                      </button>
+                    </div>
+                  </div>
                   {/* Seed 값 */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -609,23 +666,6 @@ export function ImageGeneratorPanel({
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       누적 확률 임계값 (낮을수록 보수적, 높을수록 다양함)
-                    </p>
-                  </div>
-
-                  {/* Negative Prompt 편집 */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Negative Prompt (직접 편집)
-                    </label>
-                    <textarea
-                      value={editableNegativePrompt}
-                      onChange={(e) => setEditableNegativePrompt(e.target.value)}
-                      placeholder="피해야 할 요소들 (영문 키워드)"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-                      rows={3}
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      AI가 자동 생성한 negative prompt를 수동으로 수정할 수 있습니다
                     </p>
                   </div>
                 </div>
@@ -743,6 +783,145 @@ export function ImageGeneratorPanel({
                 className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
               >
                 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 도움말 팝업 */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            {/* 헤더 */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <HelpCircle size={24} className="text-purple-600" />
+                <h3 className="text-lg font-semibold">고급 설정 도움말</h3>
+              </div>
+              <button
+                onClick={() => setShowHelp(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* 내용 */}
+            <div className="p-6 space-y-6">
+              {/* Seed */}
+              <div>
+                <h4 className="text-base font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded text-sm">Seed</span>
+                  <span>재현성 제어</span>
+                </h4>
+                <p className="text-sm text-gray-700 leading-relaxed mb-2">
+                  동일한 Seed 값을 사용하면 같은 설정에서 동일한 결과를 재현할 수 있습니다.
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>값 지정:</strong> 특정 결과를 재현하고 싶을 때 사용</li>
+                  <li>• <strong>비워두기:</strong> 매번 다른 랜덤 결과 생성</li>
+                  <li>• <strong>팁:</strong> 좋은 결과가 나온 Seed 값을 저장해두면 유용합니다</li>
+                </ul>
+              </div>
+
+              {/* Temperature */}
+              <div>
+                <h4 className="text-base font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">Temperature</span>
+                  <span>창의성 vs 일관성</span>
+                </h4>
+                <p className="text-sm text-gray-700 leading-relaxed mb-2">
+                  이미지 생성 시 AI의 창의성 정도를 조절합니다.
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>낮은 값 (0.0~0.8):</strong> 일관적이고 예측 가능한 결과, 참조 이미지에 가까움</li>
+                  <li>• <strong>중간 값 (0.8~1.2):</strong> 균형잡힌 창의성과 일관성</li>
+                  <li>• <strong>높은 값 (1.2~2.0):</strong> 창의적이고 다양한 결과, 예측 불가능</li>
+                  <li>• <strong>권장:</strong> 캐릭터 유지는 0.8, 새로운 디자인은 1.2</li>
+                </ul>
+              </div>
+
+              {/* Top-K */}
+              <div>
+                <h4 className="text-base font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-sm">Top-K</span>
+                  <span>샘플링 범위</span>
+                </h4>
+                <p className="text-sm text-gray-700 leading-relaxed mb-2">
+                  AI가 선택할 수 있는 상위 토큰의 개수를 제한합니다.
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>낮은 값 (1~30):</strong> 가장 확실한 선택만, 보수적이고 안전한 결과</li>
+                  <li>• <strong>중간 값 (30~60):</strong> 적절한 다양성 유지</li>
+                  <li>• <strong>높은 값 (60~100):</strong> 더 많은 선택지, 다양하고 실험적인 결과</li>
+                  <li>• <strong>권장:</strong> 일반적으로 40이 적절, 다양성 원하면 60</li>
+                </ul>
+              </div>
+
+              {/* Top-P */}
+              <div>
+                <h4 className="text-base font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-sm">Top-P</span>
+                  <span>누적 확률 임계값</span>
+                </h4>
+                <p className="text-sm text-gray-700 leading-relaxed mb-2">
+                  누적 확률이 이 값에 도달할 때까지의 토큰만 고려합니다 (Nucleus Sampling).
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>낮은 값 (0.5~0.8):</strong> 가장 확실한 선택만, 일관된 결과</li>
+                  <li>• <strong>중간 값 (0.8~0.95):</strong> 균형잡힌 다양성</li>
+                  <li>• <strong>높은 값 (0.95~1.0):</strong> 거의 모든 선택지 고려, 매우 다양한 결과</li>
+                  <li>• <strong>권장:</strong> 0.95가 적절, Top-K와 함께 사용하면 효과적</li>
+                </ul>
+              </div>
+
+              {/* Reference Strength */}
+              <div>
+                <h4 className="text-base font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  <span className="px-2 py-1 bg-pink-100 text-pink-700 rounded text-sm">Reference Strength</span>
+                  <span>참조 영향력</span>
+                </h4>
+                <p className="text-sm text-gray-700 leading-relaxed mb-2">
+                  참조 이미지가 생성 결과에 미치는 영향력을 조절합니다.
+                </p>
+                <ul className="text-sm text-gray-600 space-y-1 ml-4">
+                  <li>• <strong>낮은 값 (0.0~0.5):</strong> 영감만 받음, 자유로운 해석</li>
+                  <li>• <strong>중간 값 (0.5~0.8):</strong> 스타일이나 구도만 유지</li>
+                  <li>• <strong>높은 값 (0.8~1.0):</strong> 참조 이미지와 매우 유사하게</li>
+                  <li>• <strong>권장:</strong> 캐릭터 유지는 0.95, 스타일만 0.6, 변형은 0.85</li>
+                </ul>
+              </div>
+
+              {/* 프리셋 설명 */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
+                <h4 className="text-base font-semibold text-gray-800 mb-3">💡 프리셋 활용 팁</h4>
+                <div className="space-y-2 text-sm text-gray-700">
+                  <p><strong>🎭 포즈/표정/동작 베리에이션:</strong> Reference Strength 0.95, Temperature 0.8 → 캐릭터 외형은 그대로 유지하면서 포즈만 변경</p>
+                  <p><strong>👥 다양한 캐릭터 디자인:</strong> Reference Strength 0.6, Temperature 1.2 → 스타일은 유지하되 완전히 새로운 캐릭터 생성</p>
+                  <p><strong>👗 헤어/의상/악세사리 변경:</strong> Reference Strength 0.85, Temperature 1.0 → 캐릭터의 기본 외형은 유지하면서 스타일 요소만 변경</p>
+                </div>
+              </div>
+
+              {/* Negative Prompt 안내 */}
+              <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+                <h4 className="text-base font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                  ⚠️ Negative Prompt 설정
+                </h4>
+                <p className="text-sm text-gray-700">
+                  Negative Prompt는 이미지 분석 패널의 "부정 프롬프트 카드"에서만 수정할 수 있습니다.
+                  이는 일관된 품질을 유지하기 위해 고정된 값을 사용하도록 설계되었습니다.
+                </p>
+              </div>
+            </div>
+
+            {/* 푸터 */}
+            <div className="sticky bottom-0 bg-white border-t border-gray-200 p-4">
+              <button
+                onClick={() => setShowHelp(false)}
+                className="w-full px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors font-medium"
+              >
+                닫기
               </button>
             </div>
           </div>
