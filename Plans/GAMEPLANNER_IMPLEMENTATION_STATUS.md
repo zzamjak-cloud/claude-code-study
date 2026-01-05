@@ -1,6 +1,6 @@
 # Game Planner - 구현 현황 문서
 
-> **최종 업데이트**: 2025-01-27
+> **최종 업데이트**: 2026-01-03
 > **구현 완료**: Phase 1, Phase 2, Phase 3, Phase 3.5 (템플릿 시스템 고도화), Phase 3.6 (파일 최적화 및 안정성 강화)
 > **다음 단계**: Phase 4 - 고급 기능 및 최적화
 
@@ -72,9 +72,10 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      Application Logic                       │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │  App.tsx (Main State Management)                     │  │
-│  │  - sessions, currentSession, messages              │  │
-│  │  - handleSendMessage(), handleAnalyze()             │  │
+│  │  App.tsx (Main Controller)                           │  │
+│  │  - useAppInitialization (앱 초기화)                   │  │
+│  │  - useAutoSave (자동 저장)                           │  │
+│  │  - useMessageHandler (메시지 처리)                    │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
                             ↕
@@ -83,6 +84,17 @@
 │  ┌──────────────────┬─────────────────────────────────┐    │
 │  │ useGeminiChat    │ useGameAnalysis                 │    │
 │  │ (Planning)       │ (Analysis)                      │    │
+│  ├──────────────────┼─────────────────────────────────┤    │
+│  │ useMessageHandler│ useAppInitialization           │    │
+│  │ (통합 메시지 처리)│ (앱 초기화)                     │    │
+│  └──────────────────┴─────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                      Services Layer                          │
+│  ┌──────────────────┬─────────────────────────────────┐    │
+│  │ geminiService    │ storageService                  │    │
+│  │ (API 호출)       │ (저장소 관리)                    │    │
 │  └──────────────────┴─────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────┘
                             ↕
@@ -102,6 +114,19 @@
 │  │  - Sessions (PLANNING / ANALYSIS)                    │  │
 │  │  - Templates (Prompt Templates)                      │  │
 │  │  - Settings (Database IDs)                          │  │
+│  │  - Reference Files (세션별 관리)                      │  │
+│  │  - Versions (문서 버전 히스토리)                      │  │
+│  │  - Checklists (검증 체크리스트)                       │  │
+│  └──────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                            ↕
+┌─────────────────────────────────────────────────────────────┐
+│                    Migration System                          │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  - V1: 세션 타입 추가                                 │  │
+│  │  - V2: 템플릿 시스템 추가                             │  │
+│  │  - V3: 레퍼런스 파일 필드 추가                        │  │
+│  │  - 자동 마이그레이션 (앱 시작 시)                      │  │
 │  └──────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -479,30 +504,47 @@ export interface PromptTemplate {
 
 **역할**: 전체 애플리케이션 상태 관리 및 흐름 제어
 
-**주요 상태**:
+**주요 Hook 사용**:
 ```typescript
-const [apiKey, setApiKey] = useState('')
-const [sessions, setSessions] = useState<ChatSession[]>([])
-const [currentSessionId, setCurrentSessionId] = useState<string | null>(null)
-const [messages, setMessages] = useState<Message[]>([])
-const [markdownContent, setMarkdownContent] = useState('')
-const [currentSessionType, setCurrentSessionType] = useState<SessionType>(SessionType.PLANNING)
+// 앱 초기화
+useAppInitialization({
+  onSettingsRequired: () => setShowSettings(true),
+})
+
+// 세션 자동 저장
+useAutoSave()
+
+// 메시지 핸들러
+const { handleSendMessage } = useMessageHandler()
 ```
 
+**주요 상태**:
+- `showSettings`: 설정 모달 표시 여부
+- `chatPanelWidth`: 채팅 패널 너비
+- `currentAssistantMessage`: 현재 AI 응답 메시지
+- `showVersionConfirm`: 버전 등록 확인 다이얼로그
+
 **주요 핸들러**:
-- `handleSendMessage()`: 메시지 전송 및 AI 응답 처리
-- `handleAnalyze()`: 게임 분석 실행 (분석 세션 전용)
-- 세션 자동 저장 (디바운스)
+- `handleSendMessageWrapper()`: 메시지 전송 래퍼 (에러 처리 포함)
+- `handleSettingsClick()`: 설정 모달 열기
+- 버전 관리 관련 핸들러들
 
 ### 2. Sidebar (사이드바)
 
 **역할**: 세션 목록 및 관리
+
+**주요 컴포넌트**:
+- `Sidebar.tsx`: 메인 사이드바 컴포넌트
+- `Sidebar/SessionActions.tsx`: 세션 액션 버튼 (새 세션, 불러오기, 템플릿 관리)
+- `Sidebar/SessionList.tsx`: 세션 목록 표시 및 관리
 
 **주요 기능**:
 - 탭 전환 (기획 / 분석)
 - 세션 목록 표시 및 필터링
 - 세션 생성/삭제/내보내기/불러오기
 - 템플릿 관리 모달 열기
+- 세션 드래그 앤 드롭으로 순서 변경
+- 세션 제목 인라인 편집
 
 ### 3. ChatPanel (채팅 패널)
 
@@ -555,35 +597,72 @@ const [currentSessionType, setCurrentSessionType] = useState<SessionType>(Sessio
 - 템플릿 미리보기
 - 템플릿 선택 및 세션 생성
 
-### 8. VersionHistory (버전 관리)
+### 8. TemplateEditorModal (템플릿 에디터)
+
+**역할**: 템플릿 편집 (리치 텍스트 에디터)
+
+**주요 컴포넌트**:
+- `TemplateEditor/EmojiPicker.tsx`: 이모지 피커
+- `TemplateEditor/ZoomControls.tsx`: 줌 컨트롤
+
+**주요 기능**:
+- Tiptap 리치 텍스트 에디터
+- 이모지 피커 (`:` 입력 시 자동 완성)
+- 줌 기능 (50%~200%)
+- 기본 템플릿 보호
+
+### 9. VersionHistory (버전 관리)
 
 **역할**: 문서 버전 히스토리 관리
 
 **주요 기능**:
-- 버전 스냅샷 저장
-- 버전 복원
+- 버전 스냅샷 저장 (즉시 저장)
+- 버전 복원 (즉시 저장)
 - 버전 비교
 - 버전 목록 표시
 
-### 9. ChecklistPanel (검증 패널)
+### 10. ChecklistPanel (검증 패널)
 
 **역할**: 기획서 검증 및 체크리스트 관리
 
 **주요 기능**:
 - AI 기반 문서 검증
-- 체크리스트 항목 관리
+- 체크리스트 항목 관리 (즉시 저장)
 - 검증 결과 표시
 - 도움말 시스템
 
-### 10. ReferenceManager (레퍼런스 파일 관리)
+### 11. ReferenceManager (레퍼런스 파일 관리)
 
 **역할**: 참조 파일 등록 및 관리
 
 **주요 기능**:
-- 파일 등록 및 삭제
+- 파일 등록 및 삭제 (즉시 저장)
 - 파일 요약 생성 및 보기
 - 파일 정보 표시
 - 도움말 시스템
+- 드래그 앤 드롭 지원 (Tauri API)
+
+### 12. useMessageHandler (메시지 핸들러 Hook)
+
+**역할**: 메시지 전송 및 AI 응답 처리
+
+**주요 기능**:
+- 기획 세션 메시지 처리
+- 분석 세션 메시지 처리
+- 레퍼런스 파일 필터링 및 포함
+- 파일 최적화 로직 적용
+- 스트리밍 응답 처리
+- 마크다운 파싱 및 업데이트
+
+### 13. useAppInitialization (앱 초기화 Hook)
+
+**역할**: 앱 시작 시 초기화 작업
+
+**주요 기능**:
+- API Key 확인
+- 세션 로드 및 마이그레이션
+- 설정 모달 자동 표시 (API Key 없을 시)
+- 에러 처리
 
 ---
 
@@ -924,20 +1003,20 @@ export interface PromptTemplate {
 #### 즉시 저장 지점
 
 1. **버전 관리**
-   - 버전 저장 시 즉시 저장
-   - 버전 복원 시 즉시 저장
+   - 버전 저장 시 즉시 저장 (`VersionHistory.tsx`)
+   - 버전 복원 시 즉시 저장 (`VersionHistory.tsx`)
 
 2. **검증 시스템**
-   - 검증 실행 완료 시 즉시 저장
-   - 체크리스트 항목 토글 시 즉시 저장
+   - 검증 실행 완료 시 즉시 저장 (`ChecklistPanel.tsx`)
+   - 체크리스트 항목 토글 시 즉시 저장 (`ChecklistPanel.tsx`)
 
 3. **레퍼런스 파일**
-   - 파일 등록 시 즉시 저장
-   - 파일 삭제 시 즉시 저장
+   - 파일 등록 시 즉시 저장 (`ReferenceManager.tsx`)
+   - 파일 삭제 시 즉시 저장 (`ReferenceManager.tsx`)
 
 4. **채팅 및 내용 생성**
    - 마크다운 업데이트 시 실시간 저장 (비동기)
-   - 채팅 완료 시 즉시 저장
+   - 채팅 완료 시 즉시 저장 (`useMessageHandler.ts`)
    - 기획 세션 및 분석 세션 모두 적용
 
 #### 안정성 개선
@@ -945,10 +1024,56 @@ export interface PromptTemplate {
 - **이중 보호**: 즉시 저장 + 자동 저장(디바운스)
 - **데이터 손실 방지**: 중요한 변화 지점마다 즉시 저장
 - **에러 처리**: 저장 실패 시에도 앱 동작 유지
+- **유틸리티 함수**: `saveSessionImmediately()`로 중앙화된 저장 로직
 
-### ✅ 3.6-4. UI/UX 개선
+### ✅ 3.6-4. 에러 처리 시스템
 
-**구현 완료** - `src/components/ChatPanel.tsx`, `src/components/MarkdownPreview.tsx`
+**구현 완료** - `src/lib/errorHandler.ts`, `src/types/errors.ts`
+
+#### 중앙화된 에러 처리
+
+1. **에러 타입 정의**
+   ```typescript
+   - ApiError: Gemini API, Notion API 오류
+   - StorageError: Tauri Store 저장/로드 오류
+   - ValidationError: 입력값 검증 오류
+   - MigrationError: 세션 마이그레이션 오류
+   ```
+
+2. **사용자 친화적 메시지**
+   - 기술적 에러를 사용자에게 이해하기 쉬운 메시지로 변환
+   - 복구 가능 여부 판단
+   - 상세 정보 제공
+
+3. **에러 복구 전략**
+   - 복구 가능한 에러는 자동 재시도
+   - 복구 불가능한 에러는 사용자에게 알림
+   - 에러 로깅 및 추적
+
+### ✅ 3.6-5. 마이그레이션 시스템
+
+**구현 완료** - `src/lib/migrations/migrationManager.ts`, `v1.ts`, `v2.ts`, `v3.ts`
+
+#### 세션 마이그레이션
+
+1. **버전별 마이그레이션**
+   - **V1**: 세션 타입(`type`) 필드 추가
+   - **V2**: 템플릿 시스템(`templateId`) 필드 추가
+   - **V3**: 레퍼런스 파일(`referenceFiles`) 필드 추가
+
+2. **자동 마이그레이션**
+   - 앱 시작 시 자동으로 세션 마이그레이션 실행
+   - 하위 호환성 유지
+   - 마이그레이션 실패 시 안전하게 처리
+
+3. **마이그레이션 관리자**
+   - 순차적 마이그레이션 실행
+   - 마이그레이션 결과 추적
+   - 에러 처리 및 복구
+
+### ✅ 3.6-6. UI/UX 개선
+
+**구현 완료** - `src/components/ChatPanel.tsx`, `src/components/MarkdownPreview.tsx`, `src/components/Sidebar/`
 
 1. **채팅 영역 파일 첨부 제거**
    - 채팅 영역에서 파일 첨부 기능 완전 제거
@@ -964,6 +1089,15 @@ export interface PromptTemplate {
    - 각 파일 항목에 요약 보기 아이콘 추가
    - 모달로 파일 정보, 요약, 전체 내용 확인
    - 요약이 없는 경우 안내 메시지 표시
+
+4. **컴포넌트 구조 개선**
+   - `Sidebar/` 디렉토리로 사이드바 컴포넌트 분리
+     - `SessionActions.tsx`: 세션 액션 버튼 (새 세션, 불러오기, 템플릿 관리)
+     - `SessionList.tsx`: 세션 목록 표시 및 관리
+   - `TemplateEditor/` 디렉토리로 템플릿 에디터 컴포넌트 분리
+     - `EmojiPicker.tsx`: 이모지 피커 컴포넌트
+     - `ZoomControls.tsx`: 줌 컨트롤 컴포넌트
+   - 코드 재사용성 및 유지보수성 향상
 
 ---
 
@@ -1028,6 +1162,8 @@ export interface PromptTemplate {
 - **Slice 패턴**: 세션, 템플릿, 설정, UI, 체크리스트로 분리
 - **세션 자동 저장**: 디바운스 + 즉시 저장 이중 보호
 - **마이그레이션**: 하위 호환성 유지 (v1, v2, v3)
+- **Hook 분리**: useMessageHandler, useAppInitialization 등으로 로직 분리
+- **서비스 레이어**: geminiService, storageService로 API 호출 분리
 
 ### 5. 파일 최적화 패턴
 
@@ -1035,6 +1171,22 @@ export interface PromptTemplate {
 - **요약 우선 사용**: 대용량 파일은 요약만 포함
 - **스마트 포함 전략**: 파일 크기에 따라 요약/전체/일부 선택
 - **비용 절감**: 70-85% 예상 토큰 절감
+- **파일 크기 제한**: 최대 10만자 (약 25,000 토큰)
+- **요약 캐싱**: 한 번 생성한 요약은 재사용
+
+### 6. 컴포넌트 구조 패턴
+
+- **하위 컴포넌트 분리**: Sidebar/, TemplateEditor/ 디렉토리로 분리
+- **재사용성 향상**: SessionActions, SessionList 등 독립 컴포넌트
+- **관심사 분리**: 각 컴포넌트가 단일 책임만 수행
+- **유지보수성 향상**: 코드 구조 명확화
+
+### 7. 에러 처리 패턴
+
+- **중앙화된 에러 처리**: errorHandler.ts로 통합
+- **에러 타입 정의**: ApiError, StorageError, ValidationError, MigrationError
+- **사용자 친화적 메시지**: 기술적 에러를 이해하기 쉬운 메시지로 변환
+- **복구 전략**: 복구 가능한 에러는 자동 재시도
 
 ---
 
@@ -1067,12 +1219,18 @@ GamePlanner-Tauri/
 ├── src/
 │   ├── components/          # React 컴포넌트
 │   │   ├── Sidebar.tsx
+│   │   ├── Sidebar/         # 사이드바 하위 컴포넌트
+│   │   │   ├── SessionActions.tsx
+│   │   │   └── SessionList.tsx
 │   │   ├── ChatPanel.tsx
 │   │   ├── MarkdownPreview.tsx
 │   │   ├── SettingsModal.tsx
 │   │   ├── TemplateManagerModal.tsx
 │   │   ├── TemplateSelector.tsx
 │   │   ├── TemplateEditorModal.tsx
+│   │   ├── TemplateEditor/  # 템플릿 에디터 하위 컴포넌트
+│   │   │   ├── EmojiPicker.tsx
+│   │   │   └── ZoomControls.tsx
 │   │   ├── AnalysisResult.tsx
 │   │   ├── Header.tsx
 │   │   ├── Resizer.tsx
@@ -1083,48 +1241,60 @@ GamePlanner-Tauri/
 │   ├── hooks/               # 커스텀 훅
 │   │   ├── useGeminiChat.ts
 │   │   ├── useGameAnalysis.ts
-│   │   ├── useMessageHandler.ts
-│   │   ├── useAppInitialization.ts
-│   │   └── useAutoSave.ts
+│   │   ├── useMessageHandler.ts    # 메시지 처리 통합
+│   │   ├── useAppInitialization.ts # 앱 초기화
+│   │   ├── useAutoSave.ts          # 자동 저장
+│   │   └── useTranslation.ts      # 번역 (레거시)
 │   ├── lib/                 # 유틸리티 및 라이브러리
-│   │   ├── store.ts
-│   │   ├── systemInstruction.ts
-│   │   ├── analysisInstruction.ts
-│   │   ├── notionBlocks.ts
-│   │   ├── templateDefaults.ts
-│   │   ├── emojiData.ts
-│   │   ├── utils/
-│   │   │   ├── session.ts
-│   │   │   ├── markdown.ts
-│   │   │   ├── fileParser.ts
-│   │   │   ├── fileOptimization.ts
-│   │   │   └── sessionSave.ts
-│   │   ├── services/
-│   │   │   ├── geminiService.ts
-│   │   │   └── storageService.ts
-│   │   ├── migrations/
-│   │   │   ├── migrationManager.ts
-│   │   │   ├── v1.ts
-│   │   │   ├── v2.ts
-│   │   │   └── v3.ts
-│   │   └── constants/
-│   │       ├── api.ts
-│   │       ├── session.ts
-│   │       └── ui.ts
-│   ├── store/               # 상태 관리
-│   │   ├── useAppStore.ts
-│   │   └── slices/
-│   │       ├── sessionSlice.ts
-│   │       ├── templateSlice.ts
-│   │       ├── settingsSlice.ts
-│   │       ├── uiSlice.ts
-│   │       └── checklistSlice.ts
+│   │   ├── store.ts                # Tauri Store 관리
+│   │   ├── systemInstruction.ts    # 기획 시스템 프롬프트
+│   │   ├── analysisInstruction.ts  # 분석 시스템 프롬프트
+│   │   ├── notionBlocks.ts         # Notion 변환
+│   │   ├── templateDefaults.ts    # 템플릿 기본값
+│   │   ├── emojiData.ts            # 이모지 데이터
+│   │   ├── errorHandler.ts         # 에러 처리
+│   │   ├── markdownParser.ts       # 마크다운 파싱
+│   │   ├── utils/                  # 유틸리티 함수
+│   │   │   ├── session.ts          # 세션 헬퍼
+│   │   │   ├── markdown.ts         # 마크다운 유틸
+│   │   │   ├── fileParser.ts       # 파일 파싱
+│   │   │   ├── fileOptimization.ts # 파일 최적화
+│   │   │   ├── sessionSave.ts       # 즉시 저장
+│   │   │   ├── template.ts         # 템플릿 유틸
+│   │   │   ├── validation.ts        # 검증 유틸
+│   │   │   └── index.ts            # 유틸리티 인덱스
+│   │   ├── services/               # 서비스 레이어
+│   │   │   ├── geminiService.ts    # Gemini API 서비스
+│   │   │   └── storageService.ts  # 저장소 서비스
+│   │   ├── migrations/             # 마이그레이션
+│   │   │   ├── migrationManager.ts # 마이그레이션 관리자
+│   │   │   ├── v1.ts               # V1 마이그레이션
+│   │   │   ├── v2.ts               # V2 마이그레이션
+│   │   │   └── v3.ts               # V3 마이그레이션
+│   │   ├── constants/              # 상수
+│   │   │   ├── api.ts              # API 상수
+│   │   │   ├── session.ts          # 세션 상수
+│   │   │   └── ui.ts               # UI 상수
+│   │   └── sessionHandlers/         # 세션 핸들러
+│   │       └── baseHandler.ts      # 기본 핸들러
+│   ├── store/               # 상태 관리 (Zustand)
+│   │   ├── useAppStore.ts   # 메인 스토어
+│   │   └── slices/          # 슬라이스
+│   │       ├── sessionSlice.ts      # 세션 슬라이스
+│   │       ├── templateSlice.ts    # 템플릿 슬라이스
+│   │       ├── settingsSlice.ts    # 설정 슬라이스
+│   │       ├── uiSlice.ts          # UI 슬라이스
+│   │       └── checklistSlice.ts  # 체크리스트 슬라이스
 │   ├── types/               # TypeScript 타입 정의
 │   │   ├── promptTemplate.ts
 │   │   ├── referenceFile.ts
+│   │   ├── reference.ts
 │   │   ├── version.ts
 │   │   ├── checklist.ts
-│   │   └── gemini.ts
+│   │   ├── gemini.ts
+│   │   ├── notion.ts
+│   │   ├── errors.ts
+│   │   └── store.ts
 │   ├── App.tsx              # 메인 앱
 │   ├── main.tsx             # 엔트리 포인트
 │   └── index.css            # 전역 스타일
@@ -1207,7 +1377,17 @@ GamePlanner-Tauri/
 
 ## 마무리
 
-**Game Planner**는 Phase 3.5까지 성공적으로 구현되었으며, 핵심 기능인 **게임 기획서 작성**, **게임 분석**, **템플릿 시스템**, **Notion 연동**이 모두 작동합니다.
+**Game Planner**는 Phase 3.6까지 성공적으로 구현되었으며, 핵심 기능인 **게임 기획서 작성**, **게임 분석**, **템플릿 시스템**, **Notion 연동**, **레퍼런스 파일 관리**, **파일 최적화**, **즉시 저장 시스템**이 모두 작동합니다.
+
+**Phase 3.6**에서는 안정성과 구조가 크게 개선되었습니다:
+- 레퍼런스 파일 관리 시스템 추가 (PDF, Excel, CSV, Markdown, Text 지원)
+- 파일 최적화 시스템 (관련 파일 필터링, 요약 생성, 비용 절감 70-85%)
+- 즉시 저장 시스템 (중요한 변화 지점마다 즉시 저장)
+- 에러 처리 시스템 중앙화 (errorHandler.ts)
+- 마이그레이션 시스템 체계화 (v1, v2, v3)
+- 컴포넌트 구조 개선 (Sidebar/, TemplateEditor/ 분리)
+- Hook 구조 개선 (useMessageHandler, useAppInitialization)
+- 서비스 레이어 분리 (geminiService, storageService)
 
 **Phase 3.5**에서는 템플릿 시스템이 크게 개선되었습니다:
 - 이모지 피커로 템플릿 작성 편의성 향상
@@ -1222,9 +1402,9 @@ GamePlanner-Tauri/
 
 ---
 
-**문서 버전**: 2.1
+**문서 버전**: 3.0
 **작성일**: 2025-01-01
-**최종 업데이트**: 2025-01-27
+**최종 업데이트**: 2026-01-03
 **주요 업데이트**: 
 - Phase 3.5 (템플릿 시스템 고도화) 내용 추가
 - Phase 3.6 (파일 최적화 및 안정성 강화) 내용 추가
@@ -1236,5 +1416,11 @@ GamePlanner-Tauri/
 - 즉시 저장 시스템 추가
 - 버전 관리 및 검증 시스템 추가
 - 채팅 영역 파일 첨부 제거 및 레퍼런스 탭 조건부 표시
+- 에러 처리 시스템 중앙화 추가
+- 마이그레이션 시스템 체계화 추가
+- 컴포넌트 구조 개선 (하위 컴포넌트 분리) 반영
+- Hook 구조 개선 (useMessageHandler, useAppInitialization) 반영
+- 서비스 레이어 분리 반영
+- 파일 구조 업데이트
 **다음 업데이트 예정**: Phase 4 완료 시
 

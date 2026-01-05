@@ -1,7 +1,7 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2025-12-31
-> **구현 완료**: Phase 1, Phase 2 & 자동 저장 시스템
+> **최종 업데이트**: 2026-01-03
+> **구현 완료**: Phase 1, Phase 2 & 번역 시스템 대폭 개편
 > **다음 단계**: Phase 3 - 생성 엔진 고급 제어
 
 ---
@@ -286,11 +286,11 @@ importSessionFromFile(): Promise<Session | null>
 
 ---
 
-## 자동 저장 시스템
+## 번역 및 세션 저장 시스템
 
 ### 개요
 
-세션 저장 시간을 대폭 단축하고 사용자 경험을 개선하기 위해 **변경 감지 기반 선택적 번역** 및 **자동 저장 파이프라인**을 구현했습니다.
+세션 저장 시간을 대폭 단축하고 사용자 경험을 개선하기 위해 **변경 감지 기반 선택적 번역** 및 **통합 세션 저장 파이프라인**을 구현했습니다. 번역 로직을 중앙화하고 세션 저장과 번역을 통합하여 더욱 효율적인 시스템으로 개편했습니다.
 
 ### 성능 개선
 
@@ -301,66 +301,90 @@ importSessionFromFile(): Promise<Session | null>
 | Character 수정 후 저장 | 3-8초 | 1.1초 | **86%** |
 | 변경 없이 저장 | 3-8초 | <0.01초 | **99.9%** |
 
-### ✅ 변경 감지 시스템
+### ✅ 번역 시스템 중앙화
 
-**구현 완료** - `src/lib/analysisComparator.ts`
+**구현 완료** - `src/hooks/useTranslation.ts`
 
 #### 핵심 기능
 
-1. **해시 기반 비교**
+1. **번역 로직 통합**
+   - 모든 번역 관련 함수를 `useTranslation` Hook으로 중앙화
+   - `translateAnalysisResult`: 전체 분석 결과 영어→한국어 번역 (최초 분석 시)
+   - `translateAndUpdateCache`: 변경된 섹션만 번역하여 캐시 업데이트
+   - `hasChangesToTranslate`: 변경 감지 로직
+
+2. **배치 번역 최적화**
+   - 변경된 섹션의 모든 필드를 한 번에 수집
+   - 단일 API 호출로 배치 번역 수행
+   - API 호출 횟수 최소화 (기존 5-6회 → 1회)
+
+3. **한국어 포함 영어 보존**
+   - 한국어 텍스트 내 영어 단어는 그대로 유지
+   - 기술 용어 및 고유명사 보존
+   - 자연스러운 번역 품질 유지
+
+### ✅ 세션 저장 및 번역 통합
+
+**구현 완료** - `src/hooks/useSessionPersistence.ts`
+
+#### 핵심 기능
+
+1. **통합 저장 파이프라인**
    ```typescript
-   export function hashSection(data: any): string {
-     if (!data) return '';
-     const json = JSON.stringify(data, Object.keys(data).sort());
-     return simpleHash(json);
-   }
+   const { saveProgress, saveSession } = useSessionPersistence({
+     apiKey,
+     currentSession,
+     sessions,
+     setSessions,
+     setCurrentSession,
+     analysisResult,
+     uploadedImages,
+   });
    ```
 
-2. **변경 섹션 감지**
-   - 분석 결과의 각 섹션(style, character, composition, prompts)을 개별적으로 해시 계산
-   - 수정 전/후 해시를 비교하여 변경된 섹션만 식별
-   - 변경되지 않은 섹션은 기존 번역 캐시 재사용
+2. **변경 감지 기반 번역**
+   - 세션 저장 시 `hasChangesToTranslate`로 변경 감지
+   - 변경된 내용만 `translateAndUpdateCache`로 번역
+   - 변경 없으면 번역 스킵하여 즉시 저장
 
-3. **지원 섹션**
+3. **진행 상태 추적**
+   - `saveProgress`로 번역/저장 진행 상태 실시간 추적
+   - 시각적 피드백 제공 (`ProgressIndicator` 컴포넌트)
+
+### ✅ 변경 감지 시스템
+
+**구현 완료** - `src/hooks/useTranslation.ts` (`hasChangesToTranslate`)
+
+#### 핵심 기능
+
+1. **섹션별 변경 감지**
+   - `style`, `character`, `composition`, `negative_prompt`, `user_custom_prompt` 개별 비교
+   - JSON.stringify 기반 정확한 변경 감지
+   - 변경된 섹션만 번역 대상으로 선정
+
+2. **지원 섹션**
    - `style`: 5개 필드 (art_style, technique, color_palette, lighting, mood)
    - `character`: 11개 필드 (gender, age_group, hair, eyes, face, outfit, accessories, body_proportions, limb_proportions, torso_shape, hand_style)
    - `composition`: 4개 필드 (pose, angle, background, depth_of_field)
-   - `prompts`: negative_prompt, user_custom_prompt
+   - `negative_prompt`: 부정 프롬프트
+   - `user_custom_prompt`: 사용자 맞춤 프롬프트
 
-### ✅ 자동 저장 Hook
+### ✅ 자동 저장 Hook (분석 카드 편집용)
 
 **구현 완료** - `src/hooks/useAutoSave.ts`
 
 #### 주요 기능
 
-1. **선택적 번역 (Selective Translation)**
-   ```typescript
-   // 변경된 섹션만 번역
-   const changedSections = detectChangedSections(
-     oldAnalysis,
-     newAnalysis
-   );
+1. **분석 카드 편집 시 자동 저장**
+   - Style, Character, Composition, Negative Prompt 카드 편집 시 자동 저장
+   - 번역 없이 영어 원본만 저장 (번역은 세션 저장 시 수행)
+   - `saveSessionWithoutTranslation` 함수로 즉시 저장
 
-   // 변경된 필드만 수집하여 배치 번역 (1번의 API 호출)
-   const updatedKoreanAnalysis = await translateChangedSections(
-     changedSections,
-     newAnalysis,
-     oldKoreanCache,
-     apiKey
-   );
-   ```
+2. **변경 감지**
+   - `detectChangedSections`로 변경된 섹션 감지
+   - 변경 없으면 저장 스킵
 
-2. **수동 트리거 방식**
-   - 카드 저장 버튼 클릭 시 실행
-   - 분석 결과를 파라미터로 받아 즉시 처리
-   - 상태 업데이트 타이밍 문제 해결
-
-3. **진행 상태 추적**
-   - `stage`: 'idle', 'translating', 'saving', 'complete'
-   - `message`: 사용자에게 표시할 메시지
-   - `percentage`: 진행률 (0-100)
-
-4. **세션 자동 생성/업데이트**
+3. **세션 자동 생성/업데이트**
    - 기존 세션이 있으면 업데이트
    - 없으면 새 세션 자동 생성
    - LocalStorage에 즉시 저장
@@ -389,81 +413,136 @@ importSessionFromFile(): Promise<Session | null>
 
 ### ✅ 통합 및 연결
 
-**구현 완료** - `src/App.tsx`, `src/components/AnalysisPanel.tsx`
+**구현 완료** - `src/App.tsx`, `src/components/analysis/AnalysisPanel.tsx`
 
 #### App.tsx 변경 사항
 
-1. **useAutoSave Hook 통합**
+1. **Hook 구조 개선**
    ```typescript
-   const { isSaving, progress, triggerManualSave } = useAutoSave({
-     currentSession,
-     analysisResult,
+   // 이미지 처리
+   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage } =
+     useImageHandling();
+   
+   // 세션 관리
+   const { apiKey, sessions, setSessions, currentSession, setCurrentSession, ... } =
+     useSessionManagement();
+   
+   // 번역
+   const { translateAnalysisResult, hasChangesToTranslate, translateAndUpdateCache } =
+     useTranslation();
+   
+   // 세션 저장 및 번역 통합
+   const { saveProgress, saveSession } = useSessionPersistence({
      apiKey,
+     currentSession,
+     sessions,
+     setSessions,
+     setCurrentSession,
+     analysisResult,
      uploadedImages,
-     onSessionUpdate: (session) => {
-       setCurrentSession(session);
-       // sessions 배열 업데이트 및 LocalStorage 저장
-     },
    });
    ```
 
-2. **카드 업데이트 콜백**
+2. **분석 카드 업데이트 콜백**
    ```typescript
    onStyleUpdate={(style) => {
      if (analysisResult) {
        const updated = { ...analysisResult, style };
        setAnalysisResult(updated);
-       triggerManualSave(updated); // 업데이트된 분석 결과 전달
+       saveSessionWithoutTranslation(updated); // 번역 없이 즉시 저장
      }
    }}
    ```
 
-3. **분석 강화 검증**
-   - 신규 이미지 없으면 경고 후 중단
-   - 신규 이미지 있으면 확인 다이얼로그 표시
-   - 기존 수정 사항 손실 방지
+3. **초기 분석 번역**
+   - 이미지 분석 완료 시 자동으로 영어→한국어 번역
+   - `initialTranslationProgress`로 진행 상태 표시
+   - 번역 완료 후 세션 자동 생성
 
-4. **ProgressIndicator 렌더링**
+4. **이미지 생성 시 번역**
+   - 이미지 생성 화면 이동 시 변경된 내용만 번역
+   - `generateProgress`로 진행 상태 표시
+   - 번역 완료 후 세션 저장 및 화면 전환
+
+5. **ProgressIndicator 렌더링**
    ```tsx
-   <ProgressIndicator {...progress} />
+   <ProgressIndicator {...saveProgress} />
+   <ProgressIndicator {...initialTranslationProgress} />
+   <ProgressIndicator {...generateProgress} />
    ```
 
 #### AnalysisPanel 변경 사항
 
-1. **onUpdate 콜백 Props 추가**
+1. **컴포넌트 구조 개편**
+   - `components/analysis/` 디렉토리로 이동
+   - 카드 컴포넌트들도 `analysis/` 디렉토리로 통합
+
+2. **카드 순서 재정렬**
+   ```tsx
+   1. CustomPromptCard (사용자 맞춤 프롬프트)
+   2. StyleCard (스타일 분석)
+   3. CharacterCard (캐릭터 분석)
+   4. CompositionCard (구도 분석)
+   5. NegativePromptCard (부정 프롬프트)
+   6. UnifiedPromptCard (통합 프롬프트) - 최하단
+   ```
+
+3. **이미지 삭제 확인 다이얼로그**
+   - 이미지 삭제 버튼 클릭 시 확인 팝업 표시
+   - 분석 내용 손실 경고 메시지 포함
+
+4. **onUpdate 콜백 Props**
    ```typescript
    interface AnalysisPanelProps {
      onStyleUpdate?: (style: StyleAnalysis) => void;
      onCharacterUpdate?: (character: CharacterAnalysis) => void;
      onCompositionUpdate?: (composition: CompositionAnalysis) => void;
      onNegativePromptUpdate?: (negativePrompt: string) => void;
+     onStyleKoreanUpdate?: (koreanStyle: StyleAnalysis) => void;
+     onCharacterKoreanUpdate?: (koreanCharacter: CharacterAnalysis) => void;
+     onCompositionKoreanUpdate?: (koreanComposition: CompositionAnalysis) => void;
+     onNegativePromptKoreanUpdate?: (koreanNegativePrompt: string) => void;
    }
    ```
 
-2. **카드 컴포넌트에 전달**
-   ```tsx
-   <StyleCard onUpdate={onStyleUpdate} />
-   <CharacterCard onUpdate={onCharacterUpdate} />
-   <CompositionCard onUpdate={onCompositionUpdate} />
-   <NegativePromptCard onUpdate={onNegativePromptUpdate} />
+### ✅ 카드 컴포넌트 통합 및 개선
+
+**구현 완료** - `src/components/analysis/AnalysisCard.tsx`, `StyleCard.tsx`, `CharacterCard.tsx`, `CompositionCard.tsx`, `NegativePromptCard.tsx`, `CustomPromptCard.tsx`
+
+#### AnalysisCard 통합
+
+1. **제네릭 카드 컴포넌트**
+   - `StyleCard`, `CharacterCard`, `CompositionCard`를 `AnalysisCard`로 통합
+   - 제네릭 타입으로 재사용성 향상
+   - 코드 중복 제거
+
+2. **한국어 캐시 우선 표시**
+   ```typescript
+   // 캐시된 한국어가 있으면 우선 표시, 없으면 영어 원본 표시
+   const [koreanDataDisplay, setKoreanDataDisplay] = useState<T>(
+     koreanDataProp || data
+   );
    ```
 
-### ✅ 카드 컴포넌트 동기화
+3. **편집 모드 언어 유지**
+   - 편집 버튼 클릭 시 한국어 값으로 초기화
+   - 편집 중에도 한국어 표시 유지
+   - 저장 시 영어로 변환하여 저장
 
-**구현 완료** - `src/components/StyleCard.tsx`, `CharacterCard.tsx`, `CompositionCard.tsx`, `NegativePromptCard.tsx`
+#### CustomPromptCard 추가
 
-#### 상태 동기화
+1. **사용자 맞춤 프롬프트 전용 카드**
+   - `UnifiedPromptCard`에서 분리
+   - 독립적인 편집 및 저장 기능
+   - 세션 저장 시에만 번역 및 저장
 
-```typescript
-// Props 변경 시 편집 상태 자동 동기화
-useEffect(() => {
-  setEditedCharacter(character);
-}, [character]);
-```
+#### UnifiedPromptCard 개선
 
-- 번역 완료 후 한글 정보가 카드에 즉시 반영됨
-- 사용자가 편집 중이던 내용과 충돌 없음
-- 부드러운 UI 업데이트
+1. **표시 전용 컴포넌트**
+   - 모든 분석 카드의 정보를 통합하여 표시
+   - 편집 기능 제거 (각 카드에서 개별 편집)
+   - `buildUnifiedPrompt`로 영어 프롬프트 생성
+   - `buildUnifiedPromptFromKorean`로 한국어 프롬프트 표시
 
 ### ✅ UI 개선 사항
 
@@ -519,26 +598,53 @@ if (isRefinementMode) {
 
 ### 기술적 세부사항
 
-#### 선택적 번역 알고리즘
+#### 번역 알고리즘
 
-1. **필드 수집**
-   - 변경된 섹션의 모든 필드를 배열로 수집
-   - 필드 인덱스와 섹션 매핑 정보 저장
+1. **변경 감지 및 필드 수집**
+   ```typescript
+   // 변경된 섹션 감지
+   if (JSON.stringify(oldAnalysis.style) !== JSON.stringify(analysisResult.style)) {
+     // 한국어 텍스트만 수집
+     styleTexts.forEach((item) => {
+       if (containsKorean(item.value)) {
+         styleKoreanTexts.push({ text: item.value, field: item.field, index: idx });
+       }
+     });
+   }
+   ```
 
 2. **배치 번역**
-   - `translateBatchToKorean()` 1회 호출로 모든 필드 번역
-   - API 호출 횟수 최소화
-   - 진행 상태 실시간 업데이트
+   - 모든 변경된 섹션의 한국어 텍스트를 하나의 배열로 수집
+   - `translateBatchToEnglish()` 1회 호출로 모든 필드 번역 (한국어→영어)
+   - API 호출 횟수 최소화 (기존 5-6회 → 1회)
 
 3. **캐시 병합**
    - 변경되지 않은 섹션은 기존 캐시 재사용
    - 번역된 필드만 새 캐시에 병합
-   - 일관성 유지
+   - `customPromptEnglish` 별도 저장 (이미지 생성용)
 
 4. **positivePrompt 자동 생성**
    - style, character, composition 중 하나라도 변경 시
    - `buildUnifiedPrompt()`로 새 positivePrompt 생성
-   - 한글 번역 추가 수행
+   - 한국어 번역은 `translateBatchToKorean()`으로 수행
+
+#### 번역 시점
+
+1. **최초 이미지 분석 시**
+   - 영어 분석 결과 → 한국어 번역
+   - 전체 필드 번역 (22개 필드)
+   - `initialTranslationProgress`로 진행 상태 표시
+
+2. **세션 저장 시**
+   - 변경된 내용만 감지하여 번역
+   - 변경 없으면 번역 스킵
+   - `saveProgress`로 진행 상태 표시
+
+3. **이미지 생성 시**
+   - 변경된 내용만 감지하여 번역
+   - `additionalPrompt`는 항상 번역 (매번 새로 입력)
+   - `user_custom_prompt`는 캐시된 영어 번역 사용
+   - `generateProgress`로 진행 상태 표시
 
 #### 데이터 구조
 
@@ -566,51 +672,109 @@ interface Session {
 
 1. 사용자가 이미지 업로드 후 "이미지 분석" 클릭
 2. Gemini API로 분석 (5초)
-3. 자동 저장 시스템 트리거
-4. 전체 필드 번역 (2-5초)
+3. 자동으로 영어→한국어 번역 시작 (`initialTranslationProgress` 표시)
+4. 전체 필드 번역 (2-5초, 22개 필드)
 5. 세션 자동 생성 및 저장
-6. "저장 완료!" 표시
+6. "번역 완료!" 표시
 
 **총 소요 시간**: 7-10초
 
-#### 시나리오 2: Character 일부 수정
+#### 시나리오 2: 분석 카드 편집
 
 1. 사용자가 Character 카드에서 "hair" 필드 수정
 2. "저장" 버튼 클릭
-3. Character 섹션만 변경 감지 (11개 필드)
-4. Character 필드만 배치 번역 (1.1초)
-5. positivePrompt 자동 재생성
-6. 세션 업데이트
-7. "저장 완료!" 표시
+3. `saveSessionWithoutTranslation` 호출
+4. 번역 없이 영어 원본만 저장
+5. 즉시 완료
 
-**총 소요 시간**: 1.1초 (기존 대비 **86% 단축**)
+**총 소요 시간**: <0.01초
 
-#### 시나리오 3: 변경 없이 저장
+#### 시나리오 3: 세션 저장 (변경 있음)
+
+1. 사용자가 여러 카드 수정 후 "세션 저장" 클릭
+2. `hasChangesToTranslate`로 변경 감지
+3. 변경된 섹션만 번역 (`saveProgress` 표시)
+4. 배치 번역 수행 (1-3초)
+5. 세션 저장
+6. "저장 완료!" 표시
+
+**총 소요 시간**: 1-3초 (변경된 섹션 수에 따라)
+
+#### 시나리오 4: 세션 저장 (변경 없음)
 
 1. 사용자가 세션 이름만 변경
-2. "저장" 버튼 클릭
-3. 변경 섹션 감지 → 없음
+2. "세션 저장" 버튼 클릭
+3. `hasChangesToTranslate`로 변경 감지 → 없음
 4. 번역 스킵
 5. 세션 메타데이터만 업데이트
 6. "저장 완료!" 표시
 
 **총 소요 시간**: <0.01초 (기존 대비 **99.9% 단축**)
 
+#### 시나리오 5: 이미지 생성
+
+1. 사용자가 "이미지 생성" 버튼 클릭
+2. `hasChangesToTranslate`로 변경 감지
+3. 변경 있으면 번역 (`generateProgress` 표시)
+4. `additionalPrompt` 번역 (한국어인 경우)
+5. 세션 저장
+6. 이미지 생성 화면으로 이동
+
+**총 소요 시간**: 변경 있으면 1-3초, 없으면 즉시
+
+### ✅ 세션 관리 개선
+
+**구현 완료** - `src/hooks/useSessionManagement.ts`, `src/components/common/Sidebar.tsx`
+
+#### 주요 기능
+
+1. **빈 세션 즉시 생성**
+   - "새 세션 시작" 버튼 클릭 시 즉시 빈 세션 생성
+   - 세션 목록에 바로 추가
+   - 이미지 분석 시 빈 세션 업데이트
+
+2. **세션 삭제 확인 다이얼로그**
+   - 커스텀 확인 다이얼로그 구현 (Tauri 환경 대응)
+   - `window.confirm` 대신 React 컴포넌트 사용
+   - 배경 클릭 시 취소
+
+3. **이미지 삭제 확인 다이얼로그**
+   - 이미지 삭제 시 확인 팝업 표시
+   - 분석 내용 손실 경고 메시지
+   - 안전한 삭제 프로세스
+
+### ✅ 로깅 시스템 개선
+
+**구현 완료** - `src/lib/logger.ts`
+
+#### 환경별 로깅
+
+1. **개발 모드**
+   - 모든 로그 출력 (debug, info, warn, error)
+
+2. **프로덕션 모드**
+   - 에러만 로깅
+   - 성능 최적화
+
+3. **일관된 로깅 인터페이스**
+   ```typescript
+   logger.debug('상세 디버그 정보');
+   logger.info('일반 정보');
+   logger.warn('경고');
+   logger.error('에러');
+   ```
+
 ### 향후 개선 가능성
 
-1. **sessionStorage 캐시 추가**
-   - 페이지 새로고침 시에도 번역 캐시 유지
-   - 불필요한 재번역 방지
-
-2. **React.memo 최적화**
+1. **React.memo 최적화**
    - 카드 컴포넌트 메모이제이션
    - 불필요한 재렌더링 방지
 
-3. **디바운스 편집**
-   - 타이핑 중 자동 저장 지연
-   - 저장 빈도 최적화
+2. **번역 캐시 영구 저장**
+   - 번역 결과를 별도 저장소에 캐싱
+   - 동일한 텍스트 재번역 방지
 
-4. **오프라인 모드**
+3. **오프라인 모드**
    - 번역 없이 영문만 저장
    - 온라인 복귀 시 번역 보충
 
@@ -834,8 +998,31 @@ interface Session {
   createdAt: string;               // ISO 8601 타임스탬프
   updatedAt: string;               // ISO 8601 타임스탬프
   referenceImages: string[];       // Base64 data URL 배열
-  analysis: ImageAnalysisResult;   // 분석 결과
+  analysis: ImageAnalysisResult;   // 분석 결과 (영어 원본)
+  koreanAnalysis?: KoreanAnalysisCache; // 번역된 결과 캐시
   imageCount: number;              // 참조 이미지 개수
+  generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리
+}
+
+// 번역된 분석 결과 (캐싱용)
+interface KoreanAnalysisCache {
+  style?: StyleAnalysis;
+  character?: CharacterAnalysis;
+  composition?: CompositionAnalysis;
+  negativePrompt?: string;         // 한국어 번역
+  positivePrompt?: string;         // 한국어 번역
+  customPromptEnglish?: string;    // 사용자 맞춤 프롬프트의 영어 번역 (이미지 생성용)
+}
+
+// 생성 히스토리 엔트리
+interface GenerationHistoryEntry {
+  id: string;                      // UUID
+  timestamp: string;               // ISO 8601
+  prompt: string;                  // 사용된 프롬프트
+  negativePrompt?: string;         // 사용된 네거티브 프롬프트
+  additionalPrompt?: string;       // 추가 포즈/동작 프롬프트 (원본 한글 또는 영어)
+  imageBase64: string;             // 생성된 이미지 (Base64)
+  settings: GenerationSettings;    // 사용된 설정
 }
 ```
 
@@ -1033,29 +1220,45 @@ interface Session {
 StyleStudio-Tauri/
 ├── src/
 │   ├── components/          # React 컴포넌트
-│   │   ├── AnalysisPanel.tsx
-│   │   ├── ImageGeneratorPanel.tsx
-│   │   ├── Sidebar.tsx
-│   │   ├── SaveSessionModal.tsx
-│   │   ├── SettingsModal.tsx
-│   │   ├── Header.tsx
-│   │   ├── ImageUpload.tsx
-│   │   ├── ProgressIndicator.tsx    # 진행 상태 표시
-│   │   ├── StyleCard.tsx
-│   │   ├── CharacterCard.tsx
-│   │   ├── CompositionCard.tsx
-│   │   └── NegativePromptCard.tsx
+│   │   ├── analysis/        # 분석 관련 컴포넌트
+│   │   │   ├── AnalysisPanel.tsx
+│   │   │   ├── AnalysisCard.tsx      # 통합 카드 컴포넌트
+│   │   │   ├── StyleCard.tsx
+│   │   │   ├── CharacterCard.tsx
+│   │   │   ├── CompositionCard.tsx
+│   │   │   ├── NegativePromptCard.tsx
+│   │   │   ├── CustomPromptCard.tsx  # 사용자 맞춤 프롬프트
+│   │   │   └── UnifiedPromptCard.tsx # 통합 프롬프트 (표시 전용)
+│   │   ├── generator/       # 이미지 생성 관련 컴포넌트
+│   │   │   ├── ImageGeneratorPanel.tsx
+│   │   │   └── ImageUpload.tsx
+│   │   ├── common/          # 공통 컴포넌트
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── SaveSessionModal.tsx
+│   │   │   ├── SettingsModal.tsx
+│   │   │   ├── ProgressIndicator.tsx # 진행 상태 표시
+│   │   │   └── ErrorBoundary.tsx    # 에러 처리
+│   │   └── Header.tsx
 │   ├── hooks/               # 커스텀 훅
-│   │   ├── useGeminiAnalyzer.ts
-│   │   ├── useGeminiImageGenerator.ts
-│   │   ├── useGeminiTranslator.ts   # 번역 Hook
-│   │   └── useAutoSave.ts           # 자동 저장 Hook
+│   │   ├── api/             # API 관련 Hook
+│   │   │   ├── useGeminiAnalyzer.ts
+│   │   │   ├── useGeminiImageGenerator.ts
+│   │   │   └── useGeminiTranslator.ts
+│   │   ├── useTranslation.ts        # 번역 로직 중앙화
+│   │   ├── useSessionPersistence.ts # 세션 저장 및 번역 통합
+│   │   ├── useSessionManagement.ts # 세션 관리
+│   │   ├── useImageHandling.ts     # 이미지 처리
+│   │   ├── useAutoSave.ts          # 자동 저장 (분석 카드 편집용)
+│   │   └── useFieldEditor.ts      # 필드 편집
 │   ├── lib/                 # 유틸리티 및 라이브러리
 │   │   ├── gemini/
 │   │   │   └── analysisPrompt.ts
 │   │   ├── storage.ts
 │   │   ├── promptBuilder.ts
-│   │   └── analysisComparator.ts    # 변경 감지 시스템
+│   │   ├── logger.ts               # 환경별 로깅
+│   │   └── analysisComparator.ts   # 변경 감지 시스템 (레거시)
+│   ├── utils/               # 유틸리티 함수
+│   │   └── sessionHelpers.ts      # 세션 헬퍼 함수
 │   ├── types/               # TypeScript 타입 정의
 │   │   ├── analysis.ts
 │   │   └── session.ts
@@ -1134,9 +1337,19 @@ StyleStudio-Tauri/
 
 ## 마무리
 
-**Style & Character Studio**는 Phase 2까지 성공적으로 구현되었으며, 핵심 기능인 **스타일 분석**, **캐릭터 일관성 유지**, **세션 관리**, **자동 저장 시스템**이 모두 작동합니다.
+**Style & Character Studio**는 Phase 2까지 성공적으로 구현되었으며, 핵심 기능인 **스타일 분석**, **캐릭터 일관성 유지**, **세션 관리**, **번역 시스템**이 모두 작동합니다.
 
-**자동 저장 시스템**은 변경 감지 기반 선택적 번역을 통해 세션 저장 시간을 최대 **99.9%** 단축시켜 사용자 경험을 크게 개선했습니다.
+**번역 시스템**은 변경 감지 기반 선택적 번역을 통해 세션 저장 시간을 최대 **99.9%** 단축시켜 사용자 경험을 크게 개선했습니다. 번역 로직을 중앙화하고 세션 저장과 통합하여 더욱 효율적인 시스템으로 개편했습니다.
+
+**주요 개선 사항**:
+- 번역 로직 중앙화 (`useTranslation.ts`)
+- 세션 저장과 번역 통합 (`useSessionPersistence.ts`)
+- 컴포넌트 구조 리팩토링 (analysis/, generator/, common/ 디렉토리 분리)
+- Hook 구조 개선 (api/, utils/ 디렉토리 분리)
+- 카드 컴포넌트 통합 (`AnalysisCard.tsx`)
+- 로깅 시스템 개선 (`logger.ts`)
+- 세션 관리 개선 (빈 세션 즉시 생성, 삭제 확인 다이얼로그)
+- UI/UX 개선 (편집 모드 언어 유지, 진행 상태 표시)
 
 다음 단계는 **Phase 3 (고급 제어)**와 **Phase 4 (완벽한 일관성)**를 통해 더욱 정교한 제어와 여러 캐릭터 통합 생성 기능을 구현하는 것입니다.
 
@@ -1144,7 +1357,7 @@ StyleStudio-Tauri/
 
 ---
 
-**문서 버전**: 2.0
-**작성일**: 2025-12-31
-**주요 업데이트**: 자동 저장 시스템 추가 (변경 감지, 선택적 번역, 진행 표시)
+**문서 버전**: 3.0
+**작성일**: 2026-01-03
+**주요 업데이트**: 번역 시스템 대폭 개편, 컴포넌트 구조 리팩토링, Hook 구조 개선, 세션 관리 개선
 **다음 업데이트 예정**: Phase 3 완료 시

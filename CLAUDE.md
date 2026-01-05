@@ -4,7 +4,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-This is a study/research repository for Claude Code ("claude-code-study" / "Claude Code 관련 연구소"). The repository is currently in its initial state with no established codebase or project structure.
+This is a study/research repository for Claude Code ("claude-code-study" / "Claude Code 관련 연구소"). The repository contains various projects and experimental implementations.
+
+### 프로젝트별 참조 문서
+
+#### Style Studio (StyleStudio-Tauri)
+
+Style Studio 관련 수정 및 개선 작업 시 **반드시** 다음 문서를 참조하세요:
+
+- **구현 현황 문서**: `/Users/woody/Desktop/AI/claude-code-study/Plans/STYLE_STUDIO_IMPLEMENTATION_STATUS.md`
+
+이 문서에는 다음 정보가 포함되어 있습니다:
+- 프로젝트 개요 및 목표
+- 시스템 아키텍처
+- Phase별 구현 현황 (Phase 1, Phase 2 완료)
+- 번역 및 세션 저장 시스템
+- 핵심 컴포넌트 및 데이터 구조
+- 프롬프트 엔지니어링 가이드
+- 알려진 이슈 및 제한사항
+- 파일 구조 및 개발 팁
+
+**중요**: Style Studio의 모든 수정 작업 전에 이 문서를 먼저 읽고 현재 구현 상태와 설계 의도를 파악하세요.
+
+#### Game Planner (GamePlanner-Tauri)
+
+Game Planner 관련 수정 및 개선 작업 시 **반드시** 다음 문서를 참조하세요:
+
+- **구현 현황 문서**: `/Users/woody/Desktop/AI/claude-code-study/Plans/GAMEPLANNER_IMPLEMENTATION_STATUS.md`
+
+이 문서에는 다음 정보가 포함되어 있습니다:
+- 프로젝트 개요 및 목표 (게임 기획서 작성 및 분석)
+- 시스템 아키텍처
+- Phase별 구현 현황 (Phase 1~3.6 완료)
+- 템플릿 시스템 (Tiptap 기반 리치 에디터)
+- 참조 파일 관리 (PDF, Excel, CSV, Markdown 지원)
+- 버전 히스토리 및 비교 기능
+- 핵심 컴포넌트 및 데이터 구조
+- Notion 연동 기능
+- 프롬프트 엔지니어링 가이드
+- 알려진 이슈 및 제한사항
+- 파일 구조 및 개발 팁
+
+**중요**: Game Planner의 모든 수정 작업 전에 이 문서를 먼저 읽고 현재 구현 상태와 설계 의도를 파악하세요.
 
 ## Language Policy
 

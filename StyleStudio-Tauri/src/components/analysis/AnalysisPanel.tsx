@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Save, RefreshCw, Plus, Trash2, Wand2 } from 'lucide-react';
+import { Sparkles, Save, Plus, Trash2, Wand2 } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { StyleCard } from './StyleCard';
 import { CharacterCard } from './CharacterCard';
@@ -19,7 +19,6 @@ interface AnalysisPanelProps {
   koreanAnalysis?: KoreanAnalysisCache;
   onAnalyze: () => void;
   onSaveSession?: () => void;
-  onReset?: () => void;
   onAddImage?: (imageData: string) => void;
   onRemoveImage?: (index: number) => void;
   onGenerateImage?: () => void;
@@ -42,7 +41,6 @@ export function AnalysisPanel({
   koreanAnalysis,
   onAnalyze,
   onSaveSession,
-  onReset,
   onAddImage,
   onRemoveImage,
   onGenerateImage,
@@ -74,13 +72,6 @@ export function AnalysisPanel({
               <h3 className="text-lg font-bold text-gray-800">참조 이미지</h3>
               <p className="text-sm text-gray-500">총 {images.length}개</p>
             </div>
-            <button
-              onClick={onReset}
-              className="flex items-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg font-semibold transition-all"
-            >
-              <RefreshCw size={18} />
-              <span>새로 시작</span>
-            </button>
           </div>
 
           {/* 이미지 그리드 */}

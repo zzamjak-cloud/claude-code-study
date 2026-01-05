@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Palette, User, Trash2, ImagePlus, Save, FolderOpen, Settings, GripVertical } from 'lucide-react';
+import { Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings, GripVertical } from 'lucide-react';
 import { Session } from '../../types/session';
 import { logger } from '../../lib/logger';
 
@@ -259,7 +259,7 @@ export function Sidebar({
 
                   {/* 액션 버튼 */}
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    {/* 저장 버튼 */}
+                    {/* Export 버튼 */}
                     {onExportSession && (
                       <button
                         onClick={(e) => {
@@ -269,7 +269,7 @@ export function Sidebar({
                         className="p-1.5 hover:bg-green-900/50 rounded transition-colors"
                         title="세션을 파일로 저장"
                       >
-                        <Save size={14} className="text-green-400" />
+                        <Download size={14} className="text-green-400" />
                       </button>
                     )}
 

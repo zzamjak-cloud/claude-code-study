@@ -451,7 +451,6 @@ function App() {
               koreanAnalysis={currentSession?.koreanAnalysis}
               onAnalyze={handleAnalyze}
               onSaveSession={handleSaveSessionClick}
-              onReset={handleReset}
               onAddImage={handleImageSelect}
               onRemoveImage={handleRemoveImage}
               onGenerateImage={analysisResult ? handleGenerateImage : undefined}
