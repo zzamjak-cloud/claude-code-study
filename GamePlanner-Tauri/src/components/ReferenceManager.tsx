@@ -9,6 +9,7 @@ import { parseFile } from '../lib/utils/fileParser'
 import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { saveSessionImmediately } from '../lib/utils/sessionSave'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 
 interface ReferenceManagerProps {
   sessionId: string
@@ -21,6 +22,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [summaryViewFile, setSummaryViewFile] = useState<ReferenceFile | null>(null)
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([])
+  const [isDragging, setIsDragging] = useState(false)
 
   // 세션에서 참조 파일 목록 가져오기
   useEffect(() => {
@@ -28,7 +30,142 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
     setReferenceFiles(session?.referenceFiles || [])
   }, [sessions, sessionId])
 
-  // 파일 추가
+  // Tauri 드래그 앤 드롭 이벤트 리스너 설정
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+
+    const setupDragDropListener = async () => {
+      try {
+        const appWindow = getCurrentWindow()
+
+        unlisten = await appWindow.onDragDropEvent(async (event) => {
+          if (event.payload.type === 'enter' || event.payload.type === 'over') {
+            setIsDragging(true)
+          } else if (event.payload.type === 'leave') {
+            setIsDragging(false)
+          } else if (event.payload.type === 'drop') {
+            setIsDragging(false)
+
+            // 드롭된 파일 경로 가져오기
+            const paths = event.payload.paths || []
+            if (paths.length > 0) {
+              // 지원하는 파일 확장자 확인
+              const supportedExtensions = ['pdf', 'xlsx', 'xls', 'csv', 'md', 'markdown', 'txt']
+              const validFiles: string[] = []
+
+              for (const filePath of paths) {
+                const extension = filePath.split('.').pop()?.toLowerCase() || ''
+                if (supportedExtensions.includes(extension)) {
+                  validFiles.push(filePath)
+                } else {
+                  const fileName = filePath.split(/[/\\]/).pop() || filePath
+                  alert(`지원하지 않는 파일 형식입니다: ${fileName}\n지원 형식: ${supportedExtensions.join(', ')}`)
+                }
+              }
+
+              if (validFiles.length > 0) {
+                await processFiles(validFiles)
+              }
+            }
+          }
+        })
+
+        console.log('✅ [ReferenceManager] 드래그 앤 드롭 리스너 등록 완료')
+      } catch (error) {
+        console.error('❌ [ReferenceManager] 드래그 앤 드롭 리스너 등록 실패:', error)
+      }
+    }
+
+    setupDragDropListener()
+
+    return () => {
+      if (unlisten) {
+        unlisten()
+      }
+    }
+  }, [referenceFiles, sessionId, sessions])
+
+  // 파일 경로 배열을 처리하여 참조 파일 추가 (공통 로직)
+  const processFiles = async (filePaths: string[]) => {
+    setIsAdding(true)
+
+    const newFiles: ReferenceFile[] = []
+
+    for (const filePath of filePaths) {
+      try {
+        const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
+
+        // 이미 등록된 파일인지 확인
+        if (referenceFiles.some(f => f.filePath === filePath)) {
+          alert(`파일 "${fileName}"은(는) 이미 등록되어 있습니다.`)
+          continue
+        }
+
+        // 파일 파싱
+        const parsed = await parseFile(filePath, fileName)
+
+        // 파일 크기 제한 체크 (10만자로 강화)
+        if (parsed.text.length > 100000) {
+          alert(`파일 "${fileName}"의 내용이 너무 큽니다. (최대 10만자)\n현재: ${(parsed.text.length / 1000).toFixed(0)}K자`)
+          continue
+        }
+
+        // 파일 요약 생성 (비용 최적화)
+        const { generateFileSummary, generateSimpleSummary } = await import('../lib/utils/fileOptimization')
+        const apiKey = useAppStore.getState().apiKey
+        let summary: string
+
+        try {
+          if (apiKey && parsed.text.length > 1000) {
+            // AI를 사용한 요약 생성 (내용이 1000자 이상인 경우)
+            summary = await generateFileSummary(parsed.text, fileName, apiKey)
+          } else {
+            // 간단한 텍스트 기반 요약 (AI 없이)
+            summary = generateSimpleSummary(parsed.text)
+          }
+        } catch (error) {
+          console.error('요약 생성 실패, 간단한 요약 사용:', error)
+          summary = generateSimpleSummary(parsed.text)
+        }
+
+        const newFile: ReferenceFile = {
+          id: `ref-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          fileName: parsed.metadata?.fileName || fileName,
+          filePath: filePath,
+          fileType: parsed.metadata?.fileType || 'unknown',
+          content: parsed.text,
+          summary: summary,
+          metadata: parsed.metadata,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+
+        newFiles.push(newFile)
+      } catch (error) {
+        console.error('파일 파싱 실패:', error)
+        alert(`파일 파싱 실패: ${error instanceof Error ? error.message : String(error)}`)
+      }
+    }
+
+    if (newFiles.length > 0) {
+      const updatedFiles = [...referenceFiles, ...newFiles]
+      setReferenceFiles(updatedFiles)
+
+      // 세션 업데이트
+      const session = sessions.find(s => s.id === sessionId)
+      if (session) {
+        updateSession(sessionId, {
+          referenceFiles: updatedFiles,
+        })
+        // 레퍼런스 파일 등록 후 즉시 세션 저장
+        await saveSessionImmediately()
+      }
+    }
+
+    setIsAdding(false)
+  }
+
+  // 파일 추가 버튼 클릭
   const handleAddFile = async () => {
     try {
       const selected = await open({
@@ -46,82 +183,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
       }
 
       const files = Array.isArray(selected) ? selected : [selected]
-      setIsAdding(true)
-
-      const newFiles: ReferenceFile[] = []
-
-      for (const filePath of files) {
-        try {
-          const fileName = filePath.split('/').pop() || 'unknown'
-          
-          // 이미 등록된 파일인지 확인
-          if (referenceFiles.some(f => f.filePath === filePath)) {
-            alert(`파일 "${fileName}"은(는) 이미 등록되어 있습니다.`)
-            continue
-          }
-
-          // 파일 파싱
-          const parsed = await parseFile(filePath, fileName)
-          
-          // 파일 크기 제한 체크 (10만자로 강화)
-          if (parsed.text.length > 100000) {
-            alert(`파일 "${fileName}"의 내용이 너무 큽니다. (최대 10만자)\n현재: ${(parsed.text.length / 1000).toFixed(0)}K자`)
-            continue
-          }
-
-          // 파일 요약 생성 (비용 최적화)
-          const { generateFileSummary, generateSimpleSummary } = await import('../lib/utils/fileOptimization')
-          const apiKey = useAppStore.getState().apiKey
-          let summary: string
-          
-          try {
-            if (apiKey && parsed.text.length > 1000) {
-              // AI를 사용한 요약 생성 (내용이 1000자 이상인 경우)
-              summary = await generateFileSummary(parsed.text, fileName, apiKey)
-            } else {
-              // 간단한 텍스트 기반 요약 (AI 없이)
-              summary = generateSimpleSummary(parsed.text)
-            }
-          } catch (error) {
-            console.error('요약 생성 실패, 간단한 요약 사용:', error)
-            summary = generateSimpleSummary(parsed.text)
-          }
-
-          const newFile: ReferenceFile = {
-            id: `ref-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            fileName: parsed.metadata?.fileName || fileName,
-            filePath: filePath,
-            fileType: parsed.metadata?.fileType || 'unknown',
-            content: parsed.text,
-            summary: summary,
-            metadata: parsed.metadata,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          }
-
-          newFiles.push(newFile)
-        } catch (error) {
-          console.error('파일 파싱 실패:', error)
-          alert(`파일 파싱 실패: ${error instanceof Error ? error.message : String(error)}`)
-        }
-      }
-
-      if (newFiles.length > 0) {
-        const updatedFiles = [...referenceFiles, ...newFiles]
-        setReferenceFiles(updatedFiles)
-        
-        // 세션 업데이트
-        const session = sessions.find(s => s.id === sessionId)
-        if (session) {
-          updateSession(sessionId, {
-            referenceFiles: updatedFiles,
-          })
-          // 레퍼런스 파일 등록 후 즉시 세션 저장
-          await saveSessionImmediately()
-        }
-      }
-
-      setIsAdding(false)
+      await processFiles(files)
     } catch (error) {
       console.error('파일 선택 실패:', error)
       setIsAdding(false)
@@ -182,7 +244,23 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4">
+    <div
+      className={`relative bg-card border rounded-lg p-4 transition-all ${
+        isDragging
+          ? 'border-primary border-2 bg-primary/5'
+          : 'border-border'
+      }`}
+    >
+      {/* 드래그 오버레이 */}
+      {isDragging && (
+        <div className="absolute inset-0 flex items-center justify-center bg-primary/10 rounded-lg z-10 pointer-events-none">
+          <div className="bg-card border-2 border-primary border-dashed rounded-lg px-6 py-4">
+            <p className="text-lg font-semibold text-primary">파일을 여기에 드롭하세요</p>
+            <p className="text-sm text-muted-foreground mt-1">PDF, Excel, CSV, Markdown, Text 파일 지원</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <FileText className="w-5 h-5" />
@@ -223,7 +301,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
         <div className="text-center py-8 text-muted-foreground">
           <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
           <p className="text-sm">등록된 참조 파일이 없습니다.</p>
-          <p className="text-xs mt-1">파일을 추가하면 기획서 작성 시 참고됩니다.</p>
+          <p className="text-xs mt-1">파일을 추가하거나 드래그 앤 드롭으로 등록하세요.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -415,8 +493,11 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
               <div>
                 <h4 className="font-semibold text-foreground mb-2">📎 참조 파일이란?</h4>
                 <p>
-                  참조 파일은 기획서 작성 시 AI가 참고할 수 있는 문서나 자료입니다. 등록된 파일의 내용을 분석하여 기획서에 자동으로 반영되므로, 
+                  참조 파일은 기획서 작성 시 AI가 참고할 수 있는 문서나 자료입니다. 등록된 파일의 내용을 분석하여 기획서에 자동으로 반영되므로,
                   기존 기획서, 벤치마킹 자료, 요구사항 문서 등을 등록하면 더욱 정확하고 일관된 기획서를 작성할 수 있습니다.
+                </p>
+                <p className="mt-2">
+                  <strong>파일 추가 방법:</strong> "파일 추가" 버튼을 클릭하거나, 탐색기에서 파일을 드래그 앤 드롭으로 등록할 수 있습니다.
                 </p>
               </div>
 

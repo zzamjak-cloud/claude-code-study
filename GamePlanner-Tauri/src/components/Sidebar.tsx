@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus, MessageSquare, Trash2, Save, Upload, FileText, FileEdit, Search } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, MessageSquare, Trash2, Save, Upload, FileText, FileEdit, Search, GripVertical, Edit, Check, X } from 'lucide-react'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 import { useAppStore, ChatSession, SessionType } from '../store/useAppStore'
@@ -18,6 +18,7 @@ export function Sidebar() {
     importSession,
     setCurrentSessionType,
     getTemplateById,
+    reorderSessions,
   } = useAppStore()
 
   // 삭제 확인 다이얼로그 상태
@@ -29,19 +30,195 @@ export function Sidebar() {
   // 템플릿 선택 모달 상태 (신규)
   const [showTemplateSelector, setShowTemplateSelector] = useState(false)
 
+  // 세션 제목 입력 모달 상태
+  const [showTitleInput, setShowTitleInput] = useState(false)
+  const [newSessionTitle, setNewSessionTitle] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
+
+  // 세션 편집 상태
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingSessionTitle, setEditingSessionTitle] = useState('')
+
+  // 드래그 앤 드롭 상태
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null)
+  const dragStartX = useRef<number>(0)
+  const dragStartY = useRef<number>(0)
+  const listRef = useRef<HTMLDivElement>(null)
+
+  // 드래그로 인식하기 위한 최소 이동 거리 (픽셀)
+  const DRAG_THRESHOLD = 5
+
   // 현재 탭에 맞는 세션만 필터링
   const filteredSessions = sessions
     .filter(s => s.type === currentSessionType)
     .sort((a, b) => b.updatedAt - a.updatedAt)
+
+  // 드래그 앤 드롭 이벤트 핸들러
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (draggedIndex === null || !listRef.current) return
+
+      // 아직 드래그 시작 전이면 거리 체크
+      if (!isDragging) {
+        const deltaX = Math.abs(e.clientX - dragStartX.current)
+        const deltaY = Math.abs(e.clientY - dragStartY.current)
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY)
+
+        // 임계값을 넘으면 드래그 시작
+        if (distance > DRAG_THRESHOLD) {
+          console.log('✨ 드래그 활성화:', draggedIndex)
+          setIsDragging(true)
+          setDragPosition({ x: e.clientX, y: e.clientY })
+        }
+        return
+      }
+
+      // 드래그 중이면 기존 로직 실행
+      // 마우스 위치 업데이트 (드래그 프리뷰용)
+      setDragPosition({ x: e.clientX, y: e.clientY })
+
+      const items = listRef.current.querySelectorAll('[data-session-index]')
+
+      let newDragOverIndex: number | null = null
+
+      items.forEach((item, index) => {
+        const rect = item.getBoundingClientRect()
+        const itemMiddle = rect.top + rect.height / 2
+
+        if (e.clientY < itemMiddle && e.clientY > rect.top) {
+          newDragOverIndex = index
+        } else if (e.clientY > itemMiddle && e.clientY < rect.bottom) {
+          newDragOverIndex = index
+        }
+      })
+
+      if (newDragOverIndex !== null && newDragOverIndex !== draggedIndex) {
+        setDragOverIndex(newDragOverIndex)
+      }
+    }
+
+    const handleMouseUp = () => {
+      if (isDragging && draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+        console.log('💧 드롭 발생:', { from: draggedIndex, to: dragOverIndex })
+
+        // 현재 타입의 세션만 재정렬
+        const reordered = [...filteredSessions]
+        const [draggedSession] = reordered.splice(draggedIndex, 1)
+        reordered.splice(dragOverIndex, 0, draggedSession)
+
+        // 재정렬된 세션들의 updatedAt 업데이트 (순서 반영)
+        const reorderedWithTimestamp = reordered.map((s, index) => ({
+          ...s,
+          updatedAt: Date.now() - (index * 1000) // 역순으로 타임스탬프 설정
+        }))
+
+        // 다른 타입의 세션은 그대로 유지
+        const otherTypeSessions = sessions.filter(s => s.type !== currentSessionType)
+
+        // 전체 세션 목록 재구성
+        const allSessions = [...otherTypeSessions, ...reorderedWithTimestamp]
+
+        console.log('📊 재정렬 전 세션:', sessions.length, '개')
+        console.log('📊 재정렬 후 세션:', allSessions.length, '개')
+        console.log('📊 현재 타입 세션:', reorderedWithTimestamp.length, '개')
+        console.log('📊 다른 타입 세션:', otherTypeSessions.length, '개')
+
+        reorderSessions(allSessions)
+        console.log(`✅ 세션 ${draggedIndex}를 ${dragOverIndex}로 이동 완료`)
+      }
+
+      setIsDragging(false)
+      setDraggedIndex(null)
+      setDragOverIndex(null)
+      setDragPosition(null)
+    }
+
+    if (draggedIndex !== null) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isDragging, draggedIndex, dragOverIndex, filteredSessions, sessions, currentSessionType, reorderSessions, DRAG_THRESHOLD])
+
+  const handleMouseDown = (e: React.MouseEvent, index: number) => {
+    // 버튼 클릭은 무시
+    if ((e.target as HTMLElement).closest('button')) {
+      return
+    }
+
+    console.log('🎯 마우스 다운:', index)
+    setDraggedIndex(index)
+    dragStartX.current = e.clientX
+    dragStartY.current = e.clientY
+    e.preventDefault()
+  }
+
+  // 드래그 중인 세션 정보
+  const draggedSession = draggedIndex !== null ? filteredSessions[draggedIndex] : null
 
   // 새 세션 생성 - 템플릿 선택 모달 표시
   const handleNewChat = () => {
     setShowTemplateSelector(true)
   }
 
-  // 템플릿 선택 완료 후 세션 생성
+  // 템플릿 선택 완료 후 제목 입력 모달 표시
   const handleTemplateSelected = (templateId: string) => {
-    createNewSession(templateId)
+    setSelectedTemplateId(templateId)
+    setShowTitleInput(true)
+  }
+
+  // 세션 제목 입력 완료 후 세션 생성
+  const handleTitleConfirm = () => {
+    const title = newSessionTitle.trim()
+    if (!title) {
+      alert('세션 제목을 입력해주세요.')
+      return
+    }
+    createNewSession(selectedTemplateId || undefined, title)
+    setShowTitleInput(false)
+    setNewSessionTitle('')
+    setSelectedTemplateId(null)
+  }
+
+  // 세션 제목 입력 취소
+  const handleTitleCancel = () => {
+    setShowTitleInput(false)
+    setNewSessionTitle('')
+    setSelectedTemplateId(null)
+  }
+
+  // 세션 이름 편집 시작
+  const handleEditStart = (e: React.MouseEvent, sessionId: string, currentTitle: string) => {
+    e.stopPropagation()
+    setEditingSessionId(sessionId)
+    setEditingSessionTitle(currentTitle)
+  }
+
+  // 세션 이름 편집 저장
+  const handleEditSave = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation()
+    const title = editingSessionTitle.trim()
+    if (!title) {
+      alert('세션 제목을 입력해주세요.')
+      return
+    }
+    useAppStore.getState().updateSession(sessionId, { title })
+    setEditingSessionId(null)
+    setEditingSessionTitle('')
+  }
+
+  // 세션 이름 편집 취소
+  const handleEditCancel = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setEditingSessionId(null)
+    setEditingSessionTitle('')
   }
 
   const handleSelectSession = (sessionId: string) => {
@@ -180,7 +357,45 @@ export function Sidebar() {
 
 
   return (
-    <div className="w-64 bg-muted/50 border-r border-border flex flex-col">
+    <div className="w-64 bg-muted/50 border-r border-border flex flex-col relative">
+      {/* 드래그 프리뷰 */}
+      {isDragging && draggedSession && dragPosition && (
+        <div
+          className="fixed pointer-events-none z-50"
+          style={{
+            left: dragPosition.x + 10,
+            top: dragPosition.y - 20,
+            width: '240px',
+          }}
+        >
+          <div className="bg-card border-2 border-primary rounded-lg p-3 shadow-2xl opacity-90">
+            <div className="flex items-start gap-2">
+              {/* 드래그 핸들 아이콘 */}
+              <div className="flex-shrink-0 text-muted-foreground pt-0.5">
+                <GripVertical size={14} />
+              </div>
+
+              {/* 세션 정보 */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {draggedSession.type === SessionType.PLANNING ? (
+                    <FileText className="w-4 h-4 text-primary" />
+                  ) : (
+                    <Search className="w-4 h-4 text-primary" />
+                  )}
+                  <h3 className="font-semibold text-sm truncate">{draggedSession.title}</h3>
+                </div>
+                {getTemplateById(draggedSession.templateId || '') && (
+                  <p className="text-xs text-muted-foreground truncate">
+                    {getTemplateById(draggedSession.templateId || '')?.name}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 탭 영역 */}
       <div className="flex border-b border-border">
         <button
@@ -235,7 +450,7 @@ export function Sidebar() {
       </div>
 
       {/* 채팅 목록 */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div ref={listRef} className="flex-1 overflow-y-auto p-2">
         {filteredSessions.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm">
             <MessageSquare className="w-8 h-8 mb-2 opacity-50" />
@@ -246,57 +461,127 @@ export function Sidebar() {
           </div>
         ) : (
           <div className="space-y-1">
-            {filteredSessions.map((session) => (
+            {filteredSessions.map((session, index) => {
+              const isActive = currentSessionId === session.id
+              const isBeingDragged = isDragging && draggedIndex === index
+              const isDragOver = dragOverIndex === index && !isBeingDragged
+              const isEditing = editingSessionId === session.id
+
+              return (
                 <div
                   key={session.id}
-                  onClick={() => handleSelectSession(session.id)}
-                  className={`group relative p-3 rounded-lg cursor-pointer transition-all ${
-                    currentSessionId === session.id
+                  data-session-index={index}
+                  onMouseDown={(e) => !isEditing && handleMouseDown(e, index)}
+                  onClick={() => !isDragging && !isEditing && handleSelectSession(session.id)}
+                  className={`group relative p-3 rounded-lg transition-all select-none ${
+                    isActive
                       ? 'bg-primary/10 border-l-4 border-primary pl-2.5'
                       : 'hover:bg-accent/50 border-l-4 border-transparent'
+                  } ${isBeingDragged ? 'opacity-50 cursor-grabbing' : isEditing ? 'cursor-default' : 'cursor-grab'} ${
+                    isDragOver ? 'border-t-4 border-t-primary pt-5' : ''
                   }`}
                 >
                   <div className="flex items-start gap-2">
+                    {/* 드래그 핸들 아이콘 */}
+                    {!isEditing && (
+                      <div className="flex-shrink-0 text-muted-foreground hover:text-foreground transition-colors pt-0.5">
+                        <GripVertical size={14} />
+                      </div>
+                    )}
+
                     <MessageSquare className={`w-4 h-4 mt-0.5 flex-shrink-0 ${
-                      currentSessionId === session.id
+                      isActive
                         ? 'text-primary'
                         : 'text-muted-foreground'
                     }`} />
                     <div className="flex-1 min-w-0">
-                      <div className={`font-medium text-sm truncate ${
-                        currentSessionId === session.id
-                          ? 'text-primary'
-                          : ''
-                      }`}>
-                        {session.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {session.templateId ? (
-                          getTemplateById(session.templateId)?.name || '기본 템플릿'
-                        ) : (
-                          '기본 템플릿'
-                        )}
-                      </div>
+                      {isEditing ? (
+                        // 편집 모드
+                        <input
+                          type="text"
+                          value={editingSessionTitle}
+                          onChange={(e) => setEditingSessionTitle(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleEditSave(e as any, session.id)
+                            } else if (e.key === 'Escape') {
+                              handleEditCancel(e as any)
+                            }
+                          }}
+                          className="w-full px-2 py-1 text-sm border border-primary rounded bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                          autoFocus
+                        />
+                      ) : (
+                        // 일반 모드
+                        <>
+                          <div className={`font-medium text-sm truncate ${
+                            isActive
+                              ? 'text-primary'
+                              : ''
+                          }`}>
+                            {session.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {session.templateId ? (
+                              getTemplateById(session.templateId)?.name || '기본 템플릿'
+                            ) : (
+                              '기본 템플릿'
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => handleExportSession(e, session)}
-                        className="p-1 rounded hover:bg-primary/10 transition-colors"
-                        title="세션 저장"
-                      >
-                        <Save className="w-3.5 h-3.5 text-primary" />
-                      </button>
-                      <button
-                        onClick={(e) => handleDeleteClick(e, session.id)}
-                        className="p-1 rounded hover:bg-destructive/10 transition-colors"
-                        title="삭제"
-                      >
-                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                      </button>
+                    <div className={`flex gap-1 ${isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                      {isEditing ? (
+                        // 편집 모드 아이콘
+                        <>
+                          <button
+                            onClick={(e) => handleEditSave(e, session.id)}
+                            className="p-1 rounded hover:bg-green-100 dark:hover:bg-green-900 transition-colors"
+                            title="저장"
+                          >
+                            <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                          </button>
+                          <button
+                            onClick={(e) => handleEditCancel(e)}
+                            className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            title="취소"
+                          >
+                            <X className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+                          </button>
+                        </>
+                      ) : (
+                        // 일반 모드 아이콘
+                        <>
+                          <button
+                            onClick={(e) => handleEditStart(e, session.id, session.title)}
+                            className="p-1 rounded hover:bg-blue-100 dark:hover:bg-blue-900 transition-colors"
+                            title="이름 편집"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                          </button>
+                          <button
+                            onClick={(e) => handleExportSession(e, session)}
+                            className="p-1 rounded hover:bg-primary/10 transition-colors"
+                            title="세션 저장"
+                          >
+                            <Save className="w-3.5 h-3.5 text-primary" />
+                          </button>
+                          <button
+                            onClick={(e) => handleDeleteClick(e, session.id)}
+                            className="p-1 rounded hover:bg-destructive/10 transition-colors"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+              )
+            })}
           </div>
         )}
       </div>
@@ -342,6 +627,44 @@ export function Sidebar() {
         sessionType={currentSessionType}
         onSelect={handleTemplateSelected}
       />
+
+      {/* 세션 제목 입력 모달 */}
+      {showTitleInput && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">세션 제목 입력</h3>
+            <input
+              type="text"
+              value={newSessionTitle}
+              onChange={(e) => setNewSessionTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleTitleConfirm()
+                } else if (e.key === 'Escape') {
+                  handleTitleCancel()
+                }
+              }}
+              placeholder={currentSessionType === SessionType.PLANNING ? '기획서 제목을 입력하세요' : '분석 보고서 제목을 입력하세요'}
+              className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary mb-6"
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleTitleCancel}
+                className="px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleTitleConfirm}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+              >
+                생성
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

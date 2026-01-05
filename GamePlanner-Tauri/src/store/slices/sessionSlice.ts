@@ -2,7 +2,6 @@
 
 import { StateCreator } from 'zustand'
 import { SessionType, ChatSession, Message } from '../useAppStore'
-import { extractGameNameFromPlanning, extractGameNameFromAnalysis } from '../../lib/utils/markdown'
 import { generateSessionId, generateSessionTitle, getDefaultTemplateId } from '../../lib/utils/session'
 
 export interface SessionSlice {
@@ -16,13 +15,14 @@ export interface SessionSlice {
   markdownContent: string
 
   // 세션 관리 메서드
-  createNewSession: (templateId?: string) => string
+  createNewSession: (templateId?: string, customTitle?: string) => string
   loadSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => void
   updateCurrentSession: () => void
   updateSession: (sessionId: string, updates: Partial<ChatSession>) => void
   getSessions: () => ChatSession[]
   importSession: (session: ChatSession) => void
+  reorderSessions: (reorderedSessions: ChatSession[]) => void
 
   // 메시지 관리
   addMessage: (message: Message) => void
@@ -55,7 +55,7 @@ export const createSessionSlice: StateCreator<
   markdownContent: '',
 
   // 새 세션 생성
-  createNewSession: (customTemplateId?: string) => {
+  createNewSession: (customTemplateId?: string, customTitle?: string) => {
     const state = get()
     console.log('🆕 새 세션 생성 시작 - 현재 세션 타입:', state.currentSessionType)
 
@@ -70,7 +70,7 @@ export const createSessionSlice: StateCreator<
     const newSession: ChatSession = {
       id: generateSessionId(),
       type: state.currentSessionType,
-      title: generateSessionTitle(state.currentSessionType),
+      title: customTitle || generateSessionTitle(state.currentSessionType),
       messages: [],
       markdownContent: '',
       createdAt: Date.now(),
@@ -138,32 +138,9 @@ export const createSessionSlice: StateCreator<
     set((prevState) => {
       const updatedSessions = prevState.sessions.map((session) => {
         if (session.id === prevState.currentSessionId) {
-          let title = session.title
-
-          // 마크다운에서 게임명 추출
-          if (prevState.markdownContent) {
-            if (session.type === SessionType.PLANNING) {
-              const extractedName = extractGameNameFromPlanning(prevState.markdownContent)
-              if (extractedName) {
-                title = extractedName
-                console.log('✅ 세션 제목 업데이트:', title)
-              } else {
-                console.log('⚠️ 기획서 제목 추출 실패, 현재 제목 유지:', title)
-              }
-            } else if (session.type === SessionType.ANALYSIS) {
-              const extractedName = extractGameNameFromAnalysis(prevState.markdownContent)
-              if (extractedName) {
-                title = extractedName
-                console.log('✅ 세션 제목 업데이트:', title)
-              } else {
-                console.log('⚠️ 분석 보고서 제목 추출 실패, 현재 제목 유지:', title)
-              }
-            }
-          }
-
+          // 제목은 자동 변경하지 않고 그대로 유지
           return {
             ...session,
-            title,
             messages: prevState.messages,
             markdownContent: prevState.markdownContent,
             updatedAt: Date.now(),
@@ -219,6 +196,12 @@ export const createSessionSlice: StateCreator<
       messages: newSession.messages,
       markdownContent: newSession.markdownContent,
     }))
+  },
+
+  // 세션 순서 변경
+  reorderSessions: (reorderedSessions: ChatSession[]) => {
+    console.log('🔄 세션 순서 변경')
+    set({ sessions: reorderedSessions })
   },
 
   // 메시지 추가

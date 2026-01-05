@@ -114,8 +114,16 @@ export function useAppInitialization(options: UseAppInitializationOptions = {}) 
 
         // 세션 로드 및 마이그레이션
         const savedSessions = migratedSettings.chatSessions
-        console.log('📦 저장된 세션 개수:', savedSessions?.length || 0)
-        console.log('📦 저장된 세션 데이터:', savedSessions ? JSON.stringify(savedSessions, null, 2).substring(0, 500) : '없음')
+        console.log('📦 [useAppInitialization] 저장된 세션 개수:', savedSessions?.length || 0)
+
+        if (savedSessions && savedSessions.length > 0) {
+          console.log('📦 저장된 세션 목록:')
+          savedSessions.forEach((s, idx) => {
+            console.log(`  ${idx + 1}. ${s.title} (${s.type}) - ID: ${s.id}`)
+          })
+        } else {
+          console.log('📦 저장된 세션 없음 - 원본 데이터:', savedSessions)
+        }
 
         // 저장된 세션이 있으면 복원, 없으면 새로 생성
         if (savedSessions && Array.isArray(savedSessions) && savedSessions.length > 0) {

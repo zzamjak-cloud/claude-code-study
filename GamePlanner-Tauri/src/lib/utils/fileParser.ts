@@ -38,6 +38,7 @@ export async function parsePDF(filePath: string, fileName: string): Promise<Pars
   try {
     const fileData = await readFile(filePath)
     // Uint8Array를 Buffer로 변환 (Node.js 환경 호환)
+    // @ts-ignore - Buffer는 Node.js 타입이지만 브라우저에서도 사용 가능
     const buffer = Buffer.from(fileData)
     const pdfParse = await getPdfParse()
     const pdfData = await pdfParse(buffer)

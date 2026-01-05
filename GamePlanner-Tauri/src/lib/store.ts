@@ -75,6 +75,13 @@ export async function getSettings(): Promise<Settings> {
   const notionAnalysisDatabaseId = await store.get<string>('notion_analysis_database_id')
   const chatSessions = await store.get<ChatSession[]>('chat_sessions')
 
+  console.log('📖 [getSettings] 설정 불러오기')
+  console.log('  - geminiApiKey:', geminiApiKey ? '존재함' : '없음')
+  console.log('  - chatSessions:', chatSessions?.length || 0, '개')
+  if (chatSessions && chatSessions.length > 0) {
+    console.log('  - 세션 목록:', chatSessions.map(s => `${s.title} (${s.type})`).join(', '))
+  }
+
   // 마이그레이션: 기존 notion_database_id 확인
   const oldNotionDbId = await store.get<string>('notion_database_id')
 
@@ -125,13 +132,18 @@ export async function saveSettings(settings: SaveSettingsParams): Promise<void> 
  * 세션을 저장합니다 (설정 값 보존)
  */
 export async function saveSessions(sessions: ChatSession[]): Promise<void> {
+  console.log('💾 [saveSessions] 세션 저장 시작:', sessions.length, '개')
+  console.log('  - 세션 목록:', sessions.map(s => `${s.title} (${s.type})`).join(', '))
+
   const store = await getStore()
 
   // 세션 저장 전 현재 설정 값들을 다시 확인하여 보존
   const currentSettings = await getSettings()
+  console.log('  - 저장 전 기존 설정 확인 완료')
 
   // 세션만 업데이트
   await store.set('chat_sessions', sessions)
+  console.log('  - chat_sessions 키에 저장 완료')
 
   // 기존 API 키 설정들이 있으면 다시 설정 (보존)
   if (currentSettings.geminiApiKey) {
@@ -148,8 +160,20 @@ export async function saveSessions(sessions: ChatSession[]): Promise<void> {
   }
 
   await saveStore()
+  console.log('  - Store 파일 저장 완료')
 
   // 저장 후 검증
+  const verifySessions = await store.get<ChatSession[]>('chat_sessions')
+  console.log('  - 저장 후 검증:', verifySessions?.length || 0, '개')
+
+  if (!verifySessions || verifySessions.length !== sessions.length) {
+    console.error('❌ [saveSessions] 세션 저장 실패! 저장된 개수가 일치하지 않음')
+    console.error('  - 저장하려던 개수:', sessions.length)
+    console.error('  - 실제 저장된 개수:', verifySessions?.length || 0)
+  } else {
+    console.log('✅ [saveSessions] 세션 저장 성공')
+  }
+
   const verifySettings = await getSettings()
   if (!verifySettings.geminiApiKey && currentSettings.geminiApiKey) {
     console.error('⚠️ 경고: API 키가 손실됨! 복구 시도 중...')

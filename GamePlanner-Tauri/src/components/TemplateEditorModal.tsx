@@ -176,7 +176,7 @@ export function TemplateEditorModal({
         },
         suggestion: {
           char: ':',
-          items: ({ query }) => {
+          items: ({ query }: { query: string }) => {
             return searchEmojis(query)
           },
           render: () => {

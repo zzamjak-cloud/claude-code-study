@@ -144,7 +144,7 @@ export function MarkdownPreview() {
   return (
     <div className="h-full flex flex-col bg-muted/30">
       {/* 상단 헤더 */}
-      {markdownContent && currentSessionId && (
+      {currentSessionId && (
         <div className="flex items-center justify-between px-6 py-3 border-b border-border bg-background/50">
           {/* 탭 메뉴 */}
           <div className="flex items-center gap-1">
@@ -200,8 +200,9 @@ export function MarkdownPreview() {
             {/* 복사 버튼 */}
             <button
               onClick={handleCopy}
-              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group"
-              title={isCopied ? "복사됨" : "기획서 복사"}
+              disabled={!markdownContent}
+              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!markdownContent ? "내용이 없습니다" : (isCopied ? "복사됨" : "기획서 복사")}
             >
               {isCopied ? (
                 <Check className="w-4 h-4 text-green-500" />
@@ -213,8 +214,9 @@ export function MarkdownPreview() {
             {/* 다운로드 버튼 */}
             <button
               onClick={handleDownload}
-              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group"
-              title="마크다운 파일로 저장"
+              disabled={!markdownContent}
+              className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!markdownContent ? "내용이 없습니다" : "마크다운 파일로 저장"}
             >
               <Download className="w-4 h-4" />
             </button>
@@ -222,9 +224,9 @@ export function MarkdownPreview() {
             {/* 노션 저장 버튼 */}
             <button
               onClick={handleSaveToNotion}
-              disabled={isNotionLoading}
+              disabled={isNotionLoading || !markdownContent}
               className="p-2 rounded-lg bg-background hover:bg-accent transition-colors relative group disabled:opacity-50 disabled:cursor-not-allowed"
-              title="노션에 저장"
+              title={!markdownContent ? "내용이 없습니다" : "노션에 저장"}
             >
               {isNotionLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

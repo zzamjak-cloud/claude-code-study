@@ -1,4 +1,5 @@
 // @emoji-mart/data를 사용하여 이모지 데이터 가져오기
+// @ts-ignore - JSON 파일 import 타입 문제
 import emojiData from '@emoji-mart/data/sets/15/native.json'
 
 // 이모지 카테고리 정의
