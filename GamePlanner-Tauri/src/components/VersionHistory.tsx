@@ -1,7 +1,7 @@
 // 버전 관리 UI 컴포넌트
 
 import { useState } from 'react'
-import { History, RotateCcw, GitCompare, X, Save } from 'lucide-react'
+import { History, RotateCcw, GitCompare, X, Save, Trash2 } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { VersionDiff } from '../types/version'
 import { format } from 'date-fns'
@@ -14,13 +14,14 @@ interface VersionHistoryProps {
 }
 
 export function VersionHistory({ sessionId, onClose }: VersionHistoryProps) {
-  const { getVersions, restoreVersion, compareVersions, createVersion, currentSessionId, markdownContent } = useAppStore()
+  const { getVersions, restoreVersion, deleteVersion, compareVersions, createVersion, currentSessionId, markdownContent } = useAppStore()
   const [selectedVersion1, setSelectedVersion1] = useState<string | null>(null)
   const [selectedVersion2, setSelectedVersion2] = useState<string | null>(null)
   const [diff, setDiff] = useState<VersionDiff | null>(null)
   const [showDiff, setShowDiff] = useState(false)
   const [description, setDescription] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
   const versions = getVersions(sessionId)
   const isCurrentSession = currentSessionId === sessionId
@@ -50,6 +51,27 @@ export function VersionHistory({ sessionId, onClose }: VersionHistoryProps) {
       await saveSessionImmediately()
       onClose?.()
     }
+  }
+
+  const handleDeleteClick = (versionId: string) => {
+    setDeleteConfirm(versionId)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return
+    try {
+      deleteVersion(sessionId, deleteConfirm)
+      setDeleteConfirm(null)
+      // 버전 삭제 후 즉시 세션 저장
+      await saveSessionImmediately()
+    } catch (error) {
+      console.error('버전 삭제 실패:', error)
+      alert('버전 삭제에 실패했습니다.')
+    }
+  }
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirm(null)
   }
 
   const handleCompare = () => {
@@ -244,16 +266,52 @@ export function VersionHistory({ sessionId, onClose }: VersionHistoryProps) {
                     )}
                   </div>
                   {isCurrentSession && (
-                    <button
-                      onClick={() => handleRestore(version.id)}
-                      className="ml-2 p-2 hover:bg-background rounded"
-                      title="이 버전으로 복원"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleRestore(version.id)}
+                        className="p-2 hover:bg-background rounded"
+                        title="이 버전으로 복원"
+                      >
+                        <RotateCcw className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(version.id)}
+                        className="p-2 hover:bg-destructive/10 rounded"
+                        title="버전 삭제"
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 다이얼로그 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg shadow-xl max-w-sm w-full p-6">
+            <h3 className="text-lg font-semibold mb-2">버전 삭제</h3>
+            <p className="text-muted-foreground mb-6">
+              이 버전을 삭제하시겠습니까?<br />
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleDeleteCancel}
+                className="px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors font-medium"
+              >
+                삭제
+              </button>
+            </div>
           </div>
         </div>
       )}

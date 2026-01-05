@@ -437,6 +437,232 @@ const editor = useEditor({
 - 이모지 리스트는 캐싱하여 성능을 최적화합니다.
 - 검색 결과는 최대 100개로 제한하여 UI 성능을 유지합니다.
 
+### 드래그 앤 드롭 구현
+
+**문제점:**
+- Tauri 환경에서 웹 기반 드래그 앤 드롭 이벤트(`onDragEnter`, `onDragOver`, `onDrop`)는 작동하지 않습니다.
+- `event.dataTransfer.files`로는 실제 파일 경로를 가져올 수 없습니다.
+- 파일 시스템 접근 권한 문제로 파일을 읽을 수 없는 경우가 많습니다.
+
+**대응 방법:**
+- **Tauri의 네이티브 API 사용**: `getCurrentWindow().onDragDropEvent()` 사용
+- **실제 파일 경로 접근**: `event.payload.paths`로 파일 시스템 경로 획득
+- **앱 외부와 내부 드래그 앤 드롭 구분**: 각각 다른 방식으로 구현
+
+#### 1. 앱 외부로부터의 드래그 앤 드롭 (탐색기 → 앱)
+
+**사용 사례:**
+- 탐색기에서 파일을 드래그하여 앱에 드롭
+- 다른 애플리케이션에서 파일을 드래그하여 앱에 드롭
+
+**구현 방법: Tauri API 사용**
+
+```typescript
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+useEffect(() => {
+  let unlisten: (() => void) | undefined
+
+  const setupDragDropListener = async () => {
+    try {
+      const appWindow = getCurrentWindow()
+
+      unlisten = await appWindow.onDragDropEvent(async (event) => {
+        if (event.payload.type === 'enter' || event.payload.type === 'over') {
+          // 드래그 진입/호버 시 시각적 피드백
+          setIsDragging(true)
+        } else if (event.payload.type === 'leave') {
+          // 드래그 영역 벗어날 때
+          setIsDragging(false)
+        } else if (event.payload.type === 'drop') {
+          // 파일 드롭 시
+          setIsDragging(false)
+
+          // 드롭된 파일 경로 가져오기 (핵심!)
+          const paths = event.payload.paths || []
+          if (paths.length > 0) {
+            // 파일 확장자 검증
+            const supportedExtensions = ['pdf', 'xlsx', 'xls', 'csv', 'md', 'txt']
+            const validFiles: string[] = []
+
+            for (const filePath of paths) {
+              const extension = filePath.split('.').pop()?.toLowerCase() || ''
+              if (supportedExtensions.includes(extension)) {
+                validFiles.push(filePath)
+              } else {
+                alert(`지원하지 않는 파일 형식: ${filePath}`)
+              }
+            }
+
+            if (validFiles.length > 0) {
+              await processFiles(validFiles)
+            }
+          }
+        }
+      })
+
+      console.log('✅ 드래그 앤 드롭 리스너 등록 완료')
+    } catch (error) {
+      console.error('❌ 드래그 앤 드롭 리스너 등록 실패:', error)
+    }
+  }
+
+  setupDragDropListener()
+
+  // 클린업
+  return () => {
+    if (unlisten) {
+      unlisten()
+    }
+  }
+}, []) // 의존성 배열 주의: 필요한 상태만 포함
+```
+
+**파일 처리 함수 예시:**
+
+```typescript
+const processFiles = async (filePaths: string[]) => {
+  for (const filePath of filePaths) {
+    try {
+      // Tauri의 fs 플러그인 사용
+      const fileData = await readFile(filePath)
+
+      // 파일 파싱 (PDF, Excel 등)
+      const parsed = await parseFile(filePath, fileName)
+
+      // 상태 업데이트
+      setFiles(prev => [...prev, parsed])
+    } catch (error) {
+      console.error('파일 처리 실패:', error)
+    }
+  }
+}
+```
+
+**시각적 피드백 UI:**
+
+```tsx
+return (
+  <div
+    className={`relative border rounded-lg p-4 transition-all ${
+      isDragging
+        ? 'border-primary border-2 bg-primary/5'
+        : 'border-border'
+    }`}
+  >
+    {/* 드래그 오버레이 */}
+    {isDragging && (
+      <div className="absolute inset-0 flex items-center justify-center bg-primary/10 rounded-lg z-10 pointer-events-none">
+        <div className="bg-card border-2 border-primary border-dashed rounded-lg px-6 py-4">
+          <p className="text-lg font-semibold text-primary">파일을 여기에 드롭하세요</p>
+          <p className="text-sm text-muted-foreground mt-1">PDF, Excel, CSV 등 지원</p>
+        </div>
+      </div>
+    )}
+
+    {/* 기존 컨텐츠 */}
+    <div>...</div>
+  </div>
+)
+```
+
+#### 2. 앱 내부에서의 드래그 앤 드롭 (앱 요소 → 앱 요소)
+
+**사용 사례:**
+- 리스트 항목 순서 변경 (재정렬)
+- 파일/폴더 트리에서 이동
+- 캔버스에서 요소 이동
+
+**구현 방법: 웹 표준 API 사용 (HTML5 Drag and Drop)**
+
+```typescript
+// 드래그 가능한 항목
+const DraggableItem = ({ item, index, onReorder }) => {
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', index.toString())
+  }
+
+  return (
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      className="cursor-move"
+    >
+      {item.name}
+    </div>
+  )
+}
+
+// 드롭 영역
+const DropZone = ({ onDrop }) => {
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault() // 필수: 드롭 허용
+    e.dataTransfer.dropEffect = 'move'
+    setIsDraggingOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    setIsDraggingOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDraggingOver(false)
+
+    const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'))
+    onDrop(draggedIndex)
+  }
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={isDraggingOver ? 'bg-blue-100' : ''}
+    >
+      Drop here
+    </div>
+  )
+}
+```
+
+#### 3. 앱 외부 vs 내부 드래그 앤 드롭 비교
+
+| 구분 | 앱 외부 (탐색기 → 앱) | 앱 내부 (앱 요소 → 앱 요소) |
+|------|---------------------|----------------------|
+| **API** | Tauri `onDragDropEvent` | 웹 표준 `onDragStart`, `onDrop` |
+| **데이터 접근** | `event.payload.paths` (파일 경로) | `event.dataTransfer.setData/getData` |
+| **리스너 등록** | `useEffect`에서 전역 등록 | 각 요소에 이벤트 핸들러 |
+| **파일 시스템** | 직접 접근 가능 | 접근 불가 |
+| **사용 예시** | 파일 업로드, 이미지 드롭 | 리스트 재정렬, 요소 이동 |
+
+**핵심 차이점:**
+- **앱 외부**: Tauri API 필수, 실제 파일 경로 필요
+- **앱 내부**: 웹 표준 API 사용, 메모리 내 데이터만 전달
+
+#### 4. 주의사항
+
+**앱 외부 드래그 앤 드롭:**
+- `useEffect` 의존성 배열에 필요한 상태만 포함 (무한 루프 방지)
+- `unlisten()` 함수를 반드시 클린업에서 호출
+- 파일 확장자 검증 필수
+- 파일 크기 제한 고려
+- `event.payload.paths`는 항상 배열 (단일 파일도 배열)
+
+**앱 내부 드래그 앤 드롭:**
+- `onDragOver`에서 반드시 `e.preventDefault()` 호출 (드롭 허용)
+- `draggable` 속성을 `true`로 설정
+- `setData`와 `getData`의 타입은 문자열만 가능
+- 복잡한 데이터는 JSON 직렬화 필요
+
+**참고 예시:**
+- `StyleStudio-Tauri/src/components/generator/ImageUpload.tsx` - 앱 외부 드래그 앤 드롭 (이미지)
+- `GamePlanner-Tauri/src/components/ReferenceManager.tsx` - 앱 외부 드래그 앤 드롭 (문서)
+- `GamePlanner-Tauri/src/components/Sidebar.tsx` - 앱 내부 드래그 앤 드롭 (세션 재정렬, 향후 구현 예정)
+
 ## Notes
 
 - This repository does not yet contain a defined project structure or build system

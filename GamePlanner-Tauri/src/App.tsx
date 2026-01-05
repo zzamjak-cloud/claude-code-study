@@ -16,7 +16,10 @@ function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [chatPanelWidth, setChatPanelWidth] = useState<number>(CHAT_PANEL_WIDTH.DEFAULT)
   const [currentAssistantMessage, setCurrentAssistantMessage] = useState('')
-  const { apiKey } = useAppStore()
+  const [showVersionConfirm, setShowVersionConfirm] = useState(false)
+  const [showVersionTitleInput, setShowVersionTitleInput] = useState(false)
+  const [versionTitle, setVersionTitle] = useState('')
+  const { apiKey, currentSessionId, sessions, createVersion } = useAppStore()
 
   // 앱 초기화
   useAppInitialization({
@@ -46,6 +49,11 @@ function App() {
         },
         onComplete: () => {
           setCurrentAssistantMessage('')
+          // 기획 세션에서만 버전 등록 팝업 표시
+          const currentSession = sessions.find(s => s.id === currentSessionId)
+          if (currentSession && currentSession.type === 'planning') {
+            setShowVersionConfirm(true)
+          }
         },
         onError: (error) => {
           console.error('메시지 처리 오류:', error)
@@ -60,6 +68,35 @@ function App() {
 
   const handleSettingsClick = () => {
     setShowSettings(true)
+  }
+
+  // 버전 등록 확인
+  const handleVersionConfirmYes = () => {
+    setShowVersionConfirm(false)
+    setShowVersionTitleInput(true)
+  }
+
+  const handleVersionConfirmNo = () => {
+    setShowVersionConfirm(false)
+  }
+
+  // 버전 제목 입력 후 등록
+  const handleVersionTitleConfirm = async () => {
+    if (!currentSessionId) return
+    try {
+      createVersion(currentSessionId, versionTitle.trim() || undefined)
+      setShowVersionTitleInput(false)
+      setVersionTitle('')
+      // 저장 알림은 하지 않음 (자동 저장됨)
+    } catch (error) {
+      console.error('버전 생성 실패:', error)
+      alert('버전 생성에 실패했습니다.')
+    }
+  }
+
+  const handleVersionTitleCancel = () => {
+    setShowVersionTitleInput(false)
+    setVersionTitle('')
   }
 
   // 리사이저 드래그 핸들러
@@ -115,6 +152,71 @@ function App() {
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
         />
+
+        {/* 버전 등록 확인 팝업 */}
+        {showVersionConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold mb-4">버전 등록</h3>
+              <p className="text-muted-foreground mb-6">
+                신규 버전을 등록하시겠습니까?<br />
+                현재 기획서 상태를 버전으로 저장할 수 있습니다.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleVersionConfirmNo}
+                  className="px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors font-medium"
+                >
+                  나중에
+                </button>
+                <button
+                  onClick={handleVersionConfirmYes}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                >
+                  등록
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 버전 제목 입력 모달 */}
+        {showVersionTitleInput && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold mb-4">버전 제목 입력</h3>
+              <input
+                type="text"
+                value={versionTitle}
+                onChange={(e) => setVersionTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleVersionTitleConfirm()
+                  } else if (e.key === 'Escape') {
+                    handleVersionTitleCancel()
+                  }
+                }}
+                placeholder="버전 설명을 입력하세요 (선택사항)"
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary mb-6"
+                autoFocus
+              />
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={handleVersionTitleCancel}
+                  className="px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors font-medium"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleVersionTitleConfirm}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                >
+                  저장
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </ErrorBoundary>
   )

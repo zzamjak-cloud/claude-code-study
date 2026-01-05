@@ -37,6 +37,7 @@ export interface SessionSlice {
   // 버전 관리 (Phase 1)
   createVersion: (sessionId: string, description?: string) => string
   restoreVersion: (sessionId: string, versionId: string) => void
+  deleteVersion: (sessionId: string, versionId: string) => void
   getVersions: (sessionId: string) => import('../../types/version').DocumentVersion[]
   compareVersions: (sessionId: string, versionId1: string, versionId2: string) => import('../../types/version').VersionDiff | null
 }
@@ -395,6 +396,38 @@ export const createSessionSlice: StateCreator<
     })
 
     console.log('🔄 버전 복원:', {
+      sessionId,
+      versionId,
+      versionNumber: version.versionNumber,
+    })
+  },
+
+  // 버전 삭제
+  deleteVersion: (sessionId: string, versionId: string) => {
+    const state = get()
+    const session = state.sessions.find(s => s.id === sessionId)
+    if (!session || !session.versions) {
+      throw new Error('세션 또는 버전을 찾을 수 없습니다.')
+    }
+
+    const version = session.versions.find(v => v.id === versionId)
+    if (!version) {
+      throw new Error('버전을 찾을 수 없습니다.')
+    }
+
+    set((state) => ({
+      sessions: state.sessions.map(s => {
+        if (s.id === sessionId) {
+          return {
+            ...s,
+            versions: s.versions?.filter(v => v.id !== versionId) || [],
+          }
+        }
+        return s
+      }),
+    }))
+
+    console.log('🗑️ 버전 삭제:', {
       sessionId,
       versionId,
       versionNumber: version.versionNumber,
