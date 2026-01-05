@@ -34,6 +34,7 @@ interface UseSessionManagementReturn {
   handleImportSession: () => Promise<void>;
   handleReorderSessions: (reorderedSessions: Session[]) => Promise<void>;
   handleHistoryAdd: (entry: GenerationHistoryEntry) => void;
+  handleHistoryUpdate: (entryId: string, updates: Partial<GenerationHistoryEntry>) => void;
   handleHistoryDelete: (entryId: string) => void;
   saveSessionWithoutTranslation: (updatedAnalysis: ImageAnalysisResult) => Promise<void>;
   updateKoreanCache: (updates: Partial<KoreanAnalysisCache>) => void;
@@ -168,6 +169,21 @@ export function useSessionManagement(): UseSessionManagementReturn {
     }
   };
 
+  const handleHistoryUpdate = (entryId: string, updates: Partial<GenerationHistoryEntry>) => {
+    if (currentSession) {
+      const updatedSession = updateSession(currentSession, {
+        generationHistory: (currentSession.generationHistory || []).map((entry) =>
+          entry.id === entryId ? { ...entry, ...updates } : entry
+        ),
+      });
+
+      setCurrentSession(updatedSession);
+      const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+      setSessions(updatedSessions);
+      persistSessions(updatedSessions);
+    }
+  };
+
   const handleHistoryDelete = (entryId: string) => {
     if (currentSession) {
       const updatedSession = updateSession(currentSession, {
@@ -235,6 +251,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     handleImportSession,
     handleReorderSessions,
     handleHistoryAdd,
+    handleHistoryUpdate,
     handleHistoryDelete,
     saveSessionWithoutTranslation,
     updateKoreanCache,

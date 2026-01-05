@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-01-03
-> **구현 완료**: Phase 1, Phase 2 & 번역 시스템 대폭 개편
-> **다음 단계**: Phase 3 - 생성 엔진 고급 제어
+> **최종 업데이트**: 2026-01-06
+> **구현 완료**: Phase 1, Phase 2 & 번역 시스템 대폭 개편, Phase 3 (고급 제어) 완료
+> **다음 단계**: Phase 4 - 완벽한 일관성
 
 ---
 
@@ -507,7 +507,7 @@ importSessionFromFile(): Promise<Session | null>
 
 ### ✅ 카드 컴포넌트 통합 및 개선
 
-**구현 완료** - `src/components/analysis/AnalysisCard.tsx`, `StyleCard.tsx`, `CharacterCard.tsx`, `CompositionCard.tsx`, `NegativePromptCard.tsx`, `CustomPromptCard.tsx`
+**구현 완료** - `src/components/analysis/AnalysisCard.tsx`, `StyleCard.tsx`, `CharacterCard.tsx`, `CompositionCard.tsx`, `NegativePromptCard.tsx`, `CustomPromptCard.tsx`, `UnifiedPromptCard.tsx`
 
 #### AnalysisCard 통합
 
@@ -529,20 +529,44 @@ importSessionFromFile(): Promise<Session | null>
    - 편집 중에도 한국어 표시 유지
    - 저장 시 영어로 변환하여 저장
 
-#### CustomPromptCard 추가
+#### CustomPromptCard 추가 (신규)
 
 1. **사용자 맞춤 프롬프트 전용 카드**
    - `UnifiedPromptCard`에서 분리
    - 독립적인 편집 및 저장 기능
    - 세션 저장 시에만 번역 및 저장
+   - 분석 강화 시에도 내용 유지
 
-#### UnifiedPromptCard 개선
+2. **주요 기능**
+   - 편집/저장 버튼 UI
+   - Textarea 자동 높이 조정
+   - 실시간 내용 업데이트
+
+#### NegativePromptCard 추가 (신규)
+
+1. **부정 프롬프트 전용 카드**
+   - 피해야 할 요소들을 독립적으로 관리
+   - 이미지 생성 시 고정된 값 사용
+   - 일관된 품질 유지를 위한 설계
+
+2. **주요 기능**
+   - 편집/저장 버튼 UI
+   - 한국어 번역 지원
+   - Textarea 자동 높이 조정
+
+#### UnifiedPromptCard 개선 (신규)
 
 1. **표시 전용 컴포넌트**
    - 모든 분석 카드의 정보를 통합하여 표시
    - 편집 기능 제거 (각 카드에서 개별 편집)
-   - `buildUnifiedPrompt`로 영어 프롬프트 생성
-   - `buildUnifiedPromptFromKorean`로 한국어 프롬프트 표시
+   - 복사 버튼으로 클립보드에 복사
+
+2. **통합 프롬프트 생성**
+   - 사용자 맞춤 프롬프트 (최우선)
+   - 스타일 분석 결과
+   - 캐릭터 분석 결과
+   - 구도 분석 결과
+   - 한국어/영어 자동 선택
 
 ### ✅ UI 개선 사항
 
@@ -1092,36 +1116,98 @@ interface GenerationHistoryEntry {
 
 ### Phase 3: 생성 엔진 연동 및 고급 제어
 
-#### 3-1. 프롬프트 믹서 (Mixer) 구현 ✅ (부분 완료)
+#### 3-1. 프롬프트 믹서 (Mixer) 구현 ✅ (완료)
 
-**현재 상태**: 기본 믹서 구현 완료
+**구현 완료** - `src/components/generator/ImageGeneratorPanel.tsx`
+
+**핵심 기능**:
 - 세션 고정 프롬프트 + 사용자 입력 조합
 - 사용자 맞춤 프롬프트 자동 적용
 - Negative Prompt 포함
 
-**개선 사항**:
-- 더 정교한 프롬프트 가중치 시스템
-- 프롬프트 미리보기 기능
+**프롬프트 가중치 시스템** (2026-01-06 완료):
+- **4가지 가중치 제어** (0.0 ~ 2.0 범위):
+  - `customPrompt`: 사용자 맞춤 프롬프트 가중치 (기본값: 1.5)
+  - `style`: 스타일 분석 가중치 (기본값: 1.0)
+  - `character`: 캐릭터 분석 가중치 (기본값: 1.0)
+  - `composition`: 구도 분석 가중치 (기본값: 0.8)
+- **텍스트 반복 방식**: 가중치에 따라 프롬프트 텍스트를 반복하여 강조
+- **프리셋별 최적 가중치**: 각 프리셋에 맞춤 가중치 설정 포함
+- **히스토리 복원**: 생성 시 사용된 가중치를 히스토리에 저장하여 복원 가능
+- **UI 슬라이더**: 고급 설정에서 실시간 조절 가능
 
-#### 3-2. Image-to-Image 파이프라인 구축 🔄 (부분 완료)
+#### 3-2. Image-to-Image 파이프라인 구축 ✅ (완료)
 
-**현재 상태**: 참조 이미지 기본 활용 가능
+**구현 완료** - `src/components/generator/ImageGeneratorPanel.tsx`
 
-**추가 필요 사항**:
-- **영향력 슬라이더** (Denoising Strength)
-  - 참조 이미지의 영향 정도 조절
-  - 0% (새로 생성) ~ 100% (참조 복사)
-- **UI 개선**:
-  - 참조 이미지 썸네일 표시
-  - 영향력 슬라이더 컨트롤
+**주요 기능**:
+- **참조 이미지 썸네일 표시** (line 561-571)
+  - 최대 4개까지 grid 레이아웃으로 표시
+  - 정사각형 비율의 미리보기
+  - 참조 이미지 사용 시에만 표시
 
-#### 3-3. 고급 설정 패널
+- **참조 영향력 슬라이더** (line 574-596)
+  - Reference Strength: 0.0 (영감만) ~ 1.0 (완벽 복사)
+  - 0.05 단위로 세밀하게 조절 가능
+  - 퍼센트 표시 (0% ~ 100%)
+  - 세션 타입별 설명 제공:
+    - CHARACTER 세션: "캐릭터 외형 복사 정도 조절"
+    - STYLE 세션: "스타일 복사 정도 조절"
 
-**추가 필요**:
-- Temperature, Top-K, Top-P 조절
-- Seed 값 설정 (재현성)
-- Negative Prompt 직접 편집
-- 생성 히스토리 관리
+- **참조 이미지 사용 토글**
+  - 캐릭터 세션: 자동 활성화 (필수)
+  - 스타일 세션: 선택적 활성화
+  - 참조 이미지 개수 표시
+
+#### 3-3. 고급 설정 패널 ✅ (완료)
+
+**구현 완료** - `src/components/generator/ImageGeneratorPanel.tsx`
+
+##### 주요 기능
+
+1. **도움말 팝업**
+   - 고급 설정 헤더 왼쪽에 `?` 버튼 추가
+   - Seed, Temperature, Top-K, Top-P, Reference Strength 상세 설명
+   - 각 파라미터별 권장값 및 사용 예시 제공
+   - 프리셋 활용 팁 및 Negative Prompt 안내 포함
+
+2. **프리셋 시스템**
+   - **포즈/표정/동작 베리에이션**: Temperature 0.8, Reference Strength 0.95
+     - 캐릭터 외형 유지하면서 포즈만 변경
+   - **다양한 캐릭터 디자인**: Temperature 1.2, Reference Strength 0.6
+     - 참조 스타일로 다양한 캐릭터 생성
+   - **헤어/의상/악세사리 변경**: Temperature 1.0, Reference Strength 0.85
+     - 캐릭터 기본 외형 유지하면서 스타일 요소 변경
+
+3. **고급 파라미터 제어**
+   - **Seed**: 랜덤 생성 버튼, 재현성 제어
+   - **Temperature** (0.0~2.0): 창의성 vs 일관성 조절
+   - **Top-K** (1~100): 샘플링 범위 조절
+   - **Top-P** (0.0~1.0): 누적 확률 임계값 조절
+   - **Reference Strength** (0.0~1.0): 참조 이미지 영향력 조절
+
+4. **Negative Prompt 관리**
+   - 고급 옵션에서 제거 (편집 불가)
+   - 분석 패널의 `NegativePromptCard`에서만 수정 가능
+   - 일관된 품질 유지를 위한 고정값 사용
+   - 히스토리 복원 시에도 Negative Prompt는 현재 세션 값 유지
+
+5. **UI 개선**
+   - 프롬프트 입력 레이블 통일 ("추가 프롬프트")
+   - 프리셋 버튼 시각적 구분 (색상별 코딩)
+   - 실시간 값 표시 (슬라이더 옆)
+   - 접기/펼치기 토글
+
+6. **생성 히스토리 관리**
+   - 썸네일 그리드 뷰 (grid-cols-8)
+   - 히스토리에서 설정 복원 기능
+   - 개별 히스토리 삭제 (확인 다이얼로그)
+   - 생성 시간 표시
+   - **핀 기능** (2026-01-06 추가):
+     - 좌측 상단 핀 아이콘으로 즐겨찾기 표시
+     - 핀된 히스토리 우선 정렬 (핀된 항목 먼저, 그 다음 시간순)
+     - 핀 상태는 세션에 저장되어 유지
+     - 노란색 테두리 및 아이콘으로 시각적 구분
 
 ### Phase 4: 완벽한 일관성 (Consistency Mastery)
 
@@ -1226,9 +1312,9 @@ StyleStudio-Tauri/
 │   │   │   ├── StyleCard.tsx
 │   │   │   ├── CharacterCard.tsx
 │   │   │   ├── CompositionCard.tsx
-│   │   │   ├── NegativePromptCard.tsx
-│   │   │   ├── CustomPromptCard.tsx  # 사용자 맞춤 프롬프트
-│   │   │   └── UnifiedPromptCard.tsx # 통합 프롬프트 (표시 전용)
+│   │   │   ├── NegativePromptCard.tsx  # 부정 프롬프트 전용 카드
+│   │   │   ├── CustomPromptCard.tsx    # 사용자 맞춤 프롬프트 전용 카드
+│   │   │   └── UnifiedPromptCard.tsx   # 통합 프롬프트 (표시 전용, 복사 기능)
 │   │   ├── generator/       # 이미지 생성 관련 컴포넌트
 │   │   │   ├── ImageGeneratorPanel.tsx
 │   │   │   └── ImageUpload.tsx
@@ -1337,11 +1423,44 @@ StyleStudio-Tauri/
 
 ## 마무리
 
-**Style & Character Studio**는 Phase 2까지 성공적으로 구현되었으며, 핵심 기능인 **스타일 분석**, **캐릭터 일관성 유지**, **세션 관리**, **번역 시스템**이 모두 작동합니다.
+**Style & Character Studio**는 Phase 2와 Phase 3를 성공적으로 완료했습니다. **스타일 분석**, **캐릭터 일관성 유지**, **세션 관리**, **번역 시스템**, **고급 생성 제어**, **프롬프트 가중치 시스템**, **히스토리 핀 기능**이 모두 작동합니다.
 
 **번역 시스템**은 변경 감지 기반 선택적 번역을 통해 세션 저장 시간을 최대 **99.9%** 단축시켜 사용자 경험을 크게 개선했습니다. 번역 로직을 중앙화하고 세션 저장과 통합하여 더욱 효율적인 시스템으로 개편했습니다.
 
-**주요 개선 사항**:
+**최신 개선 사항 (2026-01-06)**:
+
+### 분석 카드 컴포넌트 완성
+- **NegativePromptCard**: 부정 프롬프트 독립 관리 카드 추가
+- **CustomPromptCard**: 사용자 맞춤 프롬프트 전용 카드 분리
+- **UnifiedPromptCard**: 통합 프롬프트 표시 및 복사 기능
+
+### 고급 설정 패널 구현 (Phase 3-3 완료)
+- **도움말 시스템**: Seed, Temperature, Top-K, Top-P, Reference Strength 상세 설명 팝업
+- **프리셋 시스템**: 3가지 사용 사례별 최적 설정값 제공
+  - 포즈/표정/동작 베리에이션
+  - 다양한 캐릭터 디자인
+  - 헤어/의상/악세사리 변경
+- **Negative Prompt 관리 개선**: 고급 옵션에서 제거, 분석 패널에서만 수정 가능
+- **UI/UX 개선**: 프롬프트 레이블 통일, 실시간 값 표시
+
+### Phase 3 완료 - 프롬프트 가중치 시스템 & 히스토리 핀 기능
+- **프롬프트 가중치 시스템** (Phase 3-1 완료):
+  - 4가지 가중치 슬라이더 추가 (customPrompt, style, character, composition)
+  - 0.0 ~ 2.0 범위로 각 프롬프트 요소의 강조 정도 조절
+  - 텍스트 반복 방식으로 가중치 적용 (간단하고 효과적)
+  - 프리셋별 최적 가중치 설정 포함
+  - 히스토리에 가중치 저장 및 복원 가능
+  - `src/types/session.ts`에 `PromptWeights` 인터페이스 추가
+  - `src/hooks/useSessionManagement.ts`에 `handleHistoryUpdate` 함수 추가
+
+- **히스토리 핀 기능**:
+  - 생성 히스토리 썸네일 좌측 상단에 핀 버튼 추가
+  - 클릭으로 즐겨찾기 토글 (isPinned 플래그)
+  - 핀된 히스토리 우선 정렬 (시간 역순 내에서)
+  - 노란색 테두리 및 아이콘으로 시각적 구분
+  - 세션에 저장되어 앱 재시작 후에도 유지
+
+### 이전 개선 사항
 - 번역 로직 중앙화 (`useTranslation.ts`)
 - 세션 저장과 번역 통합 (`useSessionPersistence.ts`)
 - 컴포넌트 구조 리팩토링 (analysis/, generator/, common/ 디렉토리 분리)
@@ -1349,15 +1468,24 @@ StyleStudio-Tauri/
 - 카드 컴포넌트 통합 (`AnalysisCard.tsx`)
 - 로깅 시스템 개선 (`logger.ts`)
 - 세션 관리 개선 (빈 세션 즉시 생성, 삭제 확인 다이얼로그)
-- UI/UX 개선 (편집 모드 언어 유지, 진행 상태 표시)
 
-다음 단계는 **Phase 3 (고급 제어)**와 **Phase 4 (완벽한 일관성)**를 통해 더욱 정교한 제어와 여러 캐릭터 통합 생성 기능을 구현하는 것입니다.
+다음 단계는 **Phase 4 (완벽한 일관성)**를 통해 포즈 가이드, 표정 변화 도구, 여러 캐릭터 통합 생성 기능을 구현하는 것입니다.
+
+**Phase 3 완료**로 이제 다음 기능이 모두 작동합니다:
+- ✅ 프롬프트 믹서 및 가중치 시스템 (3-1)
+- ✅ Image-to-Image 파이프라인 (3-2)
+  - 참조 이미지 썸네일 표시
+  - 참조 영향력 슬라이더 (Reference Strength)
+  - 세션 타입별 참조 이미지 활용
+- ✅ 고급 설정 패널 (3-3)
+  - 프리셋, 도움말, 파라미터 제어
+  - 생성 히스토리 관리 (핀 기능 포함)
 
 프로젝트는 최종 목표인 **"여러 캐릭터 세션을 통합하여 하나의 완성된 일러스트 생성"**을 향해 순조롭게 진행 중입니다.
 
 ---
 
-**문서 버전**: 3.0
-**작성일**: 2026-01-03
-**주요 업데이트**: 번역 시스템 대폭 개편, 컴포넌트 구조 리팩토링, Hook 구조 개선, 세션 관리 개선
-**다음 업데이트 예정**: Phase 3 완료 시
+**문서 버전**: 3.2
+**작성일**: 2026-01-06
+**주요 업데이트**: Phase 3 완료 - 프롬프트 가중치 시스템, 히스토리 핀 기능
+**다음 업데이트 예정**: Phase 4 진입 시

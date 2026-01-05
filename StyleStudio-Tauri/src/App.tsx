@@ -59,6 +59,7 @@ function App() {
     handleImportSession,
     handleReorderSessions,
     handleHistoryAdd,
+    handleHistoryUpdate,
     handleHistoryDelete,
     saveSessionWithoutTranslation,
     updateKoreanCache,
@@ -507,6 +508,7 @@ function App() {
                 koreanAnalysis={currentSession?.koreanAnalysis}
                 generationHistory={currentSession?.generationHistory}
                 onHistoryAdd={handleHistoryAdd}
+                onHistoryUpdate={handleHistoryUpdate}
                 onHistoryDelete={handleHistoryDelete}
                 onBack={handleBackToAnalysis}
               />
