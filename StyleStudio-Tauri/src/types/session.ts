@@ -2,14 +2,6 @@ import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnaly
 
 export type SessionType = 'STYLE' | 'CHARACTER';
 
-// 프롬프트 가중치 (0.0 ~ 2.0)
-export interface PromptWeights {
-  customPrompt: number;    // 사용자 맞춤 프롬프트 가중치
-  style: number;           // 스타일 분석 가중치
-  character: number;       // 캐릭터 분석 가중치
-  composition: number;     // 구도 분석 가중치
-}
-
 // 번역된 분석 결과 (캐싱용)
 export interface KoreanAnalysisCache {
   style?: StyleAnalysis;
@@ -31,7 +23,6 @@ export interface Session {
   koreanAnalysis?: KoreanAnalysisCache; // 번역된 결과 캐시
   imageCount: number; // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리 (선택)
-  promptWeights?: PromptWeights; // 프롬프트 가중치 (선택, 기본값 사용)
 }
 
 // 생성 히스토리 엔트리
@@ -56,5 +47,4 @@ export interface GenerationSettings {
   topP?: number;
   referenceStrength?: number; // 참조 이미지 영향력 (0.0 ~ 1.0)
   useReferenceImages: boolean;
-  promptWeights?: PromptWeights; // 프롬프트 가중치
 }

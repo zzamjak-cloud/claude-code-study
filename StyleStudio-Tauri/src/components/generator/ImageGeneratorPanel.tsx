@@ -57,14 +57,6 @@ export function ImageGeneratorPanel({
   const [topP, setTopP] = useState<number>(0.95);
   const [referenceStrength, setReferenceStrength] = useState<number>(1.0);
 
-  // 프롬프트 가중치 (기본값: 1.0)
-  const [promptWeights, setPromptWeights] = useState({
-    customPrompt: 1.5,   // 사용자 맞춤 프롬프트
-    style: 1.0,          // 스타일
-    character: 1.0,      // 캐릭터
-    composition: 0.8,    // 구도
-  });
-
   const handleGenerate = async () => {
     if (!apiKey) {
       alert('API 키를 먼저 설정해주세요. Style Studio 헤더의 설정 아이콘을 클릭하여 API 키를 입력하세요.');
@@ -116,66 +108,29 @@ export function ImageGeneratorPanel({
       logger.debug('   - 사용자 맞춤 프롬프트:', translatedUserCustomPrompt);
       logger.debug('   - 추가 프롬프트:', translatedAdditionalPrompt);
 
-      // 2단계: 최종 프롬프트 구성 (영어 사용, 가중치 적용)
-      // 가중치를 적용하기 위한 헬퍼 함수
-      const applyWeight = (text: string, weight: number): string => {
-        if (!text || weight === 0) return '';
-        const repeatCount = Math.round(weight);
-        return Array(repeatCount).fill(text).join(', ');
-      };
-
+      // 2단계: 최종 프롬프트 구성 (영어 사용)
       let finalPrompt = '';
 
       if (sessionType === 'CHARACTER') {
         // 캐릭터 세션: 참조 이미지가 캐릭터 외형을 완벽히 유지하므로
         // 포즈/표정/동작만 프롬프트로 전달
-        const customPromptPart = applyWeight(translatedUserCustomPrompt, promptWeights.customPrompt);
-        const additionalPromptPart = applyWeight(translatedAdditionalPrompt, 1.0); // 추가 프롬프트는 항상 1.0
-
-        const parts = [customPromptPart, additionalPromptPart].filter(Boolean);
+        const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
         finalPrompt = parts.length > 0 ? parts.join(', ') : 'standing naturally, neutral expression';
       } else {
         // 스타일 세션: 참조 이미지가 있으면 스타일만 유지하고
         // 구체적인 내용은 사용자 프롬프트 사용
         if (useReferenceImages && referenceImages.length > 0) {
           // 참조 이미지로 스타일 유지, 사용자 프롬프트만 사용
-          const customPromptPart = applyWeight(translatedUserCustomPrompt, promptWeights.customPrompt);
-          const additionalPromptPart = applyWeight(translatedAdditionalPrompt, 1.0);
-
-          const parts = [customPromptPart, additionalPromptPart].filter(Boolean);
+          const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
           finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
         } else {
-          // 참조 이미지 없으면 AI 분석 프롬프트도 포함 (가중치 적용)
-          const customPromptPart = applyWeight(translatedUserCustomPrompt, promptWeights.customPrompt);
-          const additionalPromptPart = applyWeight(translatedAdditionalPrompt, 1.0);
-
-          // positivePrompt를 분해하여 가중치 적용
-          const stylePart = applyWeight(
-            `${analysis.style.art_style}, ${analysis.style.technique}, ${analysis.style.color_palette}`,
-            promptWeights.style
-          );
-          const characterPart = applyWeight(
-            `${analysis.character.gender}, ${analysis.character.age_group}, ${analysis.character.hair}, ${analysis.character.eyes}`,
-            promptWeights.character
-          );
-          const compositionPart = applyWeight(
-            `${analysis.composition.pose}, ${analysis.composition.angle}`,
-            promptWeights.composition
-          );
-
-          const parts = [
-            customPromptPart,
-            additionalPromptPart,
-            stylePart,
-            characterPart,
-            compositionPart,
-          ].filter(Boolean);
+          // 참조 이미지 없으면 AI 분석 프롬프트도 포함
+          const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt, positivePrompt].filter(Boolean);
           finalPrompt = parts.join(', ');
         }
       }
 
-      logger.debug('🎨 최종 프롬프트 (영어, 가중치 적용):', finalPrompt);
-      logger.debug('⚖️ 사용된 가중치:', promptWeights);
+      logger.debug('🎨 최종 프롬프트 (영어):', finalPrompt);
 
       // 3단계: 이미지 생성
       await generateImage(
@@ -226,7 +181,6 @@ export function ImageGeneratorPanel({
                   topP: topP,
                   referenceStrength: referenceStrength,
                   useReferenceImages: sessionType === 'CHARACTER' || useReferenceImages,
-                  promptWeights: promptWeights, // 가중치 저장
                 },
               };
               onHistoryAdd(historyEntry);
@@ -306,11 +260,6 @@ export function ImageGeneratorPanel({
     setTopP(entry.settings.topP ?? 0.95);
     setReferenceStrength(entry.settings.referenceStrength ?? 1.0);
 
-    // 프롬프트 가중치 복원
-    if (entry.settings.promptWeights) {
-      setPromptWeights(entry.settings.promptWeights);
-    }
-
     // 추가 포즈/동작 프롬프트 복원
     if (entry.additionalPrompt) {
       setAdditionalPrompt(entry.additionalPrompt);
@@ -350,7 +299,6 @@ export function ImageGeneratorPanel({
       setTopK(40);
       setTopP(0.95);
       setReferenceStrength(0.95);
-      setPromptWeights({ customPrompt: 1.5, style: 0.5, character: 1.0, composition: 1.2 });
     } else if (presetType === 'character-design') {
       // 다양한 캐릭터 디자인 (스타일 유지)
       setSeed(undefined);
@@ -358,7 +306,6 @@ export function ImageGeneratorPanel({
       setTopK(60);
       setTopP(0.95);
       setReferenceStrength(0.6);
-      setPromptWeights({ customPrompt: 1.5, style: 1.5, character: 0.5, composition: 1.0 });
     } else if (presetType === 'style-variation') {
       // 헤어/의상/악세사리 변경 (캐릭터 외형 유지)
       setSeed(undefined);
@@ -366,7 +313,6 @@ export function ImageGeneratorPanel({
       setTopK(50);
       setTopP(0.90);
       setReferenceStrength(0.85);
-      setPromptWeights({ customPrompt: 1.5, style: 1.2, character: 0.8, composition: 0.8 });
     }
   };
 
@@ -474,7 +420,7 @@ export function ImageGeneratorPanel({
               </p>
             </div>
 
-            {/* 생성 버튼 (추가 프롬프트 바로 아래) */}
+            {/* 생성 버튼 */}
             <button
               onClick={handleGenerate}
               disabled={isGenerating}
@@ -733,87 +679,6 @@ export function ImageGeneratorPanel({
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       누적 확률 임계값 (낮을수록 보수적, 높을수록 다양함)
-                    </p>
-                  </div>
-
-                  {/* 프롬프트 가중치 */}
-                  <div className="pt-4 border-t border-gray-200">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3">프롬프트 가중치</h4>
-
-                    {/* 사용자 맞춤 프롬프트 가중치 */}
-                    <div className="mb-3">
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">
-                        사용자 맞춤: {promptWeights.customPrompt.toFixed(1)}x
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={promptWeights.customPrompt}
-                        onChange={(e) =>
-                          setPromptWeights({ ...promptWeights, customPrompt: parseFloat(e.target.value) })
-                        }
-                        className="w-full"
-                      />
-                    </div>
-
-                    {/* 스타일 가중치 */}
-                    <div className="mb-3">
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">
-                        스타일: {promptWeights.style.toFixed(1)}x
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={promptWeights.style}
-                        onChange={(e) =>
-                          setPromptWeights({ ...promptWeights, style: parseFloat(e.target.value) })
-                        }
-                        className="w-full"
-                      />
-                    </div>
-
-                    {/* 캐릭터 가중치 */}
-                    <div className="mb-3">
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">
-                        캐릭터: {promptWeights.character.toFixed(1)}x
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={promptWeights.character}
-                        onChange={(e) =>
-                          setPromptWeights({ ...promptWeights, character: parseFloat(e.target.value) })
-                        }
-                        className="w-full"
-                      />
-                    </div>
-
-                    {/* 구도 가중치 */}
-                    <div className="mb-3">
-                      <label className="block text-xs font-semibold text-gray-600 mb-1">
-                        구도: {promptWeights.composition.toFixed(1)}x
-                      </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="2"
-                        step="0.1"
-                        value={promptWeights.composition}
-                        onChange={(e) =>
-                          setPromptWeights({ ...promptWeights, composition: parseFloat(e.target.value) })
-                        }
-                        className="w-full"
-                      />
-                    </div>
-
-                    <p className="text-xs text-gray-500 mt-2">
-                      가중치가 높을수록 해당 요소가 강조됩니다 (0 = 무시, 1 = 기본, 2 = 강조)
                     </p>
                   </div>
                 </div>

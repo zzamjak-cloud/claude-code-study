@@ -52,6 +52,42 @@ export function useGeminiImageGenerator() {
     params: ImageGenerationParams,
     callbacks: GenerationCallbacks
   ) => {
+    // Retry 로직: 500 에러 시 최대 2번 재시도
+    const MAX_RETRIES = 2;
+    const RETRY_DELAY_MS = 5000; // 5초 대기 (Rate Limiting 대응)
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          logger.warn(`🔄 재시도 중... (${attempt}/${MAX_RETRIES})`);
+          callbacks.onProgress?.(`재시도 중... (${attempt}/${MAX_RETRIES})`);
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        }
+
+        return await generateImageInternal(apiKey, params, callbacks);
+      } catch (error) {
+        const errorMessage = (error as Error).message;
+        const is500Error = errorMessage.includes('500');
+
+        // 500 에러가 아니거나 마지막 시도면 에러 던지기
+        if (!is500Error || attempt === MAX_RETRIES) {
+          throw error;
+        }
+
+        // 500 에러면 재시도
+        logger.warn(`⚠️ 500 에러 발생. ${RETRY_DELAY_MS / 1000}초 후 재시도합니다...`);
+      }
+    }
+
+    // 이 코드는 실행되지 않지만 TypeScript를 위해 추가
+    throw new Error('최대 재시도 횟수 초과');
+  };
+
+  const generateImageInternal = async (
+    apiKey: string,
+    params: ImageGenerationParams,
+    callbacks: GenerationCallbacks
+  ) => {
     try {
       // API Key 검증
       const cleanApiKey = String(apiKey || '').trim();
@@ -67,19 +103,63 @@ export function useGeminiImageGenerator() {
 
       callbacks.onProgress?.('이미지 생성 요청 중...');
 
-      // Gemini 3 Pro Image Preview API 엔드포인트
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent?key=${cleanApiKey}`;
+      // Gemini 이미지 생성 모델 (2026-01-06 기준)
+      const MODEL_NAME = 'gemini-3-pro-image-preview';
+      logger.debug(`📦 사용 모델: ${MODEL_NAME}`);
+
+      // 첫 시도 시 모델 사용 가능 여부 확인
+      if (params.seed === undefined) {
+        // Seed가 없을 때만 확인 (첫 생성으로 간주)
+        try {
+          const checkUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}?key=${cleanApiKey}`;
+          const checkResponse = await fetch(checkUrl);
+
+          if (!checkResponse.ok) {
+            logger.error(`❌ 모델 "${MODEL_NAME}"을 사용할 수 없습니다! (${checkResponse.status})`);
+            logger.error('💡 사용 가능한 모델 확인 방법:');
+            logger.error('   1. 콘솔에서: listGeminiModels() 실행');
+            logger.error('   2. 직접 확인: https://ai.google.dev/gemini-api/docs/models/gemini');
+
+            // 모든 모델 리스트 조회
+            const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanApiKey}`;
+            const listResponse = await fetch(listUrl);
+            if (listResponse.ok) {
+              const result = await listResponse.json();
+              const imageModels = result.models?.filter((m: any) =>
+                m.name.toLowerCase().includes('image') ||
+                m.name.toLowerCase().includes('vision') ||
+                m.supportedGenerationMethods?.includes('generateContent')
+              ) || [];
+
+              if (imageModels.length > 0) {
+                logger.error('📋 사용 가능한 이미지 생성 모델:');
+                imageModels.slice(0, 5).forEach((model: any) => {
+                  logger.error(`   - ${model.name.replace('models/', '')}`);
+                });
+              }
+            }
+          } else {
+            logger.debug(`✅ 모델 "${MODEL_NAME}" 사용 가능 확인됨`);
+          }
+        } catch (checkError) {
+          logger.warn('⚠️ 모델 확인 실패 (계속 진행):', checkError);
+        }
+      }
+
+      // Gemini API 엔드포인트
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${cleanApiKey}`;
 
       // contents 배열 구성: [참조 이미지들..., 프롬프트]
       const parts: GeminiPart[] = [];
 
-      // 1. 참조 이미지가 있으면 먼저 추가 (최대 14개)
+      // 1. 참조 이미지가 있으면 먼저 추가 (최대 10개)
       const hasReferenceImages = params.referenceImages && params.referenceImages.length > 0;
 
       if (hasReferenceImages && params.referenceImages) {
-        const maxImages = Math.min(params.referenceImages.length, 14);
+        const maxImages = Math.min(params.referenceImages.length, 10);
         logger.debug(`   - 참조 이미지 ${maxImages}개 추가 중...`);
 
+        let totalImageSize = 0;
         for (let i = 0; i < maxImages; i++) {
           const imageBase64 = params.referenceImages[i];
 
@@ -92,12 +172,24 @@ export function useGeminiImageGenerator() {
           const mimeMatch = imageBase64.match(/data:([^;]+);base64/);
           const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
 
+          // 이미지 크기 로깅 (KB 단위)
+          const imageSizeKB = (base64Data.length * 0.75) / 1024; // Base64는 원본의 약 1.33배
+          totalImageSize += imageSizeKB;
+          logger.debug(`     [${i + 1}] ${mimeType}, ${imageSizeKB.toFixed(2)} KB`);
+
           parts.push({
             inline_data: {
               mime_type: mimeType,
               data: base64Data,
             },
           });
+        }
+        logger.debug(`   - 총 이미지 크기: ${totalImageSize.toFixed(2)} KB`);
+
+        // 경고: 이미지가 너무 크면 500 에러 발생 가능
+        if (totalImageSize > 20000) { // 20MB 이상
+          logger.warn(`⚠️ 경고: 참조 이미지 크기가 매우 큽니다 (${totalImageSize.toFixed(2)} KB). 500 에러가 발생할 수 있습니다.`);
+          logger.warn('   해결책: 참조 이미지 개수를 줄이거나 이미지 크기를 줄이세요.');
         }
       }
 
@@ -294,7 +386,28 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
         generationConfig,
       };
 
+      // 디버깅: 요청 내용 요약
       logger.debug('🌐 API 요청 전송...');
+      logger.debug('   - parts 개수:', parts.length);
+      logger.debug('   - generationConfig:', JSON.stringify(generationConfig, null, 2));
+      const imagePartsCount = parts.filter(p => 'inline_data' in p).length;
+      const textPartsCount = parts.filter(p => 'text' in p).length;
+      logger.debug('   - 이미지 parts:', imagePartsCount);
+      logger.debug('   - 텍스트 parts:', textPartsCount);
+
+      // 요청 페이로드 크기 확인
+      const requestBodyString = JSON.stringify(requestBody);
+      const requestSizeMB = requestBodyString.length / (1024 * 1024);
+      logger.debug(`   - 요청 페이로드 크기: ${requestSizeMB.toFixed(2)} MB`);
+
+      if (requestSizeMB > 20) {
+        logger.error(`❌ 요청이 너무 큽니다 (${requestSizeMB.toFixed(2)} MB)! Gemini API 제한을 초과했을 가능성이 높습니다.`);
+        logger.error('   해결책:');
+        logger.error('   1. 참조 이미지 개수를 1-2개로 줄이세요');
+        logger.error('   2. 이미지 해상도를 낮추세요 (예: 512x512 이하)');
+        logger.error('   3. 포즈 가이드를 제거하고 텍스트만으로 시도하세요');
+      }
+
       callbacks.onProgress?.('Gemini가 이미지를 생성하고 있습니다...');
 
       const response = await fetch(url, {
@@ -308,6 +421,19 @@ REMEMBER: The style shown in references is MANDATORY. The subject/content can ch
       if (!response.ok) {
         const errorText = await response.text();
         logger.error('❌ API 오류:', response.status, errorText);
+
+        // 에러 상세 정보 파싱
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error) {
+            logger.error('   - 에러 코드:', errorJson.error.code);
+            logger.error('   - 에러 메시지:', errorJson.error.message);
+            logger.error('   - 에러 상태:', errorJson.error.status);
+          }
+        } catch (e) {
+          // JSON 파싱 실패 시 무시
+        }
+
         throw new Error(`API 오류 (${response.status}): ${errorText}`);
       }
 
