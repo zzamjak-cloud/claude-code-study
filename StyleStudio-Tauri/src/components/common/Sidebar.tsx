@@ -13,6 +13,7 @@ interface SidebarProps {
   onImportSession?: () => void;
   onSettingsClick?: () => void;
   onReorderSessions?: (reorderedSessions: Session[]) => void;
+  disabled?: boolean; // 이미지 생성 중일 때 세션 선택 비활성화
 }
 
 export function Sidebar({
@@ -25,6 +26,7 @@ export function Sidebar({
   onImportSession,
   onSettingsClick,
   onReorderSessions,
+  disabled = false,
 }: SidebarProps) {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -128,7 +130,7 @@ export function Sidebar({
   const draggedSession = draggedIndex !== null ? sessions[draggedIndex] : null;
 
   return (
-    <aside className="w-64 bg-gray-900 text-white flex flex-col relative">
+    <aside className="w-64 h-screen bg-gray-900 text-white flex flex-col relative">
       {/* 드래그 프리뷰 */}
       {isDragging && draggedSession && dragPosition && (
         <div
@@ -185,9 +187,14 @@ export function Sidebar({
         {/* 신규 세션 시작 */}
         {onNewImage && (
           <button
-            onClick={onNewImage}
-            className="flex-1 flex items-center justify-center p-3 bg-gray-800 hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-600 rounded-lg transition-all"
-            title="신규 세션 시작"
+            onClick={() => !disabled && onNewImage()}
+            disabled={disabled}
+            className={`flex-1 flex items-center justify-center p-3 bg-gray-800 rounded-lg transition-all ${
+              disabled
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-gradient-to-r hover:from-purple-600 hover:to-blue-600'
+            }`}
+            title={disabled ? '이미지 생성 중에는 사용할 수 없습니다' : '신규 세션 시작'}
           >
             <ImagePlus size={20} />
           </button>
@@ -196,9 +203,12 @@ export function Sidebar({
         {/* 세션 불러오기 */}
         {onImportSession && (
           <button
-            onClick={onImportSession}
-            className="flex-1 flex items-center justify-center p-3 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all"
-            title="세션 불러오기"
+            onClick={() => !disabled && onImportSession()}
+            disabled={disabled}
+            className={`flex-1 flex items-center justify-center p-3 bg-gray-800 rounded-lg transition-all ${
+              disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-700'
+            }`}
+            title={disabled ? '이미지 생성 중에는 사용할 수 없습니다' : '세션 불러오기'}
           >
             <FolderOpen size={20} />
           </button>
@@ -225,15 +235,17 @@ export function Sidebar({
               <div
                 key={session.id}
                 data-session-index={index}
-                onMouseDown={(e) => handleMouseDown(e, index)}
+                onMouseDown={(e) => !disabled && handleMouseDown(e, index)}
                 className={`group rounded-lg p-3 transition-all relative select-none ${
                   isActive
                     ? 'bg-gray-800 border border-purple-500'
+                    : disabled
+                    ? 'border border-transparent opacity-50 cursor-not-allowed'
                     : 'hover:bg-gray-800 border border-transparent'
-                } ${isBeingDragged ? 'opacity-50 cursor-grabbing' : 'cursor-grab'} ${
+                } ${isBeingDragged ? 'opacity-50 cursor-grabbing' : disabled ? 'cursor-not-allowed' : 'cursor-grab'} ${
                   isDragOver ? 'border-t-4 border-t-blue-500 pt-5' : ''
                 }`}
-                onClick={() => !isDragging && onSelectSession?.(session)}
+                onClick={() => !isDragging && !disabled && onSelectSession?.(session)}
               >
                 <div className="flex items-start gap-2">
                   {/* 드래그 핸들 아이콘 */}
@@ -264,10 +276,13 @@ export function Sidebar({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onExportSession(session);
+                          if (!disabled) onExportSession(session);
                         }}
-                        className="p-1.5 hover:bg-green-900/50 rounded transition-colors"
-                        title="세션을 파일로 저장"
+                        disabled={disabled}
+                        className={`p-1.5 hover:bg-green-900/50 rounded transition-colors ${
+                          disabled ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        title={disabled ? '이미지 생성 중에는 사용할 수 없습니다' : '세션을 파일로 저장'}
                       >
                         <Download size={14} className="text-green-400" />
                       </button>
@@ -278,10 +293,13 @@ export function Sidebar({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setDeleteConfirm(session.id);
+                          if (!disabled) setDeleteConfirm(session.id);
                         }}
-                        className="p-1.5 hover:bg-red-900/50 rounded transition-colors"
-                        title="세션 삭제"
+                        disabled={disabled}
+                        className={`p-1.5 hover:bg-red-900/50 rounded transition-colors ${
+                          disabled ? 'opacity-50 cursor-not-allowed' : ''
+                        }`}
+                        title={disabled ? '이미지 생성 중에는 사용할 수 없습니다' : '세션 삭제'}
                       >
                         <Trash2 size={14} className="text-red-400" />
                       </button>

@@ -429,20 +429,30 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <div className="h-screen flex bg-gray-100">
-      <Sidebar
-        sessions={sessions}
-        currentSessionId={currentSession?.id}
-        onSelectSession={handleSelectSession}
-        onDeleteSession={handleDeleteSession}
-        onExportSession={handleExportSession}
-        onNewImage={handleReset}
-        onImportSession={handleImportSession}
-        onSettingsClick={handleSettingsClick}
-        onReorderSessions={handleReorderSessions}
-      />
+      <div className="h-screen flex bg-gray-100 overflow-hidden relative">
+      {/* 사이드바 - 이미지 생성 화면에서는 왼쪽으로 슬라이드 아웃 */}
+      <div
+        className={`absolute top-0 left-0 h-full z-10 transition-transform duration-500 ease-in-out ${
+          currentView === 'generator' ? '-translate-x-full' : 'translate-x-0'
+        }`}
+      >
+        <Sidebar
+          sessions={sessions}
+          currentSessionId={currentSession?.id}
+          onSelectSession={handleSelectSession}
+          onDeleteSession={handleDeleteSession}
+          onExportSession={handleExportSession}
+          onNewImage={handleReset}
+          onImportSession={handleImportSession}
+          onSettingsClick={handleSettingsClick}
+          onReorderSessions={handleReorderSessions}
+          disabled={currentView === 'generator'}
+        />
+      </div>
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className={`flex flex-col overflow-hidden transition-all duration-500 ease-in-out ${
+        currentView === 'generator' ? 'ml-0 w-full' : 'ml-64 flex-1'
+      }`}>
         {uploadedImages.length > 0 ? (
           currentView === 'analysis' ? (
             <AnalysisPanel

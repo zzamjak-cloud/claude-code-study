@@ -5,6 +5,7 @@ import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Resizer } from '../common/Resizer';
 import { logger } from '../../lib/logger';
 
 interface ImageGeneratorPanelProps {
@@ -56,6 +57,17 @@ export function ImageGeneratorPanel({
   const [topK, setTopK] = useState<number>(40);
   const [topP, setTopP] = useState<number>(0.95);
   const [referenceStrength, setReferenceStrength] = useState<number>(1.0);
+
+  // 히스토리 영역 높이 (픽셀 단위)
+  const [historyHeight, setHistoryHeight] = useState<number>(192); // 기본값: max-h-48 (192px)
+
+  const handleHistoryResize = (delta: number) => {
+    setHistoryHeight((prev) => {
+      const newHeight = prev - delta; // delta는 아래로 드래그하면 양수, 위로 드래그하면 음수
+      // 최소 120px, 최대 600px
+      return Math.max(120, Math.min(600, newHeight));
+    });
+  };
 
   const handleGenerate = async () => {
     if (!apiKey) {
@@ -730,11 +742,18 @@ export function ImageGeneratorPanel({
 
           {/* 히스토리 섹션 */}
           {generationHistory.length > 0 && (
-            <div className="border-t border-gray-200 bg-white p-4 max-h-48 overflow-y-auto">
-              <div className="flex items-center gap-2 mb-3">
-                <History size={16} className="text-gray-600" />
-                <h3 className="text-sm font-semibold text-gray-800">생성 히스토리 ({generationHistory.length})</h3>
-              </div>
+            <>
+              {/* Resizer - 히스토리 영역 상단 */}
+              <Resizer onResize={handleHistoryResize} direction="vertical" />
+
+              <div
+                className="border-t border-gray-200 bg-white p-4 overflow-y-auto"
+                style={{ height: `${historyHeight}px` }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <History size={16} className="text-gray-600" />
+                  <h3 className="text-sm font-semibold text-gray-800">생성 히스토리 ({generationHistory.length})</h3>
+                </div>
               <div className="grid grid-cols-8 gap-2">
                 {generationHistory
                   .slice()
@@ -793,8 +812,9 @@ export function ImageGeneratorPanel({
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
       </div>
