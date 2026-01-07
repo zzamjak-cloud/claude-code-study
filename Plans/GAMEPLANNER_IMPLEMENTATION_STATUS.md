@@ -1,668 +1,187 @@
 # Game Planner - 구현 현황 문서
 
-> **최종 업데이트**: 2026-01-03
-> **구현 완료**: Phase 1, Phase 2, Phase 3, Phase 3.5 (템플릿 시스템 고도화), Phase 3.6 (파일 최적화 및 안정성 강화)
-> **다음 단계**: Phase 4 - 고급 기능 및 최적화
-
----
-
-## 📋 목차
-
-1. [프로젝트 개요](#프로젝트-개요)
-2. [기술 스택](#기술-스택)
-3. [시스템 아키텍처](#시스템-아키텍처)
-4. [Phase 1 구현 내용](#phase-1-구현-내용)
-5. [Phase 2 구현 내용](#phase-2-구현-내용)
-6. [Phase 3 구현 내용](#phase-3-구현-내용)
-7. [Phase 3.6: 파일 최적화 및 안정성 강화](#phase-36-파일-최적화-및-안정성-강화)
-8. [핵심 컴포넌트](#핵심-컴포넌트)
-8. [데이터 구조](#데이터-구조)
-9. [프롬프트 엔지니어링](#프롬프트-엔지니어링)
-10. [다음 단계](#다음-단계)
+> **AI를 위한 프로젝트 가이드**: 이 문서는 AI가 프로젝트를 빠르게 이해하고 작업할 수 있도록 핵심 정보를 정리한 것입니다.
+>
+> **최종 업데이트**: 2026-01-07
+> **구현 상태**: Phase 3.6 완료 (안정화 완료)
 
 ---
 
 ## 프로젝트 개요
 
-**Game Planner**는 Google Gemini API를 활용하여 모바일 게임 기획서를 작성하고, 게임을 분석하는 로컬 데스크톱 애플리케이션입니다.
+**Game Planner**는 Google Gemini API를 활용한 로컬 데스크톱 애플리케이션으로, 게임 기획서 작성 및 게임 분석 기능을 제공합니다.
 
-### 핵심 컨셉
+### 핵심 기능
 
-- **Gemini 2.5 Flash**: 기획서 작성 및 대화형 기획 지원
-- **Gemini 2.0 Flash Exp**: 게임 분석 (Google Search Grounding 포함)
-- **이 앱**: 기획자와 분석가를 지원하는 AI 어시스턴트
+1. **게임 기획서 작성** (PLANNING 세션)
+   - Gemini 2.5 Flash 사용
+   - 템플릿 기반 프롬프트
+   - 실시간 마크다운 생성
+   - 참조 파일 등록 (PDF, Excel, CSV, Markdown, Text)
 
-### 프로젝트 목표
+2. **게임 분석** (ANALYSIS 세션)
+   - Gemini 2.0 Flash Exp 사용 (Google Search Grounding)
+   - 최신 게임 정보 자동 수집
+   - 시장 분석, 수익화 전략 등
 
-1. **게임 기획서 작성**: 하이브리드 캐주얼 게임 기획서 자동 생성
-2. **게임 분석**: 기존 게임의 시장성, 메커니즘, 수익화 전략 분석
-3. **템플릿 시스템**: 다양한 프롬프트 템플릿으로 맞춤형 기획/분석
-4. **Notion 연동**: 작성된 기획서/분석 보고서를 Notion에 자동 저장
-5. **세션 관리**: 여러 기획/분석 프로젝트를 세션으로 관리
+3. **템플릿 시스템**
+   - 기획/분석 템플릿 관리
+   - Tiptap 리치 에디터
+   - 이모지 피커, 줌 기능
+
+4. **버전 관리**
+   - 문서 버전 스냅샷 저장
+   - 버전 복원 및 비교
+
+5. **검증 시스템**
+   - AI 기반 문서 검증
+   - 체크리스트 관리
+
+6. **Notion 연동**
+   - 마크다운 → Notion 블록 변환
+   - 기획서/분석 보고서 자동 저장
 
 ---
 
 ## 기술 스택
 
-| 영역 | 기술 | 선정 이유 |
-|------|------|----------|
-| **App Shell** | **Tauri 2.0 (Rust)** | Electron 대비 가볍고 보안 강력, OS 파일 시스템 제어 용이 |
-| **Frontend** | **Vite + React + TypeScript** | 빠른 렌더링, 컴포넌트 기반 UI 관리, 타입 안정성 |
-| **Styling** | **TailwindCSS** | 유틸리티 퍼스트 방식의 빠르고 일관된 디자인 |
-| **State Management** | **Zustand** | 간단하고 효율적인 전역 상태 관리 |
-| **Storage** | **Tauri Plugin Store** | 로컬 설정 및 세션 데이터 암호화 저장 |
-| **AI Engine** | **Google Gemini 2.5 Flash** | 기획서 작성용 스트리밍 API |
-| **AI Analyzer** | **Google Gemini 2.0 Flash Exp** | 게임 분석용 (Google Search Grounding) |
-| **Markdown** | **React Markdown** | 마크다운 실시간 렌더링 |
-| **Notion API** | **Notion API v1** | 기획서/분석 보고서 자동 저장 |
+| 영역 | 기술 | 비고 |
+|------|------|------|
+| **App Shell** | Tauri 2.0 (Rust) | 로컬 데스크톱 앱 |
+| **Frontend** | Vite + React + TypeScript | |
+| **Styling** | TailwindCSS | |
+| **State** | Zustand | Slice 패턴 사용 |
+| **Storage** | Tauri Plugin Store | `settings.json`로 관리 |
+| **AI (기획)** | Gemini 2.5 Flash | 스트리밍 API |
+| **AI (분석)** | Gemini 2.0 Flash Exp | Google Search Grounding |
+| **Markdown** | React Markdown | 실시간 렌더링 |
+| **Editor** | Tiptap | 템플릿 에디터 |
 
 ---
 
 ## 시스템 아키텍처
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        User Interface                        │
-│  ┌────────────┬─────────────────┬──────────────────────┐   │
-│  │  Sidebar   │  Chat Panel     │  Markdown Preview    │   │
-│  │  (Sessions)│  (AI Chat)     │  (Document Viewer)   │   │
-│  └────────────┴─────────────────┴──────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                      Application Logic                       │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  App.tsx (Main Controller)                           │  │
-│  │  - useAppInitialization (앱 초기화)                   │  │
-│  │  - useAutoSave (자동 저장)                           │  │
-│  │  - useMessageHandler (메시지 처리)                    │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                          Hooks                               │
-│  ┌──────────────────┬─────────────────────────────────┐    │
-│  │ useGeminiChat    │ useGameAnalysis                 │    │
-│  │ (Planning)       │ (Analysis)                      │    │
-│  ├──────────────────┼─────────────────────────────────┤    │
-│  │ useMessageHandler│ useAppInitialization           │    │
-│  │ (통합 메시지 처리)│ (앱 초기화)                     │    │
-│  └──────────────────┴─────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                      Services Layer                          │
-│  ┌──────────────────┬─────────────────────────────────┐    │
-│  │ geminiService    │ storageService                  │    │
-│  │ (API 호출)       │ (저장소 관리)                    │    │
-│  └──────────────────┴─────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                      External APIs                           │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Gemini 2.5 Flash API      (기획서 작성)            │  │
-│  │  Gemini 2.0 Flash Exp API  (게임 분석)              │  │
-│  │  Notion API                (문서 저장)               │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                      Local Storage                           │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  - API Keys (Gemini, Notion)                         │  │
-│  │  - Sessions (PLANNING / ANALYSIS)                    │  │
-│  │  - Templates (Prompt Templates)                      │  │
-│  │  - Settings (Database IDs)                          │  │
-│  │  - Reference Files (세션별 관리)                      │  │
-│  │  - Versions (문서 버전 히스토리)                      │  │
-│  │  - Checklists (검증 체크리스트)                       │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            ↕
-┌─────────────────────────────────────────────────────────────┐
-│                    Migration System                          │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  - V1: 세션 타입 추가                                 │  │
-│  │  - V2: 템플릿 시스템 추가                             │  │
-│  │  - V3: 레퍼런스 파일 필드 추가                        │  │
-│  │  - 자동 마이그레이션 (앱 시작 시)                      │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│  UI Layer (React Components)                │
+│  - Sidebar, ChatPanel, MarkdownPreview      │
+└─────────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────────┐
+│  Hooks Layer                                │
+│  - useMessageHandler (메시지 처리)           │
+│  - useAppInitialization (앱 초기화)         │
+│  - useGeminiChat, useGameAnalysis (AI 통신) │
+│  - useAutoSave (자동 저장)                   │
+└─────────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────────┐
+│  State Management (Zustand)                 │
+│  - sessionSlice (세션 관리)                  │
+│  - templateSlice (템플릿 관리)               │
+│  - settingsSlice (설정)                      │
+│  - checklistSlice (체크리스트)               │
+│  - uiSlice (UI 상태)                         │
+└─────────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────────┐
+│  Services & Utils                           │
+│  - storageService (저장소)                   │
+│  - geminiService (API 호출)                 │
+│  - fileOptimization (파일 최적화)            │
+│  - migrationManager (데이터 마이그레이션)    │
+└─────────────────────────────────────────────┘
+                    ↕
+┌─────────────────────────────────────────────┐
+│  External APIs & Storage                    │
+│  - Gemini API (기획/분석)                    │
+│  - Notion API (문서 저장)                    │
+│  - Tauri Store (로컬 저장)                   │
+└─────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 1 구현 내용
+## 핵심 컴포넌트 및 역할
 
-### ✅ 1-1. Tauri 프로젝트 초기화
+### 1. 메인 앱 (`App.tsx`)
 
-**구현 완료**
-- Tauri 2.0 기반 프로젝트 생성
-- Vite + React + TypeScript 설정
-- TailwindCSS 통합
-- 앱 아이콘 및 메타데이터 설정
+- 전체 애플리케이션 상태 관리
+- 레이아웃 구성 (사이드바 + 채팅 + 프리뷰)
+- 메시지 핸들러 통합
 
-### ✅ 1-2. 기본 UI 레이아웃
+### 2. Sidebar 컴포넌트
 
-**구현 완료** - `src/App.tsx`
+**파일**: `src/components/Sidebar.tsx`, `Sidebar/SessionActions.tsx`, `Sidebar/SessionList.tsx`
 
-#### 레이아웃 구조
-
-1. **헤더**
-   - 설정 버튼
-   - 앱 제목
-
-2. **메인 컨텐츠 영역**
-   - 좌측: 사이드바 (세션 목록)
-   - 중앙: 채팅 패널 (AI 대화)
-   - 우측: 마크다운 프리뷰 (기획서/분석 보고서)
-
-3. **리사이저**
-   - 채팅 패널과 프리뷰 사이 드래그 가능한 구분선
-   - 최소 20%, 최대 80% 너비 제한
-
-### ✅ 1-3. API Key 관리 시스템
-
-**구현 완료** - `src/lib/store.ts`, `src/components/SettingsModal.tsx`
-
-#### 주요 기능
-
-1. **Tauri Plugin Store 사용**
-   - 로컬 파일 시스템에 암호화 저장
-   - `settings.json` 파일로 관리
-
-2. **설정 항목**
-   - Gemini API Key (필수)
-   - Notion API Key (선택)
-   - Notion Planning Database ID (선택)
-   - Notion Analysis Database ID (선택)
-
-3. **자동 초기화**
-   - 앱 시작 시 API Key 확인
-   - 없으면 자동으로 설정 모달 표시
-
----
-
-## Phase 2 구현 내용
-
-### ✅ 2-1. 세션 유형 분리
-
-**구현 완료** - `src/store/useAppStore.ts`
-
-#### 세션 타입
-
-```typescript
-export enum SessionType {
-  PLANNING = 'planning',  // 기획 세션
-  ANALYSIS = 'analysis',  // 분석 세션
-}
-```
-
-#### 세션 타입별 특징
-
-**PLANNING 세션**:
-- 목적: 게임 기획서 작성
-- AI 모델: Gemini 2.5 Flash
-- 시스템 프롬프트: `SYSTEM_INSTRUCTION` (기획 전문가 페르소나)
-- 출력 형식: `<markdown_content>` 태그로 감싼 기획서
-
-**ANALYSIS 세션**:
-- 목적: 게임 분석 보고서 작성
-- AI 모델: Gemini 2.0 Flash Exp (Google Search Grounding)
-- 시스템 프롬프트: `ANALYSIS_SYSTEM_PROMPT` (게임 분석 전문가)
-- 출력 형식: `<markdown_content>` 태그로 감싼 분석 보고서
-
-### ✅ 2-2. Gemini API 연동
-
-**구현 완료** - `src/hooks/useGeminiChat.ts`, `src/hooks/useGameAnalysis.ts`
-
-#### 기획 세션 (useGeminiChat)
-
-**주요 기능**:
-1. **스트리밍 응답 처리**
-   - SSE (Server-Sent Events) 방식
-   - 실시간 텍스트 스트리밍
-
-2. **마크다운 파싱**
-   - `<markdown_content>` 태그 내부 → 프리뷰 패널
-   - 태그 외부 → 채팅 패널
-
-3. **컨텍스트 관리**
-   - 대화 히스토리 (최근 10개)
-   - 현재 기획서 내용
-   - 동적 시스템 프롬프트 (템플릿)
-
-4. **에러 처리**
-   - API 오류 감지 및 사용자 알림
-   - 네트워크 오류 처리
-
-#### 분석 세션 (useGameAnalysis)
-
-**주요 기능**:
-1. **Google Search Grounding**
-   - `tools: [{ google_search: {} }]` 활성화
-   - 최신 게임 정보 자동 수집
-
-2. **출처 참조 번호 제거**
-   - Google Search 출처 번호 `[5, 6]` 자동 제거
-   - 깔끔한 마크다운 출력
-
-3. **분석 상태 추적**
-   - `pending` → `running` → `completed` / `failed`
-   - 세션별 상태 저장
-
-### ✅ 2-3. 사이드바 네비게이션
-
-**구현 완료** - `src/components/Sidebar.tsx`
-
-#### 주요 기능
-
-1. **탭 전환**
-   - 기획 세션 / 분석 세션 탭
-   - 탭별로 세션 목록 필터링
-
-2. **세션 목록 표시**
-   - 세션 제목
-   - 사용된 템플릿 이름
-   - 마지막 수정 시간
-
-3. **세션 관리**
-   - 새 세션 생성 (템플릿 선택)
-   - 세션 선택 및 로드
-   - 세션 삭제 (확인 다이얼로그)
-   - 세션 내보내기 (`.gplan` 파일)
-   - 세션 불러오기 (`.gplan` 파일)
-
-4. **템플릿 관리**
-   - 템플릿 관리 모달 열기
-   - 탭별로 해당 타입의 템플릿만 표시
-
-5. **UI 개선**
-   - 세션 관리 버튼을 아이콘만 표시 (한 줄 배치)
-   - 마우스 호버 시 툴팁 표시
-   - 컴팩트한 디자인으로 공간 효율성 향상
-
----
-
-## Phase 3 구현 내용
-
-### ✅ 3-1. 템플릿 시스템
-
-**구현 완료** - `src/types/promptTemplate.ts`, `src/components/TemplateManagerModal.tsx`, `src/components/TemplateSelector.tsx`, `src/components/TemplateEditorModal.tsx`
-
-#### 템플릿 타입
-
-```typescript
-export enum TemplateType {
-  PLANNING = 'planning',  // 기획 세션용
-  ANALYSIS = 'analysis',  // 분석 세션용
-}
-
-export interface PromptTemplate {
-  id: string
-  name: string
-  type: TemplateType
-  content: string  // 마크다운 형식의 프롬프트
-  isDefault: boolean
-  createdAt: number
-  updatedAt: number
-  description?: string
-}
-```
-
-#### 기본 템플릿
-
-**기본 기획 템플릿** (`default-planning`):
-- 하이브리드 캐주얼 게임 기획서 작성용
-- 9단계 기획서 구조 포함
-- 시장 분석, 경제 구조, BM 등 상세 가이드
-
-**기본 분석 템플릿** (`default-analysis`):
-- 모바일 게임 분석 보고서 작성용
-- 8개 주요 섹션 구조
-- Google Search Grounding 활용 가이드
-- 시스템 프롬프트와 사용자 프롬프트 분리 구조
-
-#### 템플릿 관리 기능
-
-1. **템플릿 생성**
-   - 이름, 설명, 타입 선택
-   - Tiptap 리치 텍스트 에디터로 프롬프트 작성
-   - 기본 템플릿 복사 기능
-
-2. **템플릿 수정**
-   - 기존 템플릿 편집
-   - **기본 템플릿은 편집 불가** (복제만 가능)
-
-3. **템플릿 삭제**
-   - 기본 템플릿 삭제 불가
-   - 사용 중인 템플릿 삭제 시 경고
-
-4. **템플릿 선택**
-   - 새 세션 생성 시 템플릿 선택 모달
-   - 현재 세션 타입에 맞는 템플릿만 표시
-
-#### 템플릿 에디터 고급 기능
-
-**구현 완료** - `src/components/TemplateEditorModal.tsx`
-
-1. **이모지 피커**
-   - `@emoji-mart/data` 패키지 통합
-   - 수천 개의 이모지 지원
-   - 카테고리별 필터링 (사람, 자연, 음식, 활동, 장소 등)
-   - 실시간 검색 기능
-   - 에디터에서 `:` 입력 시 자동 완성
-
-2. **줌 기능**
-   - 50%~200% 줌 레벨 조절
-   - localStorage에 마지막 줌 레벨 저장
-   - 확대/축소/리셋 버튼 제공
-
-3. **기본 템플릿 보호**
-   - 기본 템플릿 편집 시도 시 경고 및 모달 닫기
-   - 복제를 통해서만 수정 가능
-
-### ✅ 3-2. 세션 자동 저장
-
-**구현 완료** - `src/hooks/useAutoSave.ts`, `src/lib/store.ts`
-
-#### 자동 저장 메커니즘
-
-1. **디바운스 저장**
-   - 세션 변경 시 500ms 후 자동 저장
-   - 불필요한 저장 방지
-   - `useAutoSave` 훅으로 자동화
-
-2. **즉시 저장 시스템** (Phase 3.6)
-   - 중요한 변화 지점마다 즉시 저장
-   - 버전 저장/복원, 검증 실행, 레퍼런스 파일 변경, 채팅 완료 시
-   - `saveSessionImmediately()` 유틸리티 함수 사용
-
-3. **설정 보존**
-   - 세션 저장 시 API Key 등 설정 보존
-   - 저장 후 검증 로직
-
-4. **세션 마이그레이션**
-   - 기존 세션의 `type`, `templateId` 자동 마이그레이션
-   - `referenceFiles` 필드 자동 추가 (v3 마이그레이션)
-   - 하위 호환성 유지
-
-### ✅ 3-3. Notion 연동
-
-**구현 완료** - `src/lib/notionBlocks.ts`, `src/components/AnalysisResult.tsx`
-
-#### 마크다운 → Notion 변환
-
-**지원 요소**:
-- H1, H2, H3 헤더
-- 불릿 리스트 (최대 2단계 중첩)
-- 번호 매기기 리스트
-- 굵은 텍스트 (`**텍스트**`)
-- 링크 (`[텍스트](URL)`)
-- 수평선 (`---`)
-- 문단
-
-**변환 로직**:
-1. 마크다운 파싱
-2. Notion Block 형식으로 변환
-3. 100개씩 배치 처리 (Notion API 제한)
-
-#### Notion 페이지 생성
-
-**기획서 저장**:
-- Planning Database에 페이지 생성
-- 제목: `{게임명} : 게임 기획서`
-- 마크다운 내용을 Notion 블록으로 변환하여 저장
-
-**분석 보고서 저장**:
-- Analysis Database에 페이지 생성
-- 제목: `{게임명} : 게임 분석`
-- HTML 주석에서 게임명 추출 (`<!-- ANALYSIS_TITLE: ... -->`)
-
-### ✅ 3-4. 마크다운 프리뷰
-
-**구현 완료** - `src/components/MarkdownPreview.tsx`
-
-#### 주요 기능
-
-1. **실시간 렌더링**
-   - 스트리밍 중 실시간 업데이트
-   - React Markdown 사용
-   - HTML 주석 자동 제거 (시스템 내부 주석 숨김)
-
-2. **Notion 스타일 스타일링**
-   - Tailwind Typography 플러그인
-   - Notion과 유사한 가독성 높은 스타일
-   - 헤더, 리스트, 링크, 코드 블록 등 세밀한 스타일링
-   - 링크 호버 효과 및 색상 강조
-
-3. **스크롤 관리**
-   - 자동 스크롤 (새 내용 추가 시)
-   - 수동 스크롤 가능
-
-4. **탭 인터페이스**
-   - 미리보기 / 버전 / 검증 / 레퍼런스 탭
-   - 분석 세션에서는 레퍼런스 탭 숨김 (무의미한 기능)
-   - 각 탭별 전용 컴포넌트 렌더링
-
-### ✅ 3-5. 버전 관리 시스템
-
-**구현 완료** - `src/components/VersionHistory.tsx`, `src/store/slices/sessionSlice.ts`
-
-#### 주요 기능
-
-1. **버전 스냅샷 저장**
-   - 현재 기획서 상태를 버전으로 저장
-   - 버전별 설명 추가 가능
-   - 자동 타임스탬프 및 버전 번호 관리
-
-2. **버전 복원**
-   - 이전 버전으로 복원 가능
-   - 복원 전 현재 버전 자동 백업
-   - 복원 후 즉시 세션 저장
-
-3. **버전 비교**
-   - 두 버전 간 차이점 비교
-   - 변경된 내용 하이라이트
-
-4. **버전 히스토리**
-   - 모든 버전 목록 표시
-   - 생성 시간 및 설명 표시
-   - 버전별 상세 정보 확인
-
-### ✅ 3-6. 문서 검증 시스템
-
-**구현 완료** - `src/components/ChecklistPanel.tsx`, `src/store/slices/checklistSlice.ts`
-
-#### 주요 기능
-
-1. **체크리스트 기반 검증**
-   - 시장 분석, 게임 디자인, 수익화, 밸런싱 등 카테고리별 검증
-   - 각 항목별 완성도 체크
-   - AI 자동 검증 지원
-
-2. **검증 결과 표시**
-   - 카테고리별 점수 표시
-   - 전체 완성도 점수 계산
-   - 개선이 필요한 항목 하이라이트
-
-3. **도움말 시스템**
-   - 검증 기능 상세 설명 팝업
-   - 검증 항목 및 방법 안내
-   - 점수 기준 및 팁 제공
-
-4. **수동 체크리스트 관리**
-   - 사용자가 직접 항목 체크/해제 가능
-   - 변경 시 즉시 세션 저장
-
----
-
-## 핵심 컴포넌트
-
-### 1. App.tsx (메인 컨트롤러)
-
-**역할**: 전체 애플리케이션 상태 관리 및 흐름 제어
-
-**주요 Hook 사용**:
-```typescript
-// 앱 초기화
-useAppInitialization({
-  onSettingsRequired: () => setShowSettings(true),
-})
-
-// 세션 자동 저장
-useAutoSave()
-
-// 메시지 핸들러
-const { handleSendMessage } = useMessageHandler()
-```
-
-**주요 상태**:
-- `showSettings`: 설정 모달 표시 여부
-- `chatPanelWidth`: 채팅 패널 너비
-- `currentAssistantMessage`: 현재 AI 응답 메시지
-- `showVersionConfirm`: 버전 등록 확인 다이얼로그
-
-**주요 핸들러**:
-- `handleSendMessageWrapper()`: 메시지 전송 래퍼 (에러 처리 포함)
-- `handleSettingsClick()`: 설정 모달 열기
-- 버전 관리 관련 핸들러들
-
-### 2. Sidebar (사이드바)
-
-**역할**: 세션 목록 및 관리
-
-**주요 컴포넌트**:
-- `Sidebar.tsx`: 메인 사이드바 컴포넌트
-- `Sidebar/SessionActions.tsx`: 세션 액션 버튼 (새 세션, 불러오기, 템플릿 관리)
-- `Sidebar/SessionList.tsx`: 세션 목록 표시 및 관리
-
-**주요 기능**:
-- 탭 전환 (기획 / 분석)
-- 세션 목록 표시 및 필터링
+- 세션 목록 표시 (기획/분석 탭 분리)
 - 세션 생성/삭제/내보내기/불러오기
 - 템플릿 관리 모달 열기
-- 세션 드래그 앤 드롭으로 순서 변경
-- 세션 제목 인라인 편집
 
-### 3. ChatPanel (채팅 패널)
+### 3. ChatPanel 컴포넌트
 
-**역할**: AI와의 대화 인터페이스
+**파일**: `src/components/ChatPanel.tsx`
 
-**주요 기능**:
-- 메시지 입력
-- 대화 히스토리 표시
+- AI와의 대화 인터페이스
+- 메시지 입력 및 히스토리 표시
 - 스트리밍 응답 실시간 표시
-- 로딩 상태 표시
-- 파일 첨부 기능 제거 (레퍼런스 탭으로 통합)
 
-### 4. MarkdownPreview (마크다운 프리뷰)
+### 4. MarkdownPreview 컴포넌트
 
-**역할**: 기획서/분석 보고서 실시간 렌더링 및 관리
+**파일**: `src/components/MarkdownPreview.tsx`
 
-**주요 기능**:
-- 마크다운 실시간 렌더링
-- 스크롤 관리
-- 스타일링 (Typography)
-- 탭 인터페이스 (미리보기 / 버전 / 검증 / 레퍼런스)
-- 복사 및 다운로드 기능
-- Notion 저장 기능
+- 기획서/분석 보고서 실시간 렌더링
+- 탭 인터페이스: 미리보기 / 버전 / 검증 / 레퍼런스
+- 복사/다운로드/Notion 저장 기능
 
-### 5. SettingsModal (설정 모달)
+### 5. TemplateEditorModal 컴포넌트
 
-**역할**: API Key 및 Notion 설정
+**파일**: `src/components/TemplateEditorModal.tsx`, `TemplateEditor/EmojiPicker.tsx`, `TemplateEditor/ZoomControls.tsx`
 
-**주요 기능**:
-- Gemini API Key 입력
-- Notion API Key 입력
-- Notion Database ID 입력 (기획/분석 분리)
-- 설정 저장 및 검증
-
-### 6. TemplateManagerModal (템플릿 관리 모달)
-
-**역할**: 프롬프트 템플릿 관리
-
-**주요 기능**:
-- 템플릿 목록 표시
-- 템플릿 생성/수정/삭제
-- 기본 템플릿 보호
-
-### 7. TemplateSelector (템플릿 선택 모달)
-
-**역할**: 새 세션 생성 시 템플릿 선택
-
-**주요 기능**:
-- 세션 타입별 템플릿 필터링
-- 템플릿 미리보기
-- 템플릿 선택 및 세션 생성
-
-### 8. TemplateEditorModal (템플릿 에디터)
-
-**역할**: 템플릿 편집 (리치 텍스트 에디터)
-
-**주요 컴포넌트**:
-- `TemplateEditor/EmojiPicker.tsx`: 이모지 피커
-- `TemplateEditor/ZoomControls.tsx`: 줌 컨트롤
-
-**주요 기능**:
 - Tiptap 리치 텍스트 에디터
 - 이모지 피커 (`:` 입력 시 자동 완성)
 - 줌 기능 (50%~200%)
-- 기본 템플릿 보호
 
-### 9. VersionHistory (버전 관리)
+### 6. ReferenceManager 컴포넌트
 
-**역할**: 문서 버전 히스토리 관리
+**파일**: `src/components/ReferenceManager.tsx`
 
-**주요 기능**:
-- 버전 스냅샷 저장 (즉시 저장)
-- 버전 복원 (즉시 저장)
-- 버전 비교
-- 버전 목록 표시
-
-### 10. ChecklistPanel (검증 패널)
-
-**역할**: 기획서 검증 및 체크리스트 관리
-
-**주요 기능**:
-- AI 기반 문서 검증
-- 체크리스트 항목 관리 (즉시 저장)
-- 검증 결과 표시
-- 도움말 시스템
-
-### 11. ReferenceManager (레퍼런스 파일 관리)
-
-**역할**: 참조 파일 등록 및 관리
-
-**주요 기능**:
-- 파일 등록 및 삭제 (즉시 저장)
-- 파일 요약 생성 및 보기
-- 파일 정보 표시
-- 도움말 시스템
+- 참조 파일 등록/삭제 (PDF, Excel, CSV, Markdown, Text)
+- Google Spreadsheet URL 지원
+- AI 기반 파일 요약 생성
 - 드래그 앤 드롭 지원 (Tauri API)
 
-### 12. useMessageHandler (메시지 핸들러 Hook)
+### 7. VersionHistory 컴포넌트
 
-**역할**: 메시지 전송 및 AI 응답 처리
+**파일**: `src/components/VersionHistory.tsx`
 
-**주요 기능**:
-- 기획 세션 메시지 처리
-- 분석 세션 메시지 처리
+- 문서 버전 스냅샷 저장
+- 버전 복원 및 비교
+
+### 8. ChecklistPanel 컴포넌트
+
+**파일**: `src/components/ChecklistPanel.tsx`
+
+- AI 기반 문서 검증
+- 체크리스트 항목 관리
+
+### 9. useMessageHandler Hook
+
+**파일**: `src/hooks/useMessageHandler.ts`
+
+- 메시지 전송 및 AI 응답 처리
+- 기획/분석 세션 분기 처리
 - 레퍼런스 파일 필터링 및 포함
 - 파일 최적화 로직 적용
-- 스트리밍 응답 처리
-- 마크다운 파싱 및 업데이트
 
-### 13. useAppInitialization (앱 초기화 Hook)
+### 10. useAppInitialization Hook
 
-**역할**: 앱 시작 시 초기화 작업
+**파일**: `src/hooks/useAppInitialization.ts`
 
-**주요 기능**:
+- 앱 시작 시 초기화
 - API Key 확인
 - 세션 로드 및 마이그레이션
-- 설정 모달 자동 표시 (API Key 없을 시)
-- 에러 처리
+- 템플릿 초기화
 
 ---
 
@@ -672,28 +191,31 @@ const { handleSendMessage } = useMessageHandler()
 
 ```typescript
 export interface ChatSession {
-  id: string                      // UUID
-  type: SessionType                // 'planning' | 'analysis'
-  title: string                   // 세션 제목 (게임명)
-  messages: Message[]             // 대화 히스토리
-  markdownContent: string         // 기획서/분석 보고서 내용
-  createdAt: number               // 생성 시간
-  updatedAt: number               // 수정 시간
-  
+  id: string                          // UUID
+  type: SessionType                    // 'planning' | 'analysis'
+  title: string                       // 세션 제목
+  messages: Message[]                 // 대화 히스토리
+  markdownContent: string             // 기획서/분석 보고서 내용
+  createdAt: number
+  updatedAt: number
+
   // 분석 세션 전용
-  gameName?: string               // 분석 대상 게임명
-  notionPageUrl?: string          // Notion 페이지 URL
+  gameName?: string                   // 분석 대상 게임명
+  notionPageUrl?: string              // Notion 페이지 URL
   analysisStatus?: 'pending' | 'running' | 'completed' | 'failed'
-  
+
   // 템플릿 연동
-  templateId?: string             // 사용된 템플릿 ID
-  
-  // 버전 관리 (Phase 1)
-  versions?: DocumentVersion[]    // 문서 버전 히스토리
-  currentVersionNumber?: number   // 현재 버전 번호
-  
-  // 레퍼런스 파일 (Phase 3.6)
-  referenceFiles?: ReferenceFile[] // 참조 파일 목록 (기획 세션 전용)
+  templateId?: string                 // 사용된 템플릿 ID
+
+  // 버전 관리
+  versions?: DocumentVersion[]        // 문서 버전 히스토리
+  currentVersionNumber?: number       // 현재 버전 번호
+
+  // 레퍼런스 파일 (기획 세션 전용)
+  referenceFiles?: ReferenceFile[]    // 참조 파일 목록
+
+  // 체크리스트 (기획 세션 전용)
+  checklist?: ChecklistCategory[]     // 검증 체크리스트
 }
 ```
 
@@ -701,41 +223,18 @@ export interface ChatSession {
 
 ```typescript
 export interface ReferenceFile {
-  id: string                      // UUID
-  fileName: string                // 파일명
-  filePath: string                // 파일 경로
-  fileType: string                // 파일 타입 (pdf, xlsx, csv, md, txt 등)
-  content: string                 // 파싱된 텍스트 내용
-  summary?: string                // 파일 내용 요약 (비용 최적화용)
+  id: string                          // UUID
+  fileName: string                    // 파일명
+  filePath: string                    // 파일 경로
+  fileType: string                    // 파일 타입 (pdf, xlsx, csv, md, txt)
+  content: string                     // 파싱된 텍스트 내용
+  summary?: string                    // 파일 내용 요약 (비용 최적화용)
   metadata?: {
-    pageCount?: number            // PDF 페이지 수
-    sheetCount?: number           // Excel 시트 수
+    pageCount?: number                // PDF 페이지 수
+    sheetCount?: number               // Excel 시트 수
   }
-  createdAt: number               // 생성 시간
-  updatedAt: number               // 수정 시간
-}
-```
-
-### DocumentVersion
-
-```typescript
-export interface DocumentVersion {
-  id: string                      // UUID
-  versionNumber: number           // 버전 번호
-  markdownContent: string         // 해당 버전의 기획서 내용
-  messages: Message[]             // 해당 버전의 대화 히스토리
-  createdAt: number               // 생성 시간
-  createdBy: string               // 생성자 ('user' | 'system')
-  description?: string            // 버전 설명
-}
-```
-
-### Message
-
-```typescript
-export interface Message {
-  role: 'user' | 'assistant'
-  content: string
+  createdAt: number
+  updatedAt: number
 }
 ```
 
@@ -743,472 +242,98 @@ export interface Message {
 
 ```typescript
 export interface PromptTemplate {
-  id: string                      // UUID
-  name: string                    // 템플릿 이름
-  type: TemplateType              // 'planning' | 'analysis'
-  content: string                 // 마크다운 형식의 프롬프트
-  isDefault: boolean              // 기본 템플릿 여부
+  id: string                          // UUID
+  name: string                        // 템플릿 이름
+  type: TemplateType                  // 'planning' | 'analysis'
+  content: string                     // 마크다운 형식의 프롬프트
+  isDefault: boolean                  // 기본 템플릿 여부 (삭제/편집 불가)
   createdAt: number
   updatedAt: number
   description?: string
 }
 ```
 
-**참고**: 번역 기능은 제거되었으며, 모든 템플릿은 한국어로만 작성됩니다.
-
 ---
 
-## 프롬프트 엔지니어링
+## 프롬프트 엔지니어링 전략
 
 ### 기획서 작성 프롬프트
 
-**핵심 전략**:
-
-1. **페르소나 설정**
-   ```
-   당신은 10년 이상의 경력을 가진 "글로벌 모바일 게임 전문 기획자"입니다.
-   특히 '하이브리드 캐주얼' 장르의 성공 방정식에 정통합니다.
-   ```
-
-2. **출력 형식 강제**
-   ```
-   - 사용자와의 대화는 일반 텍스트로 출력
-   - 게임 기획서 본문은 반드시 <markdown_content> 태그로 감싸서 출력
-   - 수정 시 전체 기획서를 다시 출력 (부분 수정 금지)
-   ```
-
-3. **기존 내용 보존 원칙**
-   ```
-   - 이미 작성된 기획서가 있으면, 요청된 부분만 수정하고 나머지는 그대로 유지
-   - 전체 재작성은 사용자가 명시적으로 요청할 때만 수행
-   ```
-
-4. **9단계 기획서 구조**
-   - 레퍼런스 및 시장 분석
-   - 게임 개요
-   - 초반 시나리오 (Retention 전략)
-   - 게임 루프 및 주요 시스템
-   - 경제 구조 및 재화 흐름도
-   - 밸런싱 및 성장 단계
-   - 수익화 모델 (BM)
-   - 이벤트 및 확장 컨텐츠
-   - 상세 기획 (개발 가이드)
+**핵심 규칙**:
+1. 페르소나: 10년 경력 모바일 게임 전문 기획자
+2. 출력 형식: `<markdown_content>` 태그로 기획서 감싸기
+3. 수정 시: 전체 기획서를 다시 출력 (부분 수정 금지)
+4. 기존 내용 보존: 요청된 부분만 수정, 나머지 유지
 
 ### 게임 분석 프롬프트
 
-**핵심 전략**:
-
-1. **시스템 프롬프트와 사용자 프롬프트 분리**
-   - **시스템 레벨** (`analysisInstruction.ts`): 출력 형식, 마크다운 태그 규칙, 헤더 구조 등 엄격한 규칙
-   - **사용자 레벨** (`templateDefaults.ts`): AI 역할 정의, 필수 규칙, 분석 구조만 포함
-   - 사용자는 간결한 템플릿만 수정, 복잡한 시스템 규칙은 자동 적용
-
-2. **Google Search Grounding 활용**
-   ```
-   tools: [{ google_search: {} }]
-   ```
-   - 최신 게임 정보 자동 수집
-   - 출처 참조 번호 자동 제거
-
-3. **8개 주요 섹션 구조**
-   - 게임 기본 정보
-   - 게임 개요
-   - 비즈니스 현황
-   - 핵심 컨텐츠
-   - 운영 현황
-   - 사용자 반응
-   - 논란 및 이슈
-   - 강점/약점 분석
-
-4. **헤더 계층 제한**
-   ```
-   - h1 (#): 큰 카테고리
-   - h2 (##): 하위 카테고리
-   - h3 이하는 절대 사용하지 마세요 (Notion 호환성)
-   ```
-
-5. **링크 작성 규칙 강화**
-   - Google Search를 활용한 실제 URL 검색
-   - 마크다운 링크 형식: `[링크 텍스트](실제 URL)`
-   - 다운로드 링크, 공식 자료, 외부 리소스에 실제 클릭 가능한 링크 제공
-   - 각 링크에 요약 정보 포함
-
-6. **제목 추출**
-   ```
-   <!-- {게임명} -->
-   ```
-   - HTML 주석으로 게임명 명시 (문서에는 표시되지 않음)
-   - 세션 제목 자동 추출
+**핵심 규칙**:
+1. **시스템/사용자 프롬프트 분리**
+   - 시스템 레벨 (`analysisInstruction.ts`): 출력 형식, 태그 규칙, 헤더 구조
+   - 사용자 레벨 (`templateDefaults.ts`): AI 역할, 분석 구조
+2. Google Search Grounding 활용
+3. 헤더 제한: h1, h2만 사용 (Notion 호환)
+4. 링크: Google Search로 실제 URL 검색하여 제공
 
 ---
 
-## Phase 3.5: 템플릿 시스템 고도화
+## 파일 최적화 시스템
 
-### ✅ 3.5-1. 템플릿 에디터 고급 기능
-
-**구현 완료** - `src/components/TemplateEditorModal.tsx`, `src/lib/emojiData.ts`
-
-#### 이모지 피커 시스템
-
-1. **대규모 이모지 데이터셋**
-   - `@emoji-mart/data` 패키지 통합
-   - 수천 개의 이모지 지원
-   - 카테고리별 분류 (사람, 자연, 음식, 활동, 장소 등)
-
-2. **검색 및 필터링**
-   - 실시간 검색 기능
-   - 카테고리별 필터링 (아이콘만 표시, 툴팁 제공)
-   - 에디터에서 `:` 입력 시 자동 완성
-
-3. **사용자 경험**
-   - 팝업 패널로 이모지 선택
-   - 그리드 레이아웃으로 한눈에 확인
-   - 키보드 네비게이션 지원
-
-#### 줌 기능
-
-1. **줌 레벨 조절**
-   - 50%~200% 범위
-   - 확대/축소/리셋 버튼
-   - localStorage에 마지막 설정 저장
-
-2. **에디터 스케일링**
-   - Transform scale을 사용한 정확한 스케일링
-   - 컨텐츠 전체에 일관된 줌 적용
-
-#### 기본 템플릿 보호
-
-- 기본 템플릿 편집 시도 시 경고 및 모달 닫기
-- 복제를 통해서만 수정 가능
-
-### ✅ 3.5-2. 프롬프트 엔지니어링 개선
-
-**구현 완료** - `src/lib/analysisInstruction.ts`, `src/lib/templateDefaults.ts`
-
-#### 시스템 프롬프트와 사용자 프롬프트 분리
-
-1. **시스템 레벨** (`analysisInstruction.ts`)
-   - `<markdown_content>` 태그 규칙
-   - HTML 주석 처리 규칙
-   - 헤더 구조 제한 (h1, h2만 사용)
-   - 링크 작성 규칙 (Google Search 활용, 마크다운 형식)
-
-2. **사용자 레벨** (`templateDefaults.ts`)
-   - AI 역할 정의
-   - 필수 문서 작성 규칙
-   - 분석 구조 (간결한 가이드)
-
-3. **장점**
-   - 사용자는 간결한 템플릿만 수정
-   - 복잡한 시스템 규칙은 자동 적용
-   - 템플릿 가독성 향상
-
-#### 링크 작성 규칙 강화
-
-- Google Search를 활용한 실제 URL 검색
-- 다운로드 링크, 공식 자료, 외부 리소스에 실제 클릭 가능한 링크 제공
-- 각 링크에 요약 정보 포함
-
-### ✅ 3.5-3. 마크다운 렌더링 개선
-
-**구현 완료** - `src/components/MarkdownPreview.tsx`
-
-1. **Notion 스타일 스타일링**
-   - Notion과 유사한 가독성 높은 디자인
-   - 헤더, 리스트, 링크, 코드 블록 등 세밀한 스타일링
-   - 링크 호버 효과 및 색상 강조
-
-2. **HTML 주석 제거**
-   - 시스템 내부 주석 자동 숨김
-   - 사용자에게는 깔끔한 문서만 표시
-
-### ✅ 3.5-4. UI/UX 개선
-
-**구현 완료** - `src/components/Sidebar.tsx`
-
-1. **사이드바 버튼 최적화**
-   - 세션 관리 버튼을 아이콘만 표시
-   - 한 줄에 배치하여 공간 효율성 향상
-   - 마우스 호버 시 툴팁 표시
-
----
-
-## Phase 3.6: 파일 최적화 및 안정성 강화
-
-### ✅ 3.6-1. 레퍼런스 파일 관리 시스템
-
-**구현 완료** - `src/components/ReferenceManager.tsx`, `src/types/referenceFile.ts`
-
-#### 주요 기능
-
-1. **파일 등록 및 관리**
-   - PDF, Excel, CSV, Markdown, Text 파일 지원
-   - Google Spreadsheet URL 지원
-   - 세션별 레퍼런스 파일 관리
-   - 파일 삭제 (확인 다이얼로그 포함)
-
-2. **파일 요약 생성**
-   - AI 기반 자동 요약 생성 (1000자 이상 파일)
-   - 간단한 텍스트 기반 요약 (AI 없이)
-   - 요약 캐싱 (`ReferenceFile.summary` 필드)
-   - 요약 보기 모달 (파일 정보, 요약, 전체 내용)
-
-3. **도움말 시스템**
-   - 레퍼런스 파일 역할 및 사용법 설명
-   - 지원 파일 형식 안내
-   - 활용 팁 및 주의사항 제공
-
-4. **세션별 관리**
-   - 기획 세션에서만 레퍼런스 탭 표시
-   - 분석 세션에서는 레퍼런스 탭 숨김
-   - 각 세션별 독립적인 파일 관리
-
-### ✅ 3.6-2. 파일 최적화 시스템
-
-**구현 완료** - `src/lib/utils/fileOptimization.ts`
-
-#### 비용 최적화 전략
+### 비용 최적화 전략
 
 1. **관련 파일 필터링**
    - 사용자 메시지 키워드 추출
-   - 파일명, 요약, 내용 기반 관련성 점수 계산
+   - 파일명/요약/내용 기반 관련성 점수 계산
    - 관련성 높은 파일만 선택 (최대 3개)
-   - 점수 기반 정렬
 
 2. **파일 크기 제한**
-   - 최대 파일 크기: 10만자 (약 25,000 토큰)
-   - 파일 등록 시 크기 검증
-   - 초과 시 자동 잘라내기 (문장 단위)
+   - 최대 크기: 10만자 (약 25,000 토큰)
+   - 등록 시 크기 검증 및 잘라내기
 
 3. **스마트 파일 포함**
-   - 파일이 크면(>10만자): 요약만 사용
-   - 파일이 중간 크기면(5천~10만자): 요약 + 일부 내용
-   - 파일이 작으면(<5천자): 전체 내용 사용
+   - 대용량(>10만자): 요약만 사용
+   - 중간 크기(5천~10만자): 요약 + 일부 내용
+   - 작은 크기(<5천자): 전체 내용 사용
 
-4. **요약 시스템**
-   - AI 요약: 500자 이내로 핵심 내용 요약
-   - 간단한 요약: 첫/마지막 문단 기반
-   - 요약 캐싱으로 반복 요약 방지
+4. **요약 캐싱**
+   - AI 요약: 500자 이내
+   - 요약 재사용으로 비용 절감
 
-#### 최적화 효과
-
-- **비용 절감**: 70-85% 예상 절감
-- **관련 파일만 포함**: 불필요한 토큰 사용 방지
-- **요약 우선 사용**: 대용량 파일도 효율적 처리
-
-### ✅ 3.6-3. 즉시 저장 시스템
-
-**구현 완료** - `src/lib/utils/sessionSave.ts`
-
-#### 즉시 저장 지점
-
-1. **버전 관리**
-   - 버전 저장 시 즉시 저장 (`VersionHistory.tsx`)
-   - 버전 복원 시 즉시 저장 (`VersionHistory.tsx`)
-
-2. **검증 시스템**
-   - 검증 실행 완료 시 즉시 저장 (`ChecklistPanel.tsx`)
-   - 체크리스트 항목 토글 시 즉시 저장 (`ChecklistPanel.tsx`)
-
-3. **레퍼런스 파일**
-   - 파일 등록 시 즉시 저장 (`ReferenceManager.tsx`)
-   - 파일 삭제 시 즉시 저장 (`ReferenceManager.tsx`)
-
-4. **채팅 및 내용 생성**
-   - 마크다운 업데이트 시 실시간 저장 (비동기)
-   - 채팅 완료 시 즉시 저장 (`useMessageHandler.ts`)
-   - 기획 세션 및 분석 세션 모두 적용
-
-#### 안정성 개선
-
-- **이중 보호**: 즉시 저장 + 자동 저장(디바운스)
-- **데이터 손실 방지**: 중요한 변화 지점마다 즉시 저장
-- **에러 처리**: 저장 실패 시에도 앱 동작 유지
-- **유틸리티 함수**: `saveSessionImmediately()`로 중앙화된 저장 로직
-
-### ✅ 3.6-4. 에러 처리 시스템
-
-**구현 완료** - `src/lib/errorHandler.ts`, `src/types/errors.ts`
-
-#### 중앙화된 에러 처리
-
-1. **에러 타입 정의**
-   ```typescript
-   - ApiError: Gemini API, Notion API 오류
-   - StorageError: Tauri Store 저장/로드 오류
-   - ValidationError: 입력값 검증 오류
-   - MigrationError: 세션 마이그레이션 오류
-   ```
-
-2. **사용자 친화적 메시지**
-   - 기술적 에러를 사용자에게 이해하기 쉬운 메시지로 변환
-   - 복구 가능 여부 판단
-   - 상세 정보 제공
-
-3. **에러 복구 전략**
-   - 복구 가능한 에러는 자동 재시도
-   - 복구 불가능한 에러는 사용자에게 알림
-   - 에러 로깅 및 추적
-
-### ✅ 3.6-5. 마이그레이션 시스템
-
-**구현 완료** - `src/lib/migrations/migrationManager.ts`, `v1.ts`, `v2.ts`, `v3.ts`
-
-#### 세션 마이그레이션
-
-1. **버전별 마이그레이션**
-   - **V1**: 세션 타입(`type`) 필드 추가
-   - **V2**: 템플릿 시스템(`templateId`) 필드 추가
-   - **V3**: 레퍼런스 파일(`referenceFiles`) 필드 추가
-
-2. **자동 마이그레이션**
-   - 앱 시작 시 자동으로 세션 마이그레이션 실행
-   - 하위 호환성 유지
-   - 마이그레이션 실패 시 안전하게 처리
-
-3. **마이그레이션 관리자**
-   - 순차적 마이그레이션 실행
-   - 마이그레이션 결과 추적
-   - 에러 처리 및 복구
-
-### ✅ 3.6-6. UI/UX 개선
-
-**구현 완료** - `src/components/ChatPanel.tsx`, `src/components/MarkdownPreview.tsx`, `src/components/Sidebar/`
-
-1. **채팅 영역 파일 첨부 제거**
-   - 채팅 영역에서 파일 첨부 기능 완전 제거
-   - 레퍼런스 탭을 통해서만 파일 등록
-   - UI 단순화 및 혼란 방지
-
-2. **조건부 레퍼런스 탭**
-   - 기획 세션에서만 레퍼런스 탭 표시
-   - 분석 세션에서는 레퍼런스 탭 숨김
-   - 세션 타입별 적절한 기능만 제공
-
-3. **레퍼런스 파일 요약 보기**
-   - 각 파일 항목에 요약 보기 아이콘 추가
-   - 모달로 파일 정보, 요약, 전체 내용 확인
-   - 요약이 없는 경우 안내 메시지 표시
-
-4. **컴포넌트 구조 개선**
-   - `Sidebar/` 디렉토리로 사이드바 컴포넌트 분리
-     - `SessionActions.tsx`: 세션 액션 버튼 (새 세션, 불러오기, 템플릿 관리)
-     - `SessionList.tsx`: 세션 목록 표시 및 관리
-   - `TemplateEditor/` 디렉토리로 템플릿 에디터 컴포넌트 분리
-     - `EmojiPicker.tsx`: 이모지 피커 컴포넌트
-     - `ZoomControls.tsx`: 줌 컨트롤 컴포넌트
-   - 코드 재사용성 및 유지보수성 향상
+**예상 비용 절감**: 70-85%
 
 ---
 
-## 다음 단계
+## 저장 시스템
 
-### Phase 4: 고급 기능 및 최적화
+### 즉시 저장 지점
 
-#### 4-1. 고급 편집 기능
+중요한 변화가 발생하는 시점에 즉시 저장하여 데이터 손실 방지:
 
-**추가 필요**:
-- 마크다운 에디터 (직접 편집)
-- 이미지 삽입 지원
-- 표 편집기
+1. 버전 저장/복원
+2. 검증 실행/체크리스트 변경
+3. 레퍼런스 파일 등록/삭제
+4. 채팅 완료 시
 
-#### 4-2. 템플릿 공유 기능
+**함수**: `saveSessionImmediately()` (src/lib/utils/sessionSave.ts)
 
-**추가 필요**:
-- 템플릿 내보내기/가져오기
-- 템플릿 마켓플레이스 (선택)
-- 템플릿 버전 관리
+### 자동 저장 (디바운스)
 
-#### 4-3. 협업 기능
-
-**추가 필요**:
-- 세션 공유 링크 생성
-- 실시간 협업 (선택)
-- 댓글 시스템
-
-#### 4-4. 성능 최적화
-
-**추가 필요**:
-- 대용량 세션 처리
-- 이미지 최적화
-- 오프라인 모드 지원
-- RAG 패턴 도입 (벡터 DB 활용)
+- 500ms 디바운스로 불필요한 저장 방지
+- Hook: `useAutoSave()`
 
 ---
 
-## 주요 학습 포인트
+## 마이그레이션 시스템
 
-### 1. Tauri 2.0 특성
+### 버전별 마이그레이션
 
-- **Capabilities 설정 필수**: 모든 파일 시스템 접근은 `capabilities/default.json`에 명시 필요
-- **Store 싱글톤 패턴**: 여러 컴포넌트에서 Store 인스턴스 공유
-- **동시 저장 방지**: Lock 메커니즘으로 데이터 손실 방지
+**파일**: `src/lib/migrations/migrationManager.ts`, `v1.ts`, `v2.ts`, `v3.ts`
 
-### 2. Gemini API 스트리밍
+- **V1**: 세션 타입(`type`) 필드 추가
+- **V2**: 템플릿 ID(`templateId`) 필드 추가
+- **V3**: 레퍼런스 파일(`referenceFiles`) 필드 추가
 
-- **SSE 방식**: `alt=sse` 파라미터로 스트리밍 활성화
-- **버퍼 관리**: 불완전한 JSON 라인 처리
-- **마크다운 파싱**: `<markdown_content>` 태그 실시간 파싱
-
-### 3. Notion API 제약
-
-- **블록 제한**: 한 번에 최대 100개 블록만 추가 가능
-- **중첩 제한**: 리스트는 최대 2단계 중첩만 지원
-- **헤더 제한**: h3 이하는 지원하지 않음
-
-### 4. 상태 관리 패턴
-
-- **Zustand 사용**: 간단하고 효율적인 전역 상태
-- **Slice 패턴**: 세션, 템플릿, 설정, UI, 체크리스트로 분리
-- **세션 자동 저장**: 디바운스 + 즉시 저장 이중 보호
-- **마이그레이션**: 하위 호환성 유지 (v1, v2, v3)
-- **Hook 분리**: useMessageHandler, useAppInitialization 등으로 로직 분리
-- **서비스 레이어**: geminiService, storageService로 API 호출 분리
-
-### 5. 파일 최적화 패턴
-
-- **관련 파일 필터링**: 키워드 기반 관련성 점수 계산
-- **요약 우선 사용**: 대용량 파일은 요약만 포함
-- **스마트 포함 전략**: 파일 크기에 따라 요약/전체/일부 선택
-- **비용 절감**: 70-85% 예상 토큰 절감
-- **파일 크기 제한**: 최대 10만자 (약 25,000 토큰)
-- **요약 캐싱**: 한 번 생성한 요약은 재사용
-
-### 6. 컴포넌트 구조 패턴
-
-- **하위 컴포넌트 분리**: Sidebar/, TemplateEditor/ 디렉토리로 분리
-- **재사용성 향상**: SessionActions, SessionList 등 독립 컴포넌트
-- **관심사 분리**: 각 컴포넌트가 단일 책임만 수행
-- **유지보수성 향상**: 코드 구조 명확화
-
-### 7. 에러 처리 패턴
-
-- **중앙화된 에러 처리**: errorHandler.ts로 통합
-- **에러 타입 정의**: ApiError, StorageError, ValidationError, MigrationError
-- **사용자 친화적 메시지**: 기술적 에러를 이해하기 쉬운 메시지로 변환
-- **복구 전략**: 복구 가능한 에러는 자동 재시도
-
----
-
-## 알려진 이슈 및 제한사항
-
-### 1. Gemini API 제약
-
-- **토큰 제한**: `maxOutputTokens: 8192`로 제한
-- **스트리밍 지연**: 네트워크 상태에 따라 지연 가능
-- **Google Search Grounding**: 베타 기능으로 불안정할 수 있음
-
-### 2. Notion API 제약
-
-- **블록 크기**: 블록당 최대 2000자 제한
-- **API 속도 제한**: 초당 3회 요청 제한
-- **중첩 리스트**: 2단계까지만 지원
-
-### 3. 로컬 저장소 제약
-
-- **Store 크기**: 대용량 세션 저장 시 성능 저하 가능
-- **동시 저장**: Lock 메커니즘으로 해결했으나 완벽하지 않음
-- **즉시 저장**: 중요한 변화 지점마다 저장하여 데이터 손실 방지
+앱 시작 시 자동 실행, 하위 호환성 유지.
 
 ---
 
@@ -1217,210 +342,231 @@ export interface PromptTemplate {
 ```
 GamePlanner-Tauri/
 ├── src/
-│   ├── components/          # React 컴포넌트
+│   ├── components/
 │   │   ├── Sidebar.tsx
-│   │   ├── Sidebar/         # 사이드바 하위 컴포넌트
-│   │   │   ├── SessionActions.tsx
-│   │   │   └── SessionList.tsx
+│   │   ├── Sidebar/            # 사이드바 하위 컴포넌트
 │   │   ├── ChatPanel.tsx
 │   │   ├── MarkdownPreview.tsx
-│   │   ├── SettingsModal.tsx
-│   │   ├── TemplateManagerModal.tsx
-│   │   ├── TemplateSelector.tsx
 │   │   ├── TemplateEditorModal.tsx
-│   │   ├── TemplateEditor/  # 템플릿 에디터 하위 컴포넌트
-│   │   │   ├── EmojiPicker.tsx
-│   │   │   └── ZoomControls.tsx
-│   │   ├── AnalysisResult.tsx
-│   │   ├── Header.tsx
-│   │   ├── Resizer.tsx
+│   │   ├── TemplateEditor/     # 템플릿 에디터 하위 컴포넌트
+│   │   ├── ReferenceManager.tsx
 │   │   ├── VersionHistory.tsx
 │   │   ├── ChecklistPanel.tsx
-│   │   ├── ReferenceManager.tsx
-│   │   └── ErrorBoundary.tsx
-│   ├── hooks/               # 커스텀 훅
-│   │   ├── useGeminiChat.ts
-│   │   ├── useGameAnalysis.ts
-│   │   ├── useMessageHandler.ts    # 메시지 처리 통합
-│   │   ├── useAppInitialization.ts # 앱 초기화
-│   │   ├── useAutoSave.ts          # 자동 저장
-│   │   └── useTranslation.ts      # 번역 (레거시)
-│   ├── lib/                 # 유틸리티 및 라이브러리
-│   │   ├── store.ts                # Tauri Store 관리
-│   │   ├── systemInstruction.ts    # 기획 시스템 프롬프트
-│   │   ├── analysisInstruction.ts  # 분석 시스템 프롬프트
-│   │   ├── notionBlocks.ts         # Notion 변환
-│   │   ├── templateDefaults.ts    # 템플릿 기본값
-│   │   ├── emojiData.ts            # 이모지 데이터
-│   │   ├── errorHandler.ts         # 에러 처리
-│   │   ├── markdownParser.ts       # 마크다운 파싱
-│   │   ├── utils/                  # 유틸리티 함수
-│   │   │   ├── session.ts          # 세션 헬퍼
-│   │   │   ├── markdown.ts         # 마크다운 유틸
-│   │   │   ├── fileParser.ts       # 파일 파싱
-│   │   │   ├── fileOptimization.ts # 파일 최적화
-│   │   │   ├── sessionSave.ts       # 즉시 저장
-│   │   │   ├── template.ts         # 템플릿 유틸
-│   │   │   ├── validation.ts        # 검증 유틸
-│   │   │   └── index.ts            # 유틸리티 인덱스
-│   │   ├── services/               # 서비스 레이어
-│   │   │   ├── geminiService.ts    # Gemini API 서비스
-│   │   │   └── storageService.ts  # 저장소 서비스
-│   │   ├── migrations/             # 마이그레이션
-│   │   │   ├── migrationManager.ts # 마이그레이션 관리자
-│   │   │   ├── v1.ts               # V1 마이그레이션
-│   │   │   ├── v2.ts               # V2 마이그레이션
-│   │   │   └── v3.ts               # V3 마이그레이션
-│   │   ├── constants/              # 상수
-│   │   │   ├── api.ts              # API 상수
-│   │   │   ├── session.ts          # 세션 상수
-│   │   │   └── ui.ts               # UI 상수
-│   │   └── sessionHandlers/         # 세션 핸들러
-│   │       └── baseHandler.ts      # 기본 핸들러
-│   ├── store/               # 상태 관리 (Zustand)
-│   │   ├── useAppStore.ts   # 메인 스토어
-│   │   └── slices/          # 슬라이스
-│   │       ├── sessionSlice.ts      # 세션 슬라이스
-│   │       ├── templateSlice.ts    # 템플릿 슬라이스
-│   │       ├── settingsSlice.ts    # 설정 슬라이스
-│   │       ├── uiSlice.ts          # UI 슬라이스
-│   │       └── checklistSlice.ts  # 체크리스트 슬라이스
-│   ├── types/               # TypeScript 타입 정의
+│   │   └── ...
+│   ├── hooks/
+│   │   ├── useGeminiChat.ts            # 기획 세션 AI 통신
+│   │   ├── useGameAnalysis.ts          # 분석 세션 AI 통신
+│   │   ├── useMessageHandler.ts        # 메시지 처리 통합
+│   │   ├── useAppInitialization.ts     # 앱 초기화
+│   │   └── useAutoSave.ts              # 자동 저장
+│   ├── lib/
+│   │   ├── store.ts                    # Tauri Store 관리
+│   │   ├── systemInstruction.ts        # 기획 시스템 프롬프트
+│   │   ├── analysisInstruction.ts      # 분석 시스템 프롬프트
+│   │   ├── templateDefaults.ts         # 기본 템플릿
+│   │   ├── notionBlocks.ts             # Notion 변환
+│   │   ├── emojiData.ts                # 이모지 데이터
+│   │   ├── utils/
+│   │   │   ├── fileParser.ts           # 파일 파싱
+│   │   │   ├── fileOptimization.ts     # 파일 최적화
+│   │   │   ├── sessionSave.ts          # 즉시 저장
+│   │   │   ├── markdown.ts             # 마크다운 유틸
+│   │   │   └── logger.ts               # 개발 로그 (devLog)
+│   │   ├── services/
+│   │   │   ├── geminiService.ts        # Gemini API 서비스
+│   │   │   └── storageService.ts       # 저장소 서비스
+│   │   └── migrations/
+│   │       ├── migrationManager.ts     # 마이그레이션 관리자
+│   │       ├── v1.ts, v2.ts, v3.ts
+│   ├── store/
+│   │   ├── useAppStore.ts              # 메인 스토어
+│   │   └── slices/
+│   │       ├── sessionSlice.ts
+│   │       ├── templateSlice.ts
+│   │       ├── settingsSlice.ts
+│   │       ├── uiSlice.ts
+│   │       └── checklistSlice.ts
+│   ├── types/
 │   │   ├── promptTemplate.ts
 │   │   ├── referenceFile.ts
-│   │   ├── reference.ts
 │   │   ├── version.ts
 │   │   ├── checklist.ts
-│   │   ├── gemini.ts
-│   │   ├── notion.ts
-│   │   ├── errors.ts
 │   │   └── store.ts
-│   ├── App.tsx              # 메인 앱
-│   ├── main.tsx             # 엔트리 포인트
-│   └── index.css            # 전역 스타일
-├── src-tauri/               # Tauri 백엔드
-│   ├── src/
-│   │   ├── lib.rs
-│   │   └── main.rs
-│   ├── capabilities/
-│   │   └── default.json
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── Template/                # 템플릿 파일
-│   ├── 기본 기획 템플릿.prompt
-│   ├── 기본 분석 템플릿.prompt
-│   └── 프로토타입 기획.prompt
-├── Plans/                   # 계획 및 문서
-│   ├── game_plan.md
-│   └── GAMEPLANNER_IMPLEMENTATION_STATUS.md (이 파일)
-└── package.json
+│   └── App.tsx                         # 메인 앱
+└── src-tauri/                          # Tauri 백엔드
+    ├── capabilities/default.json       # 파일 시스템 권한 설정
+    └── tauri.conf.json
 ```
 
 ---
 
-## 참고 자료
+## 알려진 이슈 및 제한사항
 
-### Gemini API
+### 1. Gemini API 제약
 
-- [Gemini API 공식 문서](https://ai.google.dev/docs)
-- [Gemini 2.5 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash)
-- [Google Search Grounding](https://ai.google.dev/gemini-api/docs/grounding)
+- 토큰 제한: `maxOutputTokens: 8192`
+- Google Search Grounding: 베타 기능
 
-### Tauri
+### 2. Notion API 제약
 
-- [Tauri 공식 문서](https://tauri.app/)
-- [Tauri 2.0 Guide](https://v2.tauri.app/start/)
-- [Tauri Plugin Store](https://v2.tauri.app/plugin/store/)
+- 블록 크기: 블록당 최대 2000자
+- API 속도 제한: 초당 3회 요청
+- 중첩 리스트: 2단계까지만 지원
+- 헤더 제한: h3 이하 지원하지 않음
 
-### Notion API
+### 3. 로컬 저장소
 
-- [Notion API 공식 문서](https://developers.notion.com/)
-- [Notion Blocks](https://developers.notion.com/reference/block)
+- 대용량 세션 저장 시 성능 저하 가능
+- 즉시 저장 + 자동 저장으로 데이터 손실 방지
+
+### 4. Tauri 2.0 특성
+
+- 모든 파일 시스템 접근은 `capabilities/default.json`에 명시 필요
+- Store 싱글톤 패턴 사용 (동시 저장 방지)
 
 ---
 
-## 개발 팁
+## 개발 로그 시스템
 
-### 디버깅
+**파일**: `src/lib/utils/logger.ts`
 
-1. **콘솔 로그 활용**: 모든 주요 함수에 로그 추가됨
-   ```
-   🔍 - 설정 관련
-   📝 - API 요청 관련
-   ✅ - 성공
-   ❌ - 오류
-   ⚠️ - 경고
-   ```
+개발 모드에서만 로그 출력, 프로덕션에서는 에러만 표시:
 
-2. **Tauri DevTools**: 화면 우클릭 → `Inspect Element`
-   - Chrome DevTools와 동일하게 사용 가능
-   - API 호출, 네트워크 오류 확인
+```typescript
+import { devLog } from '../lib/utils/logger'
 
-3. **Store 디버깅**: Tauri Store 파일 직접 확인
-   ```
-   ~/.config/com.gameplanner.tauri/settings.json
-   ```
+devLog.log('🔍 설정 로드')       // 개발 모드만
+devLog.info('정보 메시지')        // 개발 모드만
+devLog.warn('⚠️ 경고')          // 개발 모드만
+devLog.error('❌ 에러')          // 항상 표시
+```
 
-### 테스트
+**환경 변수**: `import.meta.env.DEV`로 개발 모드 확인
 
-1. **세션 관리 테스트**: 여러 세션 생성/삭제/전환
-2. **템플릿 테스트**: 다양한 템플릿으로 세션 생성
-3. **Notion 연동 테스트**: 실제 Notion Database에 저장 확인
+---
 
-### 최적화
+## 주요 개발 패턴
 
-1. **세션 크기 관리**: 오래된 세션 정리
-2. **템플릿 캐싱**: 자주 사용하는 템플릿 메모리 캐싱
-3. **이미지 최적화**: Notion에 이미지 저장 시 압축
+### 1. Zustand Slice 패턴
+
+상태를 도메인별로 분리:
+- `sessionSlice`: 세션 관리
+- `templateSlice`: 템플릿 관리
+- `settingsSlice`: 설정
+- `uiSlice`: UI 상태
+- `checklistSlice`: 체크리스트
+
+### 2. Hook 분리 패턴
+
+로직을 재사용 가능한 Hook으로 분리:
+- `useMessageHandler`: 메시지 처리 통합
+- `useAppInitialization`: 앱 초기화
+- `useGeminiChat`, `useGameAnalysis`: AI 통신
+
+### 3. 서비스 레이어 패턴
+
+외부 API 호출을 서비스로 분리:
+- `geminiService`: Gemini API 호출
+- `storageService`: 저장소 관리
+
+### 4. 컴포넌트 분리 패턴
+
+하위 컴포넌트를 디렉토리로 그룹화:
+- `Sidebar/`: SessionActions, SessionList
+- `TemplateEditor/`: EmojiPicker, ZoomControls
+
+---
+
+## Tauri 개발 주의사항
+
+### 1. window.confirm/alert 사용 금지
+
+**문제**: Tauri 환경에서 `window.confirm()`과 `window.alert()`는 불안정하게 동작 (취소 버튼 무시 등)
+
+**해결**: React State 기반 커스텀 다이얼로그 사용
+
+```typescript
+// State로 삭제할 항목 관리
+const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+// 삭제 버튼 클릭
+const handleDelete = (id: string) => setDeleteConfirm(id)
+
+// 취소
+const cancelDelete = () => setDeleteConfirm(null)
+
+// 확인 (실제 삭제)
+const confirmDelete = () => {
+  if (!deleteConfirm) return
+  // 삭제 로직...
+  setDeleteConfirm(null)
+}
+
+// JSX에서 조건부 렌더링
+{deleteConfirm && (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    {/* 커스텀 다이얼로그 */}
+  </div>
+)}
+```
+
+**참고 예시**: `Sidebar.tsx`, `TemplateManagerModal.tsx`, `ReferenceManager.tsx`
+
+### 2. 드래그 앤 드롭 구현
+
+**앱 외부 → 앱** (파일 드롭): Tauri API 사용
+
+```typescript
+import { getCurrentWindow } from '@tauri-apps/api/window'
+
+useEffect(() => {
+  const setupDragDropListener = async () => {
+    const appWindow = getCurrentWindow()
+    const unlisten = await appWindow.onDragDropEvent(async (event) => {
+      if (event.payload.type === 'drop') {
+        const paths = event.payload.paths || []
+        // 파일 처리...
+      }
+    })
+    return unlisten
+  }
+  setupDragDropListener()
+}, [])
+```
+
+**앱 내부 → 앱** (요소 재정렬): HTML5 Drag and Drop API 사용
+
+```typescript
+<div
+  draggable
+  onDragStart={(e) => e.dataTransfer.setData('text/plain', index.toString())}
+  onDragOver={(e) => e.preventDefault()}
+  onDrop={(e) => {
+    const draggedIndex = parseInt(e.dataTransfer.getData('text/plain'))
+    // 재정렬 로직...
+  }}
+>
+  항목
+</div>
+```
+
+**참고 예시**: `ReferenceManager.tsx` (파일 드롭)
 
 ---
 
 ## 마무리
 
-**Game Planner**는 Phase 3.6까지 성공적으로 구현되었으며, 핵심 기능인 **게임 기획서 작성**, **게임 분석**, **템플릿 시스템**, **Notion 연동**, **레퍼런스 파일 관리**, **파일 최적화**, **즉시 저장 시스템**이 모두 작동합니다.
+이 문서는 AI가 Game Planner 프로젝트를 빠르게 이해하고 작업할 수 있도록 핵심 정보만 정리한 것입니다.
 
-**Phase 3.6**에서는 안정성과 구조가 크게 개선되었습니다:
-- 레퍼런스 파일 관리 시스템 추가 (PDF, Excel, CSV, Markdown, Text 지원)
-- 파일 최적화 시스템 (관련 파일 필터링, 요약 생성, 비용 절감 70-85%)
-- 즉시 저장 시스템 (중요한 변화 지점마다 즉시 저장)
-- 에러 처리 시스템 중앙화 (errorHandler.ts)
-- 마이그레이션 시스템 체계화 (v1, v2, v3)
-- 컴포넌트 구조 개선 (Sidebar/, TemplateEditor/ 분리)
-- Hook 구조 개선 (useMessageHandler, useAppInitialization)
-- 서비스 레이어 분리 (geminiService, storageService)
+**현재 상태**: Phase 3.6 완료 (안정화 완료)
+- 게임 기획서 작성
+- 게임 분석
+- 템플릿 시스템
+- 버전 관리
+- 검증 시스템
+- 레퍼런스 파일 관리
+- 파일 최적화
+- Notion 연동
 
-**Phase 3.5**에서는 템플릿 시스템이 크게 개선되었습니다:
-- 이모지 피커로 템플릿 작성 편의성 향상
-- 줌 기능으로 대용량 템플릿 편집 효율성 증대
-- 시스템/사용자 프롬프트 분리로 템플릿 가독성 향상
-- Notion 스타일 마크다운 렌더링으로 문서 가독성 개선
-- UI/UX 개선으로 사용성 향상
-
-다음 단계는 **Phase 4 (고급 기능 및 최적화)**를 통해 더욱 편리하고 강력한 기능을 추가하는 것입니다.
-
-프로젝트는 최종 목표인 **"AI 기반 게임 기획 및 분석 도구"**를 향해 순조롭게 진행 중입니다.
-
----
-
-**문서 버전**: 3.0
-**작성일**: 2025-01-01
-**최종 업데이트**: 2026-01-03
-**주요 업데이트**: 
-- Phase 3.5 (템플릿 시스템 고도화) 내용 추가
-- Phase 3.6 (파일 최적화 및 안정성 강화) 내용 추가
-- 이모지 피커, 줌 기능, 프롬프트 엔지니어링 개선 사항 반영
-- 마크다운 렌더링 개선 및 UI/UX 개선 사항 반영
-- 번역 기능 제거 사항 반영
-- 레퍼런스 파일 관리 시스템 추가
-- 파일 최적화 시스템 (관련 파일 필터링, 요약 생성) 추가
-- 즉시 저장 시스템 추가
-- 버전 관리 및 검증 시스템 추가
-- 채팅 영역 파일 첨부 제거 및 레퍼런스 탭 조건부 표시
-- 에러 처리 시스템 중앙화 추가
-- 마이그레이션 시스템 체계화 추가
-- 컴포넌트 구조 개선 (하위 컴포넌트 분리) 반영
-- Hook 구조 개선 (useMessageHandler, useAppInitialization) 반영
-- 서비스 레이어 분리 반영
-- 파일 구조 업데이트
-**다음 업데이트 예정**: Phase 4 완료 시
-
+**문서 버전**: 4.0
+**최종 업데이트**: 2026-01-07
