@@ -173,7 +173,7 @@ export function AnalysisPanel({
               {/* 분석 강화 버튼 */}
               <button
                 onClick={onAnalyze}
-                className="flex-1 flex items-center justify-center p-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-all"
+                className="flex-1 flex items-center justify-center p-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all shadow-lg hover:shadow-xl"
                 title={currentSession ? '분석 강화' : '다시 분석'}
               >
                 <Sparkles size={20} />

@@ -94,14 +94,7 @@ export function NegativePromptCard({
           </div>
           <div className="flex items-center gap-2">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-xl font-bold text-gray-800">부정 프롬프트</h3>
-                {!isEditing && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 rounded text-xs text-blue-700">
-                    <span>한국어</span>
-                  </div>
-                )}
-              </div>
+              <h3 className="text-xl font-bold text-gray-800">부정 프롬프트</h3>
               <p className="text-xs text-gray-500">이 스타일에서 피해야 할 요소</p>
             </div>
           </div>

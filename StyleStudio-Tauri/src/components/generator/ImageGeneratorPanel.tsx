@@ -362,7 +362,14 @@ export function ImageGeneratorPanel({
             <div>
               <h2 className="text-xl font-bold text-gray-800">이미지 생성</h2>
               <p className="text-sm text-gray-500">
-                {sessionType === 'CHARACTER' ? '캐릭터 세션' : '스타일 세션'} · Gemini 3 Pro
+                {sessionType === 'CHARACTER'
+                  ? '캐릭터 세션'
+                  : sessionType === 'BACKGROUND'
+                  ? '배경 세션'
+                  : sessionType === 'ICON'
+                  ? '아이콘 세션'
+                  : '스타일 세션'}{' '}
+                · Gemini 3 Pro
               </p>
             </div>
           </div>
@@ -422,6 +429,10 @@ export function ImageGeneratorPanel({
                 placeholder={
                   sessionType === 'CHARACTER'
                     ? '예: 손을 흔들며 뒤를 돌아보는 / looking back, waving hand'
+                    : sessionType === 'BACKGROUND'
+                    ? '예: 숲 속, 폭포가 있는 / forest with waterfall'
+                    : sessionType === 'ICON'
+                    ? '예: 불타는 검, 빛나는 / flaming sword, glowing'
                     : '예: 밤 풍경, 비오는 날씨 / night scene, rainy weather'
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
@@ -492,14 +503,14 @@ export function ImageGeneratorPanel({
             <div>
               <label
                 className={`flex items-center gap-2 ${
-                  sessionType === 'CHARACTER' ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                  sessionType === 'STYLE' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={sessionType === 'CHARACTER' ? true : useReferenceImages}
+                  checked={sessionType === 'STYLE' ? useReferenceImages : true}
                   onChange={(e) => setUseReferenceImages(e.target.checked)}
-                  disabled={sessionType === 'CHARACTER'}
+                  disabled={sessionType !== 'STYLE'}
                   className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 disabled:cursor-not-allowed"
                 />
                 <span className="text-sm font-semibold text-gray-700">
@@ -509,11 +520,15 @@ export function ImageGeneratorPanel({
               <p className="text-xs text-gray-500 mt-1">
                 {sessionType === 'CHARACTER'
                   ? '캐릭터 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'BACKGROUND'
+                  ? '배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'ICON'
+                  ? '아이콘 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
                   : '현재 세션의 이미지를 참조하여 스타일 일관성을 높입니다'}
               </p>
 
               {/* 참조 이미지가 사용될 때만 썸네일과 영향력 슬라이더 표시 */}
-              {(sessionType === 'CHARACTER' || useReferenceImages) && referenceImages.length > 0 && (
+              {(sessionType !== 'STYLE' || useReferenceImages) && referenceImages.length > 0 && (
                 <div className="mt-3 space-y-3">
                   {/* 참조 이미지 썸네일 */}
                   <div className="grid grid-cols-4 gap-2">
@@ -549,6 +564,10 @@ export function ImageGeneratorPanel({
                     <p className="text-xs text-gray-500 mt-1">
                       {sessionType === 'CHARACTER'
                         ? '캐릭터 외형 복사 정도를 조절합니다. 높을수록 참조 이미지와 동일하게 유지됩니다.'
+                        : sessionType === 'BACKGROUND'
+                        ? '배경 스타일 복사 정도를 조절합니다. 높을수록 참조 배경의 스타일을 강하게 따릅니다.'
+                        : sessionType === 'ICON'
+                        ? '아이콘 스타일 복사 정도를 조절합니다. 높을수록 참조 아이콘의 스타일을 강하게 따릅니다.'
                         : '스타일 복사 정도를 조절합니다. 높을수록 참조 스타일을 강하게 따릅니다.'}
                     </p>
                   </div>

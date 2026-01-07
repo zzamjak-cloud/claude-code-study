@@ -196,7 +196,161 @@ export function useGeminiImageGenerator() {
       // 2. 프롬프트 추가 (참조 이미지가 있으면 일관성 강조)
       let fullPrompt = '';
 
-      if (hasReferenceImages && params.sessionType === 'CHARACTER') {
+      if (hasReferenceImages && params.sessionType === 'BACKGROUND') {
+        // 배경 세션: 배경 스타일 유지하며 다양한 환경 생성
+        fullPrompt = `🌄 MISSION: Create a NEW ENVIRONMENT/LOCATION while PERFECTLY REPLICATING the visual style from reference backgrounds.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE REQUESTED ENVIRONMENT (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NEW ENVIRONMENT TO CREATE: "${params.prompt || 'a natural outdoor scene'}"
+
+🎯 INTERPRET THE ENVIRONMENT REQUEST:
+- "forest" / "숲" = Trees, foliage, woodland atmosphere
+- "beach" / "해변" = Sand, ocean, coastal scenery
+- "city" / "도시" = Buildings, urban structures, streets
+- "cave" / "동굴" = Rocky interior, enclosed space, dim lighting
+
+⚠️ CRITICAL: The reference images show DIFFERENT locations - focus on their VISUAL STYLE, not their content.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: REPLICATE THE BACKGROUND VISUAL STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While creating the NEW environment, COPY these style elements EXACTLY:
+
+🔒 ART STYLE & TECHNIQUE:
+- Drawing/painting technique (watercolor, cel-shaded, realistic, etc.)
+- Line quality and edge treatment
+- Level of detail and stylization
+- Artistic approach (loose, precise, impressionistic, etc.)
+
+🔒 COLOR PALETTE & ATMOSPHERE:
+- Color harmony and relationships
+- Saturation, brightness, contrast levels
+- Color temperature (warm/cool tones)
+- Atmospheric effects (fog, haze, lighting)
+
+🔒 LIGHTING & MOOD:
+- Light direction and intensity
+- Shadow style and softness
+- Time of day feeling
+- Overall mood and atmosphere
+
+🔒 COMPOSITION STYLE:
+- Depth handling (foreground/midground/background)
+- Perspective approach
+- Scale and proportion style
+- Framing and layout principles
+
+🔒 TEXTURE & DETAIL:
+- Surface texture treatment
+- Material representation style
+- Level of detail consistency
+- Pattern and repetition style
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: CRITICAL REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- NO characters, people, or creatures (background only)
+- Focus entirely on environment and scenery
+- Maintain consistent style throughout the entire scene
+- Create a cohesive, immersive environment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Does the new environment match the requested location/scene? (Step 1)
+2. Does the visual style EXACTLY match the reference backgrounds? (Step 2)
+3. Is it purely environmental without characters/creatures?
+4. Is the style consistent across the entire image?
+
+NEVER add your own style interpretation. CLONE the reference style EXACTLY.`;
+      } else if (hasReferenceImages && params.sessionType === 'ICON') {
+        // 아이콘 세션: 아이콘 스타일 유지하며 다양한 오브젝트 생성
+        fullPrompt = `🎨 MISSION: Create a NEW ITEM/OBJECT ICON while PERFECTLY REPLICATING the visual style from reference icons.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE REQUESTED ITEM (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NEW ITEM TO DRAW: "${params.prompt || 'a game item'}"
+
+🎯 INTERPRET THE ITEM REQUEST:
+- "sword" / "검" = Blade weapon, hilt, guard
+- "potion" / "물약" = Bottle/flask with liquid
+- "coin" / "동전" = Currency, circular metal object
+- "crystal" / "크리스탈" = Gem, mineral, shiny rock
+
+⚠️ CRITICAL: The reference icons show DIFFERENT items - focus on their VISUAL STYLE, not their content.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: REPLICATE THE ICON VISUAL STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While creating the NEW item, COPY these style elements EXACTLY:
+
+🔒 ICON FORM & STRUCTURE:
+- Overall shape language (rounded, angular, organic, geometric)
+- Proportion and scale approach
+- Silhouette clarity and readability
+- Size ratio of details to main object
+
+🔒 LINE & EDGE TREATMENT:
+- Outline thickness and style (thick, thin, absent)
+- Edge quality (sharp, soft, stylized)
+- Line color and contrast
+- Highlight/outline technique
+
+🔒 COLOR & SHADING STYLE:
+- Color palette and harmony
+- Shading technique (cel-shaded, gradient, flat)
+- Highlight placement and intensity
+- Shadow style and opacity
+- Color saturation and brightness levels
+
+🔒 MATERIAL REPRESENTATION:
+- How metals look (shiny, matte, reflective)
+- How glass/crystals appear (transparent, luminous)
+- How fabrics are shown (textured, smooth)
+- Surface quality representation
+
+🔒 LIGHTING & EFFECTS:
+- Light source direction (top-down, angled, etc.)
+- Glow/shine effects style
+- Shadow casting approach
+- Special effects (sparkles, aura, etc.)
+
+🔒 BACKGROUND & FRAMING:
+- Background treatment (solid color, gradient, transparent)
+- Framing approach (centered, tilted, floating)
+- Border/frame style if present
+- Negative space handling
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: ICON-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Clear, recognizable silhouette
+- Readable at small sizes
+- Focus on single main object (no complex scenes)
+- Maintain icon clarity and simplicity
+- Consistent detail level with references
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Is the new item clearly recognizable? (Step 1)
+2. Does the visual style EXACTLY match the reference icons? (Step 2)
+3. Is it clean and readable as an icon?
+4. Is the style consistent with typical game/app icon standards?
+
+NEVER add your own artistic interpretation. CLONE the reference icon style EXACTLY.`;
+      } else if (hasReferenceImages && params.sessionType === 'CHARACTER') {
         // 캐릭터 세션: 포즈 변경 최우선 + 캐릭터 외형/비율 완벽 복사
         fullPrompt = `🚨 MISSION: Draw the EXACT SAME character from reference images, but in a NEW POSE.
 

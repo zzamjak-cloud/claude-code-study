@@ -1,7 +1,43 @@
 import { useState, useRef, useEffect } from 'react';
-import { Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings, GripVertical } from 'lucide-react';
-import { Session } from '../../types/session';
+import { Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings, GripVertical, Mountain, Box } from 'lucide-react';
+import { Session, SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
+
+// 세션 타입별 아이콘 및 색상 가져오기
+function getSessionTypeInfo(type: SessionType) {
+  switch (type) {
+    case 'STYLE':
+      return {
+        icon: Palette,
+        bgColor: 'bg-purple-600/20',
+        textColor: 'text-purple-400',
+      };
+    case 'CHARACTER':
+      return {
+        icon: User,
+        bgColor: 'bg-blue-600/20',
+        textColor: 'text-blue-400',
+      };
+    case 'BACKGROUND':
+      return {
+        icon: Mountain,
+        bgColor: 'bg-green-600/20',
+        textColor: 'text-green-400',
+      };
+    case 'ICON':
+      return {
+        icon: Box,
+        bgColor: 'bg-amber-600/20',
+        textColor: 'text-amber-400',
+      };
+    default:
+      return {
+        icon: Palette,
+        bgColor: 'bg-purple-600/20',
+        textColor: 'text-purple-400',
+      };
+  }
+}
 
 interface SidebarProps {
   sessions: Session[];
@@ -149,15 +185,14 @@ export function Sidebar({
               </div>
 
               {/* 타입 아이콘 */}
-              <div
-                className={`p-1.5 rounded-lg flex-shrink-0 ${
-                  draggedSession.type === 'STYLE'
-                    ? 'bg-purple-600/20 text-purple-400'
-                    : 'bg-blue-600/20 text-blue-400'
-                }`}
-              >
-                {draggedSession.type === 'STYLE' ? <Palette size={16} /> : <User size={16} />}
-              </div>
+              {(() => {
+                const { icon: Icon, bgColor, textColor } = getSessionTypeInfo(draggedSession.type);
+                return (
+                  <div className={`p-1.5 rounded-lg flex-shrink-0 ${bgColor} ${textColor}`}>
+                    <Icon size={16} />
+                  </div>
+                );
+              })()}
 
               <div className="flex-1 min-w-0">
                 {/* 세션 이름 */}
@@ -254,15 +289,14 @@ export function Sidebar({
                   </div>
 
                   {/* 타입 아이콘 */}
-                  <div
-                    className={`p-1.5 rounded-lg flex-shrink-0 ${
-                      session.type === 'STYLE'
-                        ? 'bg-purple-600/20 text-purple-400'
-                        : 'bg-blue-600/20 text-blue-400'
-                    }`}
-                  >
-                    {session.type === 'STYLE' ? <Palette size={16} /> : <User size={16} />}
-                  </div>
+                  {(() => {
+                    const { icon: Icon, bgColor, textColor } = getSessionTypeInfo(session.type);
+                    return (
+                      <div className={`p-1.5 rounded-lg flex-shrink-0 ${bgColor} ${textColor}`}>
+                        <Icon size={16} />
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex-1 min-w-0">
                     {/* 세션 이름 */}

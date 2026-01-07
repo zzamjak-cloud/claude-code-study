@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Palette, User } from 'lucide-react';
+import { X, Save, Palette, User, Mountain, Box } from 'lucide-react';
 import { Session, SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
 
@@ -100,6 +100,30 @@ export function SaveSessionModal({ isOpen, onClose, onSave, currentSession }: Sa
               >
                 <User size={20} />
                 <span>캐릭터</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('BACKGROUND')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'BACKGROUND'
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Mountain size={20} />
+                <span>배경</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('ICON')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'ICON'
+                    ? 'bg-amber-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Box size={20} />
+                <span>아이콘</span>
               </button>
             </div>
           </div>

@@ -6,11 +6,12 @@ import { AnalysisPanel } from './components/analysis/AnalysisPanel';
 import { ImageGeneratorPanel } from './components/generator/ImageGeneratorPanel';
 import { SettingsModal } from './components/common/SettingsModal';
 import { SaveSessionModal } from './components/common/SaveSessionModal';
+import { NewSessionModal } from './components/common/NewSessionModal';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
 import { ProgressIndicator } from './components/common/ProgressIndicator';
 import { ImageAnalysisResult } from './types/analysis';
-import { Session } from './types/session';
+import { Session, SessionType } from './types/session';
 import { useImageHandling } from './hooks/useImageHandling';
 import { useSessionManagement } from './hooks/useSessionManagement';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
@@ -26,6 +27,7 @@ import { logger } from './lib/logger';
 
 function App() {
   const [showSaveSession, setShowSaveSession] = useState(false);
+  const [showNewSession, setShowNewSession] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<ImageAnalysisResult | null>(null);
   const [currentView, setCurrentView] = useState<'analysis' | 'generator'>('analysis');
@@ -41,6 +43,7 @@ function App() {
     percentage: 0,
     estimatedSecondsLeft: 0,
   });
+  const [refineConfirm, setRefineConfirm] = useState(false);
 
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage } =
@@ -115,6 +118,124 @@ function App() {
     }
   };
 
+  // 실제 분석 수행 함수
+  const performAnalysis = async () => {
+    setIsAnalyzing(true);
+
+    // 빈 세션인지 확인 (모든 필드가 빈 문자열인 경우)
+    const isEmptySession = currentSession &&
+      currentSession.analysis &&
+      currentSession.analysis.style.art_style === '' &&
+      currentSession.analysis.style.technique === '' &&
+      currentSession.analysis.character.gender === '' &&
+      currentSession.analysis.character.age_group === '' &&
+      currentSession.analysis.composition.pose === '' &&
+      currentSession.analysis.composition.angle === '' &&
+      currentSession.analysis.negative_prompt === '';
+
+    const isRefinementMode = currentSession && analysisResult && !isEmptySession;
+
+    await analyzeImages(
+      apiKey,
+      uploadedImages,
+      {
+        onProgress: (message) => {
+          logger.debug('📊 진행 상황:', message);
+        },
+        onComplete: async (result) => {
+          setAnalysisResult(result);
+          setIsAnalyzing(false);
+
+          // 빈 세션이거나 신규 분석인 경우 또는 분석 강화인 경우 - 모두 번역 수행
+          try {
+            setInitialTranslationProgress({
+              stage: 'translating',
+              message: '번역 준비 중...',
+              percentage: 0,
+              estimatedSecondsLeft: 0,
+            });
+
+            const koreanCache = await translateAnalysisResult(
+              apiKey,
+              result,
+              (progress) => {
+                setInitialTranslationProgress({
+                  stage: progress.stage as 'translating' | 'saving' | 'complete',
+                  message: progress.message,
+                  percentage: progress.percentage,
+                  estimatedSecondsLeft: 0,
+                });
+              }
+            );
+
+            if (isEmptySession && currentSession) {
+              // 빈 세션인 경우 기존 세션 업데이트
+              const updatedSession = updateSession(currentSession, {
+                analysis: result,
+                referenceImages: uploadedImages,
+                koreanAnalysis: koreanCache,
+                imageCount: uploadedImages.length,
+              });
+              const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+              setSessions(updatedSessions);
+              setCurrentSession(updatedSession);
+              await persistSessions(updatedSessions);
+            } else if (isRefinementMode && currentSession) {
+              // 분석 강화 모드 - 기존 세션 업데이트
+              const updatedSession = updateSession(currentSession, {
+                analysis: result,
+                referenceImages: uploadedImages,
+                koreanAnalysis: koreanCache,
+                imageCount: uploadedImages.length,
+              });
+              const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+              setSessions(updatedSessions);
+              setCurrentSession(updatedSession);
+              await persistSessions(updatedSessions);
+            } else {
+              // 신규 세션 생성
+              const newSession = createNewSession(result, uploadedImages, koreanCache);
+              const updatedSessions = addSessionToList(sessions, newSession);
+              setSessions(updatedSessions);
+              setCurrentSession(newSession);
+              await persistSessions(updatedSessions);
+            }
+
+            setInitialTranslationProgress({
+              stage: 'complete',
+              message: '완료!',
+              percentage: 100,
+              estimatedSecondsLeft: 0,
+            });
+
+            setTimeout(() => {
+              setInitialTranslationProgress({
+                stage: 'idle',
+                message: '',
+                percentage: 0,
+                estimatedSecondsLeft: 0,
+              });
+            }, 2000);
+          } catch (error) {
+            logger.error('❌ [분석 후] 번역 오류:', error);
+            setInitialTranslationProgress({
+              stage: 'idle',
+              message: '',
+              percentage: 0,
+              estimatedSecondsLeft: 0,
+            });
+          }
+        },
+        onError: (error) => {
+          setIsAnalyzing(false);
+          logger.error('❌ 분석 오류:', error);
+          alert('분석 오류: ' + error.message);
+        },
+      },
+      isRefinementMode ? { previousAnalysis: analysisResult } : undefined
+    );
+  };
+
   const handleAnalyze = async () => {
     if (!apiKey) {
       alert('API 키를 먼저 설정해주세요');
@@ -128,7 +249,7 @@ function App() {
     }
 
     // 빈 세션인지 확인 (모든 필드가 빈 문자열인 경우)
-    const isEmptySession = currentSession && 
+    const isEmptySession = currentSession &&
       currentSession.analysis &&
       currentSession.analysis.style.art_style === '' &&
       currentSession.analysis.style.technique === '' &&
@@ -148,109 +269,23 @@ function App() {
         return;
       }
 
-      const confirmed = window.confirm(
-        '기존 내용들이 변경될 수도 있습니다. 그래도 진행하시겠습니까?'
-      );
-
-      if (!confirmed) {
-        return;
-      }
+      // 커스텀 다이얼로그 표시
+      setRefineConfirm(true);
+      return;
     }
 
-    setIsAnalyzing(true);
+    // 즉시 분석 수행
+    await performAnalysis();
+  };
 
-    await analyzeImages(
-      apiKey,
-      uploadedImages,
-      {
-        onProgress: (message) => {
-          logger.debug('📊 진행 상황:', message);
-        },
-        onComplete: async (result) => {
-          setAnalysisResult(result);
-          setIsAnalyzing(false);
+  // 분석 강화 확인 핸들러
+  const confirmRefine = async () => {
+    setRefineConfirm(false);
+    await performAnalysis();
+  };
 
-          // 빈 세션이거나 신규 분석인 경우
-          if (isEmptySession || !isRefinementMode) {
-            try {
-              setInitialTranslationProgress({
-                stage: 'translating',
-                message: '번역 준비 중...',
-                percentage: 0,
-                estimatedSecondsLeft: 0,
-              });
-
-              const koreanCache = await translateAnalysisResult(
-                apiKey,
-                result,
-                (progress) => {
-                  setInitialTranslationProgress({
-                    stage: progress.stage as 'translating' | 'saving' | 'complete',
-                    message: progress.message,
-                    percentage: progress.percentage,
-                    estimatedSecondsLeft: 0,
-                  });
-                }
-              );
-
-              // 사용자 맞춤 프롬프트는 translateAnalysisResult 내부에서 처리됨
-              // 별도 번역 불필요
-
-              if (isEmptySession && currentSession) {
-                // 빈 세션인 경우 기존 세션 업데이트
-                const updatedSession = updateSession(currentSession, {
-                  analysis: result,
-                  referenceImages: uploadedImages,
-                  koreanAnalysis: koreanCache,
-                  imageCount: uploadedImages.length,
-                });
-                const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-                setSessions(updatedSessions);
-                setCurrentSession(updatedSession);
-                await persistSessions(updatedSessions);
-              } else {
-                // 신규 세션 생성
-                const newSession = createNewSession(result, uploadedImages, koreanCache);
-                const updatedSessions = addSessionToList(sessions, newSession);
-                setSessions(updatedSessions);
-                setCurrentSession(newSession);
-                await persistSessions(updatedSessions);
-              }
-
-              setInitialTranslationProgress({
-                stage: 'complete',
-                message: '완료!',
-                percentage: 100,
-                estimatedSecondsLeft: 0,
-              });
-
-              setTimeout(() => {
-                setInitialTranslationProgress({
-                  stage: 'idle',
-                  message: '',
-                  percentage: 0,
-                  estimatedSecondsLeft: 0,
-                });
-              }, 2000);
-            } catch (error) {
-              logger.error('❌ [신규 분석] 번역 오류:', error);
-              setInitialTranslationProgress({
-                stage: 'idle',
-                message: '',
-                percentage: 0,
-                estimatedSecondsLeft: 0,
-              });
-            }
-          }
-        },
-        onError: (error) => {
-          setIsAnalyzing(false);
-          logger.error('❌ 분석 오류:', error);
-          alert('분석 오류: ' + error.message);
-        },
-      },
-      isRefinementMode ? { previousAnalysis: analysisResult } : undefined
-    );
+  const cancelRefine = () => {
+    setRefineConfirm(false);
   };
 
   const handleSettingsClick = () => {
@@ -272,6 +307,11 @@ function App() {
   };
 
   const handleReset = () => {
+    // 신규 세션 모달 표시
+    setShowNewSession(true);
+  };
+
+  const handleNewSession = (name: string, type: SessionType) => {
     // 빈 분석 결과 생성 (임시 세션용)
     const emptyAnalysis: ImageAnalysisResult = {
       style: {
@@ -304,7 +344,9 @@ function App() {
     };
 
     // 빈 세션 생성
-    const newSession = createNewSession(emptyAnalysis, [], undefined, 'STYLE');
+    const newSession = createNewSession(emptyAnalysis, [], undefined, type);
+    // 세션 이름 설정
+    newSession.name = name;
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);
@@ -543,10 +585,54 @@ function App() {
         currentSession={currentSession}
       />
 
+      <NewSessionModal
+        isOpen={showNewSession}
+        onClose={() => setShowNewSession(false)}
+        onCreate={handleNewSession}
+      />
+
       <ProgressIndicator {...progress} />
       {saveProgress.stage !== 'idle' && <ProgressIndicator {...saveProgress} />}
       {generateProgress.stage !== 'idle' && <ProgressIndicator {...generateProgress} />}
       {initialTranslationProgress.stage !== 'idle' && <ProgressIndicator {...initialTranslationProgress} />}
+
+      {/* 분석 강화 확인 다이얼로그 */}
+      {refineConfirm && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              cancelRefine();
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-sm w-full p-6 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2 text-gray-800">분석 강화 확인</h3>
+            <p className="text-gray-600 mb-6">
+              기존 분석 내용이 변경될 수 있습니다.
+              <br />
+              그래도 진행하시겠습니까?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={cancelRefine}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-medium text-gray-700"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmRefine}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
+              >
+                분석하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
     </ErrorBoundary>
   );
