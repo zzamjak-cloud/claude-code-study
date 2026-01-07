@@ -10,6 +10,7 @@ import { useAppStore } from './store/useAppStore'
 import { useAppInitialization } from './hooks/useAppInitialization'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useMessageHandler } from './hooks/useMessageHandler'
+import { useWindowState } from './hooks/useWindowState'
 import { CHAT_PANEL_WIDTH } from './lib/constants/ui'
 
 function App() {
@@ -27,6 +28,9 @@ function App() {
   useAppInitialization({
     onSettingsRequired: () => setShowSettings(true),
   })
+
+  // 창 크기 및 위치 저장/복원
+  useWindowState()
 
   // 세션 자동 저장 (버전 생성 중에는 차단)
   useAutoSave({ isBlocked: showVersionConfirm || showVersionTitleInput })

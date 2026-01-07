@@ -1,7 +1,7 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { PromptTemplate } from '../types/promptTemplate'
 import { ChatSession } from '../store/useAppStore'
-import { Settings, SaveSettingsParams } from '../types/store'
+import { Settings, SaveSettingsParams, WindowState } from '../types/store'
 import { migrateSettings } from './migrations'
 import { devLog } from './utils/logger'
 
@@ -92,6 +92,9 @@ export async function getSettings(): Promise<Settings> {
   const currentPlanningTemplateId = await store.get<string>('current_planning_template_id')
   const currentAnalysisTemplateId = await store.get<string>('current_analysis_template_id')
 
+  // 창 상태
+  const windowState = await store.get<WindowState>('window_state')
+
   const rawSettings: Settings = {
     geminiApiKey,
     notionApiKey,
@@ -102,6 +105,7 @@ export async function getSettings(): Promise<Settings> {
     promptTemplates,
     currentPlanningTemplateId,
     currentAnalysisTemplateId,
+    windowState,
   }
 
   // 설정 마이그레이션 적용
@@ -218,5 +222,22 @@ export async function setCurrentTemplateIds(planningId: string, analysisId: stri
   await store.set('current_analysis_template_id', analysisId)
   await saveStore()
   devLog.log('✅ 템플릿 ID 저장:', { planning: planningId, analysis: analysisId })
+}
+
+/**
+ * 창 상태를 저장합니다
+ */
+export async function saveWindowState(windowState: WindowState) {
+  const store = await getStore()
+  await store.set('window_state', windowState)
+  await saveStore()
+}
+
+/**
+ * 저장된 창 상태를 가져옵니다
+ */
+export async function getWindowState(): Promise<WindowState | null> {
+  const store = await getStore()
+  return await store.get<WindowState>('window_state') || null
 }
 

@@ -19,6 +19,7 @@ export interface TemplateSlice {
   setCurrentAnalysisTemplate: (id: string) => void
   getTemplateById: (id: string) => PromptTemplate | undefined
   getTemplatesByType: (type: string) => PromptTemplate[]
+  reorderTemplates: (reorderedTemplates: PromptTemplate[]) => void
 }
 
 export const createTemplateSlice: StateCreator<
@@ -93,6 +94,12 @@ export const createTemplateSlice: StateCreator<
   getTemplatesByType: (type) => {
     const state = get()
     return state.templates.filter((t) => t.type === type)
+  },
+
+  // 템플릿 재정렬
+  reorderTemplates: (reorderedTemplates) => {
+    set({ templates: reorderedTemplates })
+    devLog.log('✅ 템플릿 순서 변경')
   },
 })
 

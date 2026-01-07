@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "gameplanner-tauri",
-        "width": 800,
-        "height": 600
+        "title": "Game Planner",
+        "width": 1280,
+        "height": 720,
+        "maximized": true,
+        "resizable": true,
+        "fullscreen": false
       }
     ],
     "security": {

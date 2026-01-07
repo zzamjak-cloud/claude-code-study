@@ -3,6 +3,14 @@
 import { ChatSession } from '../store/useAppStore'
 import { PromptTemplate } from './promptTemplate'
 
+export interface WindowState {
+  x: number
+  y: number
+  width: number
+  height: number
+  maximized: boolean
+}
+
 export interface Settings {
   geminiApiKey?: string | null
   notionApiKey?: string | null
@@ -13,6 +21,7 @@ export interface Settings {
   promptTemplates?: PromptTemplate[]
   currentPlanningTemplateId?: string | null
   currentAnalysisTemplateId?: string | null
+  windowState?: WindowState
 }
 
 export interface SaveSettingsParams {
