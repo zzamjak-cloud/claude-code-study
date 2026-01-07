@@ -12,11 +12,17 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
   const [input, setInput] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { messages, isLoading, currentSessionId, sessions } = useAppStore()
+  const { isLoading } = useAppStore()
 
-  // 현재 세션 정보 가져오기
-  const currentSession = sessions.find(s => s.id === currentSessionId)
+  // 현재 세션만 선택적으로 구독 (다른 세션 변경 시 리렌더링 방지)
+  const currentSession = useAppStore(state =>
+    state.sessions.find(s => s.id === state.currentSessionId)
+  )
+
   const isAnalysisMode = currentSession?.type === SessionType.ANALYSIS
+
+  // messages는 현재 세션에서 직접 가져와서 동기화 보장
+  const messages = currentSession?.messages || []
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -63,7 +69,16 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
     <div className="flex flex-col h-full">
       {/* 메시지 영역 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
+        {!currentSession ? (
+          <div className="h-full flex items-center justify-center text-muted-foreground">
+            <div className="text-center">
+              <p className="text-lg font-medium mb-2">세션이 없습니다</p>
+              <p className="text-sm">
+                사이드바의 <span className="font-semibold">+</span> 버튼을 클릭하여 새 세션을 생성해주세요
+              </p>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <div className="text-center">
               {isAnalysisMode ? (
@@ -145,20 +160,22 @@ export function ChatPanel({ onSendMessage, currentAssistantMessage }: ChatPanelP
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={
-                isAnalysisMode
+                !currentSession
+                  ? '+ 버튼을 클릭하여 새 세션을 생성해주세요'
+                  : isAnalysisMode
                   ? '게임명을 입력하세요. 예시 Brawl Stars, Royale Match (Ctrl/Cmd + Enter로 전송)'
                   : '게임 아이디어를 입력하세요... (Ctrl/Cmd + Enter로 전송)'
               }
               className="w-full px-4 py-3 rounded-lg border border-input bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none overflow-y-auto"
               style={{ minHeight: '96px' }}
-              disabled={isLoading}
+              disabled={isLoading || !currentSession}
             />
           </div>
           
           {/* 전송 버튼 */}
           <button
             type="submit"
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || !currentSession}
             className="px-4 py-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex-shrink-0"
           >
             <Send className="w-5 h-5" />

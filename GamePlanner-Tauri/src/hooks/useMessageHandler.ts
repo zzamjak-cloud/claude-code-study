@@ -6,6 +6,7 @@ import { useGameAnalysis } from './useGameAnalysis'
 import { SYSTEM_INSTRUCTION } from '../lib/systemInstruction'
 import { filterRelevantFiles, validateFileSize, MAX_FILE_SIZE_CHARS } from '../lib/utils/fileOptimization'
 import { saveSessionImmediately } from '../lib/utils/sessionSave'
+import { devLog } from '../lib/utils/logger'
 
 interface MessageHandlerCallbacks {
   onChatUpdate?: (text: string) => void
@@ -24,7 +25,6 @@ export function useMessageHandler() {
     getTemplateById,
     currentPlanningTemplateId,
     currentAnalysisTemplateId,
-    createNewSession,
   } = useAppStore()
 
   const { sendMessage } = useGeminiChat()
@@ -38,27 +38,23 @@ export function useMessageHandler() {
       throw new Error('API Key를 먼저 설정해주세요')
     }
 
-    // 세션이 없으면 자동으로 생성
-    let store = useAppStore.getState()
+    // 세션이 없으면 에러 발생 (자동 생성 제거)
+    const store = useAppStore.getState()
     if (!store.currentSessionId || store.sessions.length === 0) {
-      console.log('⚠️ 세션이 없어서 자동 생성')
-      console.log('현재 세션 타입:', store.currentSessionType)
-      const newSessionId = createNewSession()
-      console.log('✅ 새 세션 생성 완료:', newSessionId)
-      // 세션 생성 후 상태를 다시 가져옴
-      store = useAppStore.getState()
+      throw new Error('세션이 없습니다. + 버튼을 클릭하여 새 세션을 생성해주세요.')
     }
 
     // 현재 상태 가져오기
     const currentState = useAppStore.getState()
     const currentSession = currentState.sessions.find(s => s.id === currentState.currentSessionId)
 
-    console.log('📋 현재 세션 정보:', {
-      sessionId: currentSession?.id,
-      sessionType: currentSession?.type,
-      sessionTitle: currentSession?.title,
-      currentSessionType: currentState.currentSessionType
-    })
+    // 디버그 로그 제거
+    // console.log('📋 현재 세션 정보:', {
+    //   sessionId: currentSession?.id,
+    //   sessionType: currentSession?.type,
+    //   sessionTitle: currentSession?.title,
+    //   currentSessionType: currentState.currentSessionType
+    // })
 
     // 분석 모드인 경우
     if (currentSession?.type === SessionType.ANALYSIS) {
@@ -85,8 +81,9 @@ export function useMessageHandler() {
     currentState: ReturnType<typeof useAppStore.getState>,
     callbacks: MessageHandlerCallbacks
   ) => {
-    console.log('🔍 분석 모드로 실행')
-    
+    // 디버그 로그 제거
+    // console.log('🔍 분석 모드로 실행')
+
     // 현재 상태 가져오기 (메시지 추가 전)
     const chatHistory = [...currentState.messages] // 현재까지의 대화 히스토리
     const currentAnalysisContent = currentState.markdownContent // 현재 분석 내용
@@ -95,7 +92,8 @@ export function useMessageHandler() {
     const template = getTemplateById(currentSession.templateId || currentAnalysisTemplateId || 'default-analysis')
     const systemPrompt = template?.content || ''
 
-    console.log('📋 사용 중인 분석 템플릿:', template?.name || '기본 분석 템플릿')
+    // 디버그 로그 제거
+    // console.log('📋 사용 중인 분석 템플릿:', template?.name || '기본 분석 템플릿')
 
     // 사용자 메시지 추가
     addMessage({ role: 'user', content: message })
@@ -158,7 +156,7 @@ export function useMessageHandler() {
     currentState: ReturnType<typeof useAppStore.getState>,
     callbacks: MessageHandlerCallbacks
   ) => {
-    console.log('📝 기획 모드로 실행')
+    devLog.log('📝 기획 모드 실행')
     
     const chatHistory = [...currentState.messages] // 현재까지의 대화 히스토리
     const currentMarkdownContent = currentState.markdownContent // 현재 기획서
@@ -224,10 +222,11 @@ export function useMessageHandler() {
       }
     }
 
-    console.log('📋 사용 중인 기획 템플릿:', template?.name || '기본 기획 템플릿')
-    if (currentSession?.referenceFiles && currentSession.referenceFiles.length > 0) {
-      console.log('📎 참조 파일 개수:', currentSession.referenceFiles.length)
-    }
+    // 디버그 로그 제거
+    // console.log('📋 사용 중인 기획 템플릿:', template?.name || '기본 기획 템플릿')
+    // if (currentSession?.referenceFiles && currentSession.referenceFiles.length > 0) {
+    //   console.log('📎 참조 파일 개수:', currentSession.referenceFiles.length)
+    // }
 
     // 사용자 메시지 추가
     addMessage({ role: 'user', content: message })

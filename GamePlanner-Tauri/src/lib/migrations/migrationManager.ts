@@ -5,6 +5,7 @@ import { Settings } from '../../types/store'
 import { migrateV1 } from './v1'
 import { migrateV2 } from './v2'
 import { migrateV3 } from './v3'
+import { devLog } from '../utils/logger'
 
 export interface MigrationResult {
   success: boolean
@@ -23,28 +24,28 @@ export function migrateSessions(sessions: unknown[]): ChatSession[] {
   }
 
   if (sessions.length === 0) {
-    console.log('📦 저장된 세션이 없습니다.')
+    devLog.log('📦 저장된 세션 없음')
     return []
   }
 
-  console.log(`🔄 세션 마이그레이션 시작: ${sessions.length}개`)
+  devLog.log(`🔄 세션 마이그레이션 시작: ${sessions.length}개`)
 
   try {
     let migrated = sessions as ChatSession[]
 
     // V1: 세션 타입 추가
     migrated = migrateV1(migrated)
-    console.log('✅ V1 마이그레이션 완료')
+    devLog.log('✅ V1 마이그레이션 완료')
 
     // V2: 템플릿 시스템 추가
     migrated = migrateV2(migrated)
-    console.log('✅ V2 마이그레이션 완료')
+    devLog.log('✅ V2 마이그레이션 완료')
 
     // V3: 참조 파일 필드 추가
     migrated = migrateV3(migrated)
-    console.log('✅ V3 마이그레이션 완료')
+    devLog.log('✅ V3 마이그레이션 완료')
 
-    console.log(`✅ 세션 마이그레이션 완료: ${migrated.length}개`)
+    devLog.log(`✅ 세션 마이그레이션 완료: ${migrated.length}개`)
     return migrated
   } catch (error) {
     console.error('❌ 세션 마이그레이션 실패:', error)

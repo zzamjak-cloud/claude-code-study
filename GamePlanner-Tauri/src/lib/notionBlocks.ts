@@ -4,6 +4,7 @@
 
 import { fetch } from '@tauri-apps/plugin-http'
 import { NotionBlock, NotionRichText, NotionBulletedListItemBlock } from '../types/notion'
+import { devLog } from './utils/logger'
 
 /**
  * 마크다운 텍스트를 Notion 블록 배열로 변환 (중첩 리스트 지원, 최대 2단계)
@@ -489,29 +490,25 @@ export async function createNotionPage(
 
   // 게임명 추출 (게임 기획서 또는 게임 분석)
   let title = gameName
-  console.log('📋 제목 추출 시작:', {
-    gameName,
-    isAnalysisMode,
-    markdownStart: markdown.substring(0, 100)
-  })
+  devLog.log('📋 제목 추출 시작:', { gameName, isAnalysisMode, preview: markdown.substring(0, 100) })
 
   if (isAnalysisMode) {
     // 분석 보고서: "<!-- ANALYSIS_TITLE: 게임명 게임 분석 보고서 -->" 패턴
     const titleMatch = markdown.match(/<!--\s*ANALYSIS_TITLE:\s*(.+?)\s*게임\s*분석\s*보고서\s*-->/m)
     if (titleMatch) {
       title = titleMatch[1].trim()
-      console.log('✅ 분석 보고서 제목 추출 성공:', title)
+      devLog.log('✅ 분석 보고서 제목:', title)
     } else {
-      console.log('⚠️ 분석 보고서 제목 추출 실패 - gameName 사용')
+      devLog.log('⚠️ 분석 보고서 제목 추출 실패, gameName 사용')
     }
   } else {
     // 기획서: "🎮 **게임명 게임 기획서**" 패턴
     const titleMatch = markdown.match(/^🎮\s*\*\*(.+?)\s*게임\s*기획서\*\*/m)
     if (titleMatch) {
       title = titleMatch[1].trim()
-      console.log('✅ 기획서 제목 추출 성공:', title)
+      devLog.log('✅ 기획서 제목:', title)
     } else {
-      console.log('⚠️ 기획서 제목 추출 실패 - gameName 사용')
+      devLog.log('⚠️ 기획서 제목 추출 실패, gameName 사용')
     }
   }
 
@@ -521,16 +518,14 @@ export async function createNotionPage(
   // Database ID를 UUID 형식으로 변환
   const formattedDbId = formatDatabaseId(databaseId)
 
-  console.log('📝 노션 페이지 생성 중...')
-  console.log(`   제목: ${title} : ${titleSuffix}`)
-  console.log(`   전체 블록: ${blocks.length}개`)
+  devLog.log('📝 노션 페이지 생성:', { title: `${title} : ${titleSuffix}`, blocks: blocks.length })
 
   // 첫 100개 블록으로 페이지 생성
   const initialBlocks = blocks.slice(0, 100)
   const remainingBlocks = blocks.slice(100)
 
   if (remainingBlocks.length > 0) {
-    console.log(`   (초기 ${initialBlocks.length}개 + 추가 ${remainingBlocks.length}개 블록)`)
+    devLog.log(`초기 ${initialBlocks.length}개 + 추가 ${remainingBlocks.length}개 블록`)
   }
 
   const payload = {
@@ -573,11 +568,11 @@ export async function createNotionPage(
     const pageId = result.id
     const pageUrl = result.url || ''
 
-    console.log('✅ 페이지 생성 성공!')
+    devLog.log('✅ 페이지 생성 성공')
 
     // 2. 나머지 블록들을 100개씩 추가
     if (remainingBlocks.length > 0) {
-      console.log(`🔄 나머지 ${remainingBlocks.length}개 블록 추가 중...`)
+      devLog.log(`🔄 나머지 ${remainingBlocks.length}개 블록 추가 중`)
 
       for (let i = 0; i < remainingBlocks.length; i += 100) {
         const chunk = remainingBlocks.slice(i, i + 100)
@@ -589,7 +584,7 @@ export async function createNotionPage(
         }
       }
 
-      console.log('✅ 전체 블록 저장 완료!')
+      devLog.log('✅ 전체 블록 저장 완료')
     }
 
     return pageUrl

@@ -3,6 +3,7 @@
 import { StateCreator } from 'zustand'
 import { PromptTemplate } from '../../types/promptTemplate'
 import { generateTemplateId } from '../../lib/utils/session'
+import { devLog } from '../../lib/utils/logger'
 
 export interface TemplateSlice {
   // 템플릿 상태
@@ -42,7 +43,7 @@ export const createTemplateSlice: StateCreator<
     set((state) => ({
       templates: [...state.templates, newTemplate]
     }))
-    console.log('✅ 템플릿 추가:', newTemplate.name)
+    devLog.log('✅ 템플릿 추가:', newTemplate.name)
   },
 
   // 템플릿 수정
@@ -52,7 +53,7 @@ export const createTemplateSlice: StateCreator<
         t.id === id ? { ...t, ...updates, updatedAt: Date.now() } : t
       )
     }))
-    console.log('✅ 템플릿 수정:', id)
+    devLog.log('✅ 템플릿 수정:', id)
   },
 
   // 템플릿 삭제
@@ -67,19 +68,19 @@ export const createTemplateSlice: StateCreator<
     set((state) => ({
       templates: state.templates.filter((t) => t.id !== id)
     }))
-    console.log('✅ 템플릿 삭제:', id)
+    devLog.log('✅ 템플릿 삭제:', id)
   },
 
   // 현재 기획 템플릿 설정
   setCurrentPlanningTemplate: (id) => {
     set({ currentPlanningTemplateId: id })
-    console.log('✅ 현재 기획 템플릿 설정:', id)
+    devLog.log('✅ 기획 템플릿 설정:', id)
   },
 
   // 현재 분석 템플릿 설정
   setCurrentAnalysisTemplate: (id) => {
     set({ currentAnalysisTemplateId: id })
-    console.log('✅ 현재 분석 템플릿 설정:', id)
+    devLog.log('✅ 분석 템플릿 설정:', id)
   },
 
   // ID로 템플릿 가져오기

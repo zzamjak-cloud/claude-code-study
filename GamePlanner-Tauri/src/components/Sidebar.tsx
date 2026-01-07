@@ -6,6 +6,7 @@ import { useAppStore, ChatSession, SessionType } from '../store/useAppStore'
 import { TemplateManagerModal } from './TemplateManagerModal'
 import { TemplateSelector } from './TemplateSelector'
 import { TemplateType } from '../types/promptTemplate'
+import { devLog } from '../lib/utils/logger'
 
 export function Sidebar() {
   const {
@@ -69,7 +70,7 @@ export function Sidebar() {
 
         // 임계값을 넘으면 드래그 시작
         if (distance > DRAG_THRESHOLD) {
-          console.log('✨ 드래그 활성화:', draggedIndex)
+          devLog.log('✨ 드래그 활성화:', draggedIndex)
           setIsDragging(true)
           setDragPosition({ x: e.clientX, y: e.clientY })
         }
@@ -102,8 +103,6 @@ export function Sidebar() {
 
     const handleMouseUp = () => {
       if (isDragging && draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
-        console.log('💧 드롭 발생:', { from: draggedIndex, to: dragOverIndex })
-
         // 현재 타입의 세션만 재정렬
         const reordered = [...filteredSessions]
         const [draggedSession] = reordered.splice(draggedIndex, 1)
@@ -121,13 +120,8 @@ export function Sidebar() {
         // 전체 세션 목록 재구성
         const allSessions = [...otherTypeSessions, ...reorderedWithTimestamp]
 
-        console.log('📊 재정렬 전 세션:', sessions.length, '개')
-        console.log('📊 재정렬 후 세션:', allSessions.length, '개')
-        console.log('📊 현재 타입 세션:', reorderedWithTimestamp.length, '개')
-        console.log('📊 다른 타입 세션:', otherTypeSessions.length, '개')
-
         reorderSessions(allSessions)
-        console.log(`✅ 세션 ${draggedIndex}를 ${dragOverIndex}로 이동 완료`)
+        devLog.log(`✅ 세션 순서 변경: ${draggedIndex} → ${dragOverIndex}`)
       }
 
       setIsDragging(false)
@@ -153,7 +147,6 @@ export function Sidebar() {
       return
     }
 
-    console.log('🎯 마우스 다운:', index)
     setDraggedIndex(index)
     dragStartX.current = e.clientX
     dragStartY.current = e.clientY
@@ -240,8 +233,12 @@ export function Sidebar() {
       const latestSession = typeSessions.sort((a, b) => b.updatedAt - a.updatedAt)[0]
       loadSession(latestSession.id)
     } else {
-      // 해당 타입의 세션이 없으면 새로 생성
-      createNewSession()
+      // 해당 타입의 세션이 없으면 빈 상태로 유지 (자동 생성 제거)
+      useAppStore.setState({
+        currentSessionId: null,
+        messages: [],
+        markdownContent: '',
+      })
     }
   }
 
@@ -283,7 +280,7 @@ export function Sidebar() {
 
       if (!filePath) return // 사용자가 취소한 경우
 
-      // 세션 데이터를 JSON으로 변환
+      // 세션 데이터를 JSON으로 변환 (버전 히스토리 및 참조 파일 포함)
       const sessionData = {
         id: session.id,
         type: session.type,
@@ -295,14 +292,38 @@ export function Sidebar() {
         gameName: session.gameName,
         notionPageUrl: session.notionPageUrl,
         analysisStatus: session.analysisStatus,
+        templateId: session.templateId,
+
+        // 버전 히스토리 포함
+        versions: session.versions || [],
+        currentVersionNumber: session.currentVersionNumber,
+
+        // 참조 파일 포함
+        referenceFiles: session.referenceFiles || [],
+
+        // 체크리스트 및 검증 정보 포함
+        validation: session.validation,
+
         exportedAt: Date.now(),
-        version: '1.0',
+        version: '1.1', // 버전 업데이트 (1.0 -> 1.1)
       }
 
       // 파일 저장
       await writeTextFile(filePath, JSON.stringify(sessionData, null, 2))
 
-      alert('세션이 저장되었습니다!')
+      // 저장된 내용 요약
+      const versionCount = session.versions?.length || 0
+      const referenceCount = session.referenceFiles?.length || 0
+      const summaryParts = []
+
+      if (versionCount > 0) summaryParts.push(`버전 히스토리 ${versionCount}개`)
+      if (referenceCount > 0) summaryParts.push(`참조 파일 ${referenceCount}개`)
+
+      const summary = summaryParts.length > 0
+        ? `\n\n포함된 내용:\n- ${summaryParts.join('\n- ')}`
+        : ''
+
+      alert(`세션이 저장되었습니다!${summary}`)
     } catch (error) {
       console.error('세션 저장 실패:', error)
       alert('세션 저장에 실패했습니다.')
@@ -333,7 +354,7 @@ export function Sidebar() {
         throw new Error('올바르지 않은 세션 파일입니다.')
       }
 
-      // 세션 불러오기
+      // 세션 불러오기 (버전 히스토리 및 참조 파일 복원)
       importSession({
         id: sessionData.id || `session-${Date.now()}`,
         type: sessionData.type || SessionType.PLANNING,  // 기본값: 기획
@@ -345,9 +366,32 @@ export function Sidebar() {
         gameName: sessionData.gameName,
         notionPageUrl: sessionData.notionPageUrl,
         analysisStatus: sessionData.analysisStatus,
+        templateId: sessionData.templateId,
+
+        // 버전 히스토리 복원
+        versions: sessionData.versions || [],
+        currentVersionNumber: sessionData.currentVersionNumber,
+
+        // 참조 파일 복원
+        referenceFiles: sessionData.referenceFiles || [],
+
+        // 체크리스트 및 검증 정보 복원
+        validation: sessionData.validation,
       })
 
-      alert('세션을 불러왔습니다!')
+      // 불러온 내용 요약
+      const versionCount = sessionData.versions?.length || 0
+      const referenceCount = sessionData.referenceFiles?.length || 0
+      const summaryParts = []
+
+      if (versionCount > 0) summaryParts.push(`버전 히스토리 ${versionCount}개`)
+      if (referenceCount > 0) summaryParts.push(`참조 파일 ${referenceCount}개`)
+
+      const summary = summaryParts.length > 0
+        ? `\n\n복원된 내용:\n- ${summaryParts.join('\n- ')}`
+        : ''
+
+      alert(`세션을 불러왔습니다!${summary}`)
     } catch (error) {
       console.error('세션 불러오기 실패:', error)
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'

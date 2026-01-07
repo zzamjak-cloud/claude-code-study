@@ -4,6 +4,7 @@ import { ChatSession } from '../../store/useAppStore'
 import { PromptTemplate } from '../../types/promptTemplate'
 import { Settings } from '../../types/store'
 import { getStore, saveStore } from '../store'
+import { devLog } from '../utils/logger'
 
 export interface IStorageService {
   getSettings(): Promise<Settings>
@@ -98,7 +99,7 @@ export class TauriStorageService implements IStorageService {
     const store = await getStore()
     await store.set('prompt_templates', templates)
     await saveStore()
-    console.log('💾 템플릿 저장 완료:', templates.length, '개')
+    devLog.log('💾 템플릿 저장:', templates.length, '개')
   }
 }
 

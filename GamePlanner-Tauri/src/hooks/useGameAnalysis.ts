@@ -4,6 +4,8 @@ import { GeminiContent } from '../types/gemini'
 import { CHAT_HISTORY_LIMIT } from '../lib/constants/api'
 import { geminiService } from '../lib/services/geminiService'
 import { removeCitationNumbers } from '../lib/utils/markdown'
+import { StreamingProgressTracker } from '../lib/utils/streamingProgress'
+import { devLog } from '../lib/utils/logger'
 
 interface AnalysisCallbacks {
   onChatUpdate: (text: string) => void
@@ -66,16 +68,19 @@ export function useGameAnalysis() {
         parts: [{ text: message }]
       })
 
-      console.log('📝 전달되는 컨텍스트:', {
-        시스템지시문: '포함됨',
-        현재분석내용: currentAnalysis ? '포함됨 (' + currentAnalysis.length + '자)' : '없음',
-        대화히스토리: chatHistory?.length || 0,
-        총메시지수: contents.length
-      })
-
-      console.log('API 요청 시작...')
+      // 디버그 로그 제거
+      // console.log('📝 전달되는 컨텍스트:', {
+      //   시스템지시문: '포함됨',
+      //   현재분석내용: currentAnalysis ? '포함됨 (' + currentAnalysis.length + '자)' : '없음',
+      //   대화히스토리: chatHistory?.length || 0,
+      //   총메시지수: contents.length
+      // })
 
       let fullResponse = ''
+
+      // 진행 상황 추적기 초기화 (템플릿 프롬프트만 사용)
+      const progressTracker = new StreamingProgressTracker(systemPrompt || '기본 분석 템플릿을 사용합니다.')
+      devLog.log('📊 [분석] 진행 상황 추적 시작 - 헤더 개수:', progressTracker.getTotalCount())
 
       // Gemini 서비스를 통한 스트리밍 호출 (Google Search 포함)
       await geminiService.streamGenerateContent(cleanApiKey, contents, {
@@ -89,7 +94,8 @@ export function useGameAnalysis() {
             const text = chunk.candidates[0].content.parts[0]?.text || ''
             if (text) {
               fullResponse += text
-              console.log('텍스트 수신:', text.substring(0, 50) + '...')
+              // 로그 제거: 스트리밍 중 너무 빈번하게 출력됨
+              // console.log('텍스트 수신:', text.substring(0, 50) + '...')
 
               // <markdown_content> 태그 파싱
               const parts = fullResponse.split(/<markdown_content>|<\/markdown_content>/)
@@ -105,7 +111,17 @@ export function useGameAnalysis() {
                 // markdown_content 태그가 열렸지만 아직 닫히지 않음
                 chatText = parts[0]
                 markdownContent = removeCitationNumbers(parts[1])
-                callbacks.onChatUpdate(chatText)
+
+                // 진행 상황 추적 및 업데이트
+                const progressMessage = progressTracker.update(markdownContent)
+                if (progressMessage) {
+                  // 헤더가 변경되었으면 진행 상황 메시지로 채팅 업데이트
+                  callbacks.onChatUpdate(progressMessage)
+                } else if (!chatText) {
+                  // 진행 메시지가 없으면 기본 메시지 표시
+                  callbacks.onChatUpdate(progressTracker.getLastMessage() || '게임 분석 중...')
+                }
+
                 callbacks.onMarkdownUpdate(markdownContent)
               } else if (parts.length >= 3) {
                 // markdown_content 태그가 열리고 닫힘
@@ -119,7 +135,8 @@ export function useGameAnalysis() {
         },
       })
 
-      console.log('전체 응답:', fullResponse.substring(0, 100) + '...')
+      // 디버그 로그 제거
+      // console.log('전체 응답:', fullResponse.substring(0, 100) + '...')
 
       // 최종 파싱
       const parts = fullResponse.split(/<markdown_content>|<\/markdown_content>/)

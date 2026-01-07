@@ -12,7 +12,8 @@ export async function saveSessionImmediately(): Promise<void> {
     const { sessions } = useAppStore.getState()
     if (sessions.length > 0) {
       await saveSessions(sessions)
-      console.log('💾 즉시 저장 완료:', sessions.length, '개 세션')
+      // 로그 제거: 너무 빈번하게 출력됨 (스트리밍 중 매 청크마다 저장)
+      // console.log('💾 즉시 저장 완료:', sessions.length, '개 세션')
     }
   } catch (error) {
     console.error('❌ 즉시 저장 실패:', error)

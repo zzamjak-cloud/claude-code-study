@@ -3,6 +3,7 @@
 import { StateCreator } from 'zustand'
 import { SessionType, ChatSession, Message } from '../useAppStore'
 import { generateSessionId, generateSessionTitle, getDefaultTemplateId } from '../../lib/utils/session'
+import { devLog } from '../../lib/utils/logger'
 
 export interface SessionSlice {
   // 세션 상태
@@ -58,7 +59,7 @@ export const createSessionSlice: StateCreator<
   // 새 세션 생성
   createNewSession: (customTemplateId?: string, customTitle?: string) => {
     const state = get()
-    console.log('🆕 새 세션 생성 시작 - 현재 세션 타입:', state.currentSessionType)
+    devLog.log('🆕 새 세션 생성:', state.currentSessionType)
 
     // 템플릿 ID 결정: 파라미터로 전달된 ID > 현재 선택된 템플릿 ID
     const fullState = state as SessionSlice & { currentPlanningTemplateId: string | null; currentAnalysisTemplateId: string | null }
@@ -79,12 +80,7 @@ export const createSessionSlice: StateCreator<
       templateId: templateId || undefined,
     }
 
-    console.log('✅ 새 세션 생성 완료:', {
-      id: newSession.id,
-      type: newSession.type,
-      title: newSession.title,
-      templateId: newSession.templateId
-    })
+    devLog.log('✅ 세션 생성:', newSession.title)
 
     set((state) => ({
       sessions: [...state.sessions, newSession],
@@ -102,11 +98,7 @@ export const createSessionSlice: StateCreator<
     const session = state.sessions.find((s) => s.id === sessionId)
 
     if (session) {
-      console.log('📂 세션 로드:', {
-        id: session.id,
-        type: session.type,
-        title: session.title
-      })
+      devLog.log('📂 세션 로드:', session.title)
       set({
         currentSessionId: sessionId,
         currentSessionType: session.type,
@@ -184,11 +176,7 @@ export const createSessionSlice: StateCreator<
       updatedAt: Date.now(),
     }
 
-    console.log('📥 세션 불러오기:', {
-      id: newSession.id,
-      type: newSession.type,
-      title: newSession.title
-    })
+    devLog.log('📥 세션 불러오기:', newSession.title)
 
     set((state) => ({
       sessions: [...state.sessions, newSession],
@@ -201,7 +189,7 @@ export const createSessionSlice: StateCreator<
 
   // 세션 순서 변경
   reorderSessions: (reorderedSessions: ChatSession[]) => {
-    console.log('🔄 세션 순서 변경')
+    devLog.log('🔄 세션 순서 변경')
     set({ sessions: reorderedSessions })
   },
 
@@ -335,11 +323,7 @@ export const createSessionSlice: StateCreator<
       }),
     }))
 
-    console.log('📸 버전 생성:', {
-      sessionId,
-      versionNumber: newVersionNumber,
-      description,
-    })
+    devLog.log('📸 버전 생성:', `v${newVersionNumber}${description ? ` - ${description}` : ''}`)
 
     return newVersion.id
   },
@@ -395,11 +379,7 @@ export const createSessionSlice: StateCreator<
       return { sessions: updatedSessions }
     })
 
-    console.log('🔄 버전 복원:', {
-      sessionId,
-      versionId,
-      versionNumber: version.versionNumber,
-    })
+    devLog.log('🔄 버전 복원:', `v${version.versionNumber}`)
   },
 
   // 버전 삭제
@@ -427,11 +407,7 @@ export const createSessionSlice: StateCreator<
       }),
     }))
 
-    console.log('🗑️ 버전 삭제:', {
-      sessionId,
-      versionId,
-      versionNumber: version.versionNumber,
-    })
+    devLog.log('🗑️ 버전 삭제:', `v${version.versionNumber}`)
   },
 
   // 버전 목록 가져오기

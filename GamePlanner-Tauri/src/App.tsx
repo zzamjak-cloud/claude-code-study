@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Header } from './components/Header'
 import { Sidebar } from './components/Sidebar'
 import { ChatPanel } from './components/ChatPanel'
@@ -19,15 +19,17 @@ function App() {
   const [showVersionConfirm, setShowVersionConfirm] = useState(false)
   const [showVersionTitleInput, setShowVersionTitleInput] = useState(false)
   const [versionTitle, setVersionTitle] = useState('')
-  const { apiKey, currentSessionId, sessions, createVersion } = useAppStore()
+  const versionInputRef = useRef<HTMLInputElement>(null) // input ref 추가
+  // sessions 구독 제거 - 렉 방지 (필요할 때만 getState()로 가져옴)
+  const { apiKey, currentSessionId, createVersion, setActivePreviewTab } = useAppStore()
 
   // 앱 초기화
   useAppInitialization({
     onSettingsRequired: () => setShowSettings(true),
   })
 
-  // 세션 자동 저장
-  useAutoSave()
+  // 세션 자동 저장 (버전 생성 중에는 차단)
+  useAutoSave({ isBlocked: showVersionConfirm || showVersionTitleInput })
 
   // 메시지 핸들러
   const { handleSendMessage } = useMessageHandler()
@@ -49,8 +51,11 @@ function App() {
         },
         onComplete: () => {
           setCurrentAssistantMessage('')
+          // 미리보기 탭으로 자동 전환
+          setActivePreviewTab('preview')
           // 기획 세션에서만 버전 등록 팝업 표시
-          const currentSession = sessions.find(s => s.id === currentSessionId)
+          const state = useAppStore.getState()
+          const currentSession = state.sessions.find(s => s.id === currentSessionId)
           if (currentSession && currentSession.type === 'planning') {
             setShowVersionConfirm(true)
           }
@@ -74,6 +79,12 @@ function App() {
   const handleVersionConfirmYes = () => {
     setShowVersionConfirm(false)
     setShowVersionTitleInput(true)
+    // 다음 틱에 input 초기화 (모달이 렌더링된 후)
+    setTimeout(() => {
+      if (versionInputRef.current) {
+        versionInputRef.current.value = ''
+      }
+    }, 0)
   }
 
   const handleVersionConfirmNo = () => {
@@ -84,10 +95,13 @@ function App() {
   const handleVersionTitleConfirm = async () => {
     if (!currentSessionId) return
     try {
-      createVersion(currentSessionId, versionTitle.trim() || undefined)
+      // ref에서 직접 값 가져오기
+      const title = versionInputRef.current?.value?.trim() || undefined
+      createVersion(currentSessionId, title)
       setShowVersionTitleInput(false)
       setVersionTitle('')
-      // 저장 알림은 하지 않음 (자동 저장됨)
+      // 버전 생성 후 즉시 저장 (차단이 해제되면 자동으로 저장됨)
+      // saveSessionImmediately는 필요 없음 - 모달이 닫히면 자동 저장이 재개됨
     } catch (error) {
       console.error('버전 생성 실패:', error)
       alert('버전 생성에 실패했습니다.')
@@ -186,11 +200,12 @@ function App() {
             <div className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
               <h3 className="text-lg font-semibold mb-4">버전 제목 입력</h3>
               <input
+                ref={versionInputRef}
                 type="text"
-                value={versionTitle}
-                onChange={(e) => setVersionTitle(e.target.value)}
+                defaultValue={versionTitle}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault()
                     handleVersionTitleConfirm()
                   } else if (e.key === 'Escape') {
                     handleVersionTitleCancel()

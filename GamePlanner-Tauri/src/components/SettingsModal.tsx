@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { saveSettings } from '../lib/store'
+import { devLog } from '../lib/utils/logger'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -62,7 +63,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         setNotionAnalysisDatabaseId(notionAnalysisDatabaseIdInput.trim())
       }
 
-      console.log('✅ 설정 저장 완료')
+      devLog.log('✅ 설정 저장 완료')
       alert('설정이 저장되었습니다')
       onClose()
     } catch (error) {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
@@ -12,23 +12,35 @@ import { extractGameNameFromPlanning, extractGameNameFromAnalysis, removeHtmlCom
 import { VersionHistory } from './VersionHistory'
 import { ChecklistPanel } from './ChecklistPanel'
 import { ReferenceManager } from './ReferenceManager'
+import { devLog } from '../lib/utils/logger'
 
 export function MarkdownPreview() {
   const {
-    markdownContent,
-    sessions,
     currentSessionId,
     notionApiKey,
     notionPlanningDatabaseId,
     notionAnalysisDatabaseId,
+    activePreviewTab,
+    setActivePreviewTab,
   } = useAppStore()
+
+  // 현재 세션만 선택적으로 구독 (다른 세션 변경 시 리렌더링 방지)
+  const currentSession = useAppStore(state =>
+    state.sessions.find((s) => s.id === state.currentSessionId)
+  )
+
   const [isCopied, setIsCopied] = useState(false)
   const [isNotionLoading, setIsNotionLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'preview' | 'version' | 'checklist' | 'reference'>('preview')
 
-  // 현재 세션 정보
-  const currentSession = sessions.find((s) => s.id === currentSessionId)
   const isAnalysisMode = currentSession?.type === SessionType.ANALYSIS
+
+  // markdownContent는 현재 세션에서 직접 가져와서 동기화 보장
+  const markdownContent = currentSession?.markdownContent || ''
+
+  // 세션이 변경되면 미리보기 탭으로 자동 전환
+  useEffect(() => {
+    setActivePreviewTab('preview')
+  }, [currentSessionId, setActivePreviewTab])
 
   // 마크다운에서 게임명 추출 (노션 저장 시 정확한 제목 사용)
   const gameName = markdownContent
@@ -103,11 +115,7 @@ export function MarkdownPreview() {
       return
     }
 
-    console.log('📝 노션 저장 시작:', {
-      gameName,
-      isAnalysisMode,
-      markdownLength: markdownContent.length
-    })
+    devLog.log('📝 노션 저장 시작:', { gameName, isAnalysisMode, length: markdownContent.length })
 
     setIsNotionLoading(true)
 
@@ -149,9 +157,9 @@ export function MarkdownPreview() {
           {/* 탭 메뉴 */}
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setActiveTab('preview')}
+              onClick={() => setActivePreviewTab('preview')}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-                activeTab === 'preview'
+                activePreviewTab === 'preview'
                   ? 'bg-primary text-primary-foreground'
                   : 'hover:bg-muted'
               }`}
@@ -159,9 +167,9 @@ export function MarkdownPreview() {
               미리보기
             </button>
             <button
-              onClick={() => setActiveTab('version')}
+              onClick={() => setActivePreviewTab('version')}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
-                activeTab === 'version'
+                activePreviewTab === 'version'
                   ? 'bg-primary text-primary-foreground'
                   : 'hover:bg-muted'
               }`}
@@ -170,9 +178,9 @@ export function MarkdownPreview() {
               버전
             </button>
             <button
-              onClick={() => setActiveTab('checklist')}
+              onClick={() => setActivePreviewTab('checklist')}
               className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
-                activeTab === 'checklist'
+                activePreviewTab === 'checklist'
                   ? 'bg-primary text-primary-foreground'
                   : 'hover:bg-muted'
               }`}
@@ -182,9 +190,9 @@ export function MarkdownPreview() {
             </button>
             {!isAnalysisMode && (
               <button
-                onClick={() => setActiveTab('reference')}
+                onClick={() => setActivePreviewTab('reference')}
                 className={`px-3 py-1.5 text-sm rounded-lg transition-colors flex items-center gap-1 ${
-                  activeTab === 'reference'
+                  activePreviewTab === 'reference'
                     ? 'bg-primary text-primary-foreground'
                     : 'hover:bg-muted'
                 }`}
@@ -240,8 +248,17 @@ export function MarkdownPreview() {
 
       {/* 컨텐츠 영역 */}
       <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'preview' && (
-          markdownContent ? (
+        {activePreviewTab === 'preview' && (
+          !currentSession ? (
+            <div className="h-full flex items-center justify-center text-muted-foreground">
+              <div className="text-center">
+                <p className="text-lg font-medium mb-2">세션이 없습니다</p>
+                <p className="text-sm">
+                  사이드바의 <span className="font-semibold">+</span> 버튼을 클릭하여 새 세션을 생성해주세요
+                </p>
+              </div>
+            </div>
+          ) : markdownContent ? (
             <div className="max-w-5xl mx-auto bg-background rounded-lg shadow-sm p-8">
               <div className="prose prose-lg max-w-none
                 prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-foreground
@@ -313,19 +330,19 @@ export function MarkdownPreview() {
           )
         )}
 
-        {activeTab === 'version' && currentSessionId && (
+        {activePreviewTab === 'version' && currentSessionId && (
           <div className="max-w-4xl mx-auto">
             <VersionHistory sessionId={currentSessionId} />
           </div>
         )}
 
-        {activeTab === 'checklist' && currentSessionId && (
+        {activePreviewTab === 'checklist' && currentSessionId && (
           <div className="max-w-4xl mx-auto">
             <ChecklistPanel sessionId={currentSessionId} />
           </div>
         )}
 
-        {activeTab === 'reference' && currentSessionId && !isAnalysisMode && (
+        {activePreviewTab === 'reference' && currentSessionId && !isAnalysisMode && (
           <div className="max-w-4xl mx-auto">
             <ReferenceManager sessionId={currentSessionId} />
           </div>

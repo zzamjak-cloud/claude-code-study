@@ -10,6 +10,7 @@ import { format } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import { saveSessionImmediately } from '../lib/utils/sessionSave'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { devLog } from '../lib/utils/logger'
 
 interface ReferenceManagerProps {
   sessionId: string
@@ -70,7 +71,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
           }
         })
 
-        console.log('✅ [ReferenceManager] 드래그 앤 드롭 리스너 등록 완료')
+        devLog.log('✅ [ReferenceManager] 드래그 앤 드롭 리스너 등록')
       } catch (error) {
         console.error('❌ [ReferenceManager] 드래그 앤 드롭 리스너 등록 실패:', error)
       }
