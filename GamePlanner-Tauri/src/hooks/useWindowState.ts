@@ -1,7 +1,7 @@
 // 창 크기 및 위치 저장/복원 커스텀 훅
 
 import { useEffect } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { getCurrentWindow, PhysicalPosition, PhysicalSize } from '@tauri-apps/api/window'
 import { saveWindowState, getWindowState } from '../lib/store'
 import { devLog } from '../lib/utils/logger'
 
@@ -17,8 +17,8 @@ export function useWindowState() {
         if (savedState && !savedState.maximized) {
           // 최대화 상태가 아니었으면 저장된 크기와 위치 복원
           devLog.log('🪟 저장된 창 상태 복원:', savedState)
-          await appWindow.setPosition({ x: savedState.x, y: savedState.y })
-          await appWindow.setSize({ width: savedState.width, height: savedState.height })
+          await appWindow.setPosition(new PhysicalPosition(savedState.x, savedState.y))
+          await appWindow.setSize(new PhysicalSize(savedState.width, savedState.height))
         } else if (savedState && savedState.maximized) {
           // 최대화 상태였으면 최대화
           devLog.log('🪟 창 최대화 상태 복원')

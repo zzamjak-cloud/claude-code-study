@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
-import { X, Plus, Upload, Edit, Save as SaveIcon, Trash2, CheckCircle2, Copy, GripVertical } from 'lucide-react'
+import { useState } from 'react'
+import { X, Plus, Upload, Edit, Save as SaveIcon, Trash2, CheckCircle2, Copy, ChevronUp, ChevronDown } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { TemplateType, PromptTemplate } from '../types/promptTemplate'
+import { TemplateType } from '../types/promptTemplate'
 import { saveTemplates, setCurrentTemplateIds } from '../lib/store'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
@@ -27,12 +27,6 @@ export function TemplateManagerModal({ isOpen, onClose, templateType }: Template
   } = useAppStore()
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-
-  // 드래그 앤 드롭 상태
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const dragStartPos = useRef<{ x: number; y: number } | null>(null)
-  const isDraggingRef = useRef(false)
 
   // 에디터 모달 상태
   const [showEditor, setShowEditor] = useState(false)
@@ -111,72 +105,40 @@ export function TemplateManagerModal({ isOpen, onClose, templateType }: Template
     }
   }
 
-  // 드래그 시작 (마우스 다운)
-  const handleMouseDown = (e: React.MouseEvent, index: number) => {
-    dragStartPos.current = { x: e.clientX, y: e.clientY }
-    isDraggingRef.current = false
-  }
+  // 템플릿 위로 이동
+  const handleMoveUp = async (index: number) => {
+    if (index <= 0) return // 첫 번째 아이템은 위로 이동 불가
 
-  // 드래그 시작 (실제 드래그 시작)
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    // 마우스가 10px 이상 이동했을 때만 드래그로 판단
-    if (dragStartPos.current) {
-      const dx = e.clientX - dragStartPos.current.x
-      const dy = e.clientY - dragStartPos.current.y
-      const distance = Math.sqrt(dx * dx + dy * dy)
-
-      if (distance < 10) {
-        e.preventDefault()
-        return
-      }
-    }
-
-    isDraggingRef.current = true
-    setDraggedIndex(index)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', index.toString())
-  }
-
-  // 드래그 오버
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-
-    if (draggedIndex !== null && draggedIndex !== index) {
-      setDragOverIndex(index)
-    }
-  }
-
-  // 드래그 종료
-  const handleDragEnd = () => {
-    setDraggedIndex(null)
-    setDragOverIndex(null)
-    dragStartPos.current = null
-    isDraggingRef.current = false
-  }
-
-  // 드롭
-  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
-    e.preventDefault()
-
-    if (draggedIndex === null || draggedIndex === targetIndex) {
-      handleDragEnd()
-      return
-    }
-
-    // 커스텀 템플릿만 재정렬
     const reorderedCustom = [...customTemplates]
-    const [movedItem] = reorderedCustom.splice(draggedIndex, 1)
-    reorderedCustom.splice(targetIndex, 0, movedItem)
+    // 현재 아이템과 위 아이템의 위치를 교환
+    const temp = reorderedCustom[index]
+    reorderedCustom[index] = reorderedCustom[index - 1]
+    reorderedCustom[index - 1] = temp
 
-    // 전체 템플릿 목록 재구성 (기본 템플릿 + 재정렬된 커스텀 템플릿 + 다른 타입 템플릿)
+    // 전체 템플릿 목록 재구성
     const otherTemplates = templates.filter(t => t.type !== templateType)
     const newTemplates = [...otherTemplates, ...defaultTemplates, ...reorderedCustom]
 
     reorderTemplates(newTemplates)
     await saveTemplates(newTemplates)
+  }
 
-    handleDragEnd()
+  // 템플릿 아래로 이동
+  const handleMoveDown = async (index: number) => {
+    if (index >= customTemplates.length - 1) return // 마지막 아이템은 아래로 이동 불가
+
+    const reorderedCustom = [...customTemplates]
+    // 현재 아이템과 아래 아이템의 위치를 교환
+    const temp = reorderedCustom[index]
+    reorderedCustom[index] = reorderedCustom[index + 1]
+    reorderedCustom[index + 1] = temp
+
+    // 전체 템플릿 목록 재구성
+    const otherTemplates = templates.filter(t => t.type !== templateType)
+    const newTemplates = [...otherTemplates, ...defaultTemplates, ...reorderedCustom]
+
+    reorderTemplates(newTemplates)
+    await saveTemplates(newTemplates)
   }
 
   // 템플릿 불러오기
@@ -279,7 +241,7 @@ export function TemplateManagerModal({ isOpen, onClose, templateType }: Template
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-accent'
                   }`}
-                  onClick={() => !isDraggingRef.current && handleSelectTemplate(template.id)}
+                  onClick={() => handleSelectTemplate(template.id)}
                 >
                   <div className="flex items-start gap-3">
                     {/* 라디오 버튼 */}
@@ -335,34 +297,18 @@ export function TemplateManagerModal({ isOpen, onClose, templateType }: Template
                 </div>
               ))}
 
-              {/* 커스텀 템플릿 (드래그 가능) */}
+              {/* 커스텀 템플릿 */}
               {customTemplates.map((template, index) => (
                 <div
                   key={template.id}
-                  draggable
-                  onMouseDown={(e) => handleMouseDown(e, index)}
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDragEnd={handleDragEnd}
-                  onDrop={(e) => handleDrop(e, index)}
-                  className={`p-4 rounded-lg border-2 transition-all cursor-pointer ${
+                  className={`p-4 rounded-lg border-2 transition-colors cursor-pointer ${
                     currentTemplateId === template.id
                       ? 'border-primary bg-primary/5'
                       : 'border-border hover:border-accent'
-                  } ${
-                    draggedIndex === index
-                      ? 'opacity-50'
-                      : dragOverIndex === index
-                      ? 'border-primary border-dashed'
-                      : ''
                   }`}
-                  onClick={() => !isDraggingRef.current && handleSelectTemplate(template.id)}
+                  onClick={() => handleSelectTemplate(template.id)}
                 >
                   <div className="flex items-start gap-3">
-                    {/* 드래그 핸들 */}
-                    <div className="mt-0.5 cursor-grab active:cursor-grabbing">
-                      <GripVertical className="w-5 h-5 text-muted-foreground" />
-                    </div>
 
                     {/* 라디오 버튼 */}
                     <div className="mt-0.5">
@@ -387,6 +333,38 @@ export function TemplateManagerModal({ isOpen, onClose, templateType }: Template
 
                     {/* 액션 버튼들 */}
                     <div className="flex gap-1 ml-2">
+                      {/* 위로 이동 버튼 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMoveUp(index)
+                        }}
+                        disabled={index === 0}
+                        className={`p-2 rounded transition-colors ${
+                          index === 0
+                            ? 'bg-muted/50 text-muted-foreground/30 cursor-not-allowed'
+                            : 'bg-muted hover:bg-accent'
+                        }`}
+                        title="위로 이동"
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                      </button>
+                      {/* 아래로 이동 버튼 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleMoveDown(index)
+                        }}
+                        disabled={index === customTemplates.length - 1}
+                        className={`p-2 rounded transition-colors ${
+                          index === customTemplates.length - 1
+                            ? 'bg-muted/50 text-muted-foreground/30 cursor-not-allowed'
+                            : 'bg-muted hover:bg-accent'
+                        }`}
+                        title="아래로 이동"
+                      >
+                        <ChevronDown className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
