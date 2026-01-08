@@ -1,4 +1,4 @@
-import { Session, KoreanAnalysisCache } from '../types/session';
+import { Session, KoreanAnalysisCache, SessionType } from '../types/session';
 import { ImageAnalysisResult } from '../types/analysis';
 import { saveSessions } from '../lib/storage';
 
@@ -9,7 +9,7 @@ export function createNewSession(
   analysis: ImageAnalysisResult,
   referenceImages: string[],
   koreanAnalysis?: KoreanAnalysisCache,
-  sessionType: 'STYLE' | 'CHARACTER' = 'STYLE'
+  sessionType: SessionType = 'STYLE'
 ): Session {
   return {
     id: Date.now().toString(),

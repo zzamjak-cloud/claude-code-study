@@ -30,6 +30,18 @@ export interface CompositionAnalysis {
   depth_of_field: string;    // 심도
 }
 
+// 픽셀아트 특화 분석 결과 (픽셀아트 타입일 때만 사용)
+export interface PixelArtSpecificAnalysis {
+  resolution_estimate: string;    // 추정 해상도 (예: "64x64", "128x128", "256x256")
+  color_palette_count: string;    // 사용된 색상 수 (예: "4 colors", "16 colors", "32 colors")
+  pixel_density: string;          // 픽셀 밀도 (예: "Low-res 8-bit", "Mid-res 16-bit", "Hi-res 32-bit")
+  style_era: string;              // 스타일 시대 (예: "NES 8-bit", "SNES 16-bit", "GBA 32-bit", "Modern indie")
+  perspective: string;            // 시점 (예: "Top-down", "Side-view", "Isometric", "Front-view")
+  outline_style: string;          // 외곽선 스타일 (예: "Black 1px outlines", "Colored outlines", "No outlines")
+  shading_technique: string;      // 음영 기법 (예: "Dithering", "Color banding", "Flat colors")
+  anti_aliasing: string;          // 안티앨리어싱 사용 여부 (예: "None - pure pixels", "Selective AA on curves")
+}
+
 // 전체 분석 결과
 export interface ImageAnalysisResult {
   style: StyleAnalysis;
@@ -37,4 +49,5 @@ export interface ImageAnalysisResult {
   composition: CompositionAnalysis;
   negative_prompt: string; // 피해야 할 요소들 (예: realistic hands, detailed fingers, 8-head proportions)
   user_custom_prompt?: string; // 사용자가 직접 입력한 맞춤형 프롬프트 (분석 강화 시 유지)
+  pixelart_specific?: PixelArtSpecificAnalysis; // 픽셀아트 타입일 때만 존재
 }

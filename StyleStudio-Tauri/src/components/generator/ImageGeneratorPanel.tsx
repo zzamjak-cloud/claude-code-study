@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
+import { PixelArtGridLayout } from '../../types/pixelart';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -48,6 +49,7 @@ export function ImageGeneratorPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [pixelArtGrid, setPixelArtGrid] = useState<PixelArtGridLayout>('4x4');
 
   // 고급 설정
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -161,6 +163,9 @@ export function ImageGeneratorPanel({
           topK: topK,
           topP: topP,
           referenceStrength: referenceStrength,
+          // 픽셀아트 전용 설정
+          analysis: analysis, // 이미지 분석 결과 (픽셀아트 해상도 추출용)
+          pixelArtGrid: pixelArtGrid, // 픽셀아트 그리드 레이아웃
         },
         {
           onProgress: (message) => {
@@ -368,6 +373,10 @@ export function ImageGeneratorPanel({
                   ? '배경 세션'
                   : sessionType === 'ICON'
                   ? '아이콘 세션'
+                  : sessionType === 'PIXELART_CHARACTER'
+                  ? '픽셀 캐릭터 세션'
+                  : sessionType === 'PIXELART_BACKGROUND'
+                  ? '픽셀 배경 세션'
                   : '스타일 세션'}{' '}
                 · Gemini 3 Pro
               </p>
@@ -433,6 +442,10 @@ export function ImageGeneratorPanel({
                     ? '예: 숲 속, 폭포가 있는 / forest with waterfall'
                     : sessionType === 'ICON'
                     ? '예: 불타는 검, 빛나는 / flaming sword, glowing'
+                    : sessionType === 'PIXELART_CHARACTER'
+                    ? `애니메이션 동작을 설명하세요 (예: attack, walk, jump, idle)\n${pixelArtGrid === '1x1' ? '→ 단일 이미지로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 포즈 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16프레임 애니메이션 시퀀스로 생성됩니다' : '→ 여러 프레임으로 생성됩니다'}`
+                    : sessionType === 'PIXELART_BACKGROUND'
+                    ? `배경 바리에이션을 설명하세요 (예: forest at different times, dungeon levels)\n${pixelArtGrid === '1x1' ? '→ 단일 배경으로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 씬 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16개 배경 바리에이션으로 생성됩니다' : '→ 여러 배경 바리에이션으로 생성됩니다'}`
                     : '예: 밤 풍경, 비오는 날씨 / night scene, rainy weather'
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
@@ -442,6 +455,65 @@ export function ImageGeneratorPanel({
                 한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.
               </p>
             </div>
+
+            {/* 픽셀아트 타입일 때만 그리드 선택 표시 */}
+            {(sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND') && (
+              <div className="p-4 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-lg border border-cyan-200">
+                <label className="block text-sm font-bold text-gray-800 mb-3">
+                  🎮 스프라이트 시트 그리드
+                </label>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {/* 1x1 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('1x1')}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      pixelArtGrid === '1x1'
+                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                    }`}
+                  >
+                    <div className="font-semibold">1×1 (단일프레임)</div>
+                    <div className="text-xs mt-1 opacity-80">단일 이미지</div>
+                  </button>
+
+                  {/* 2x2 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('2x2')}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      pixelArtGrid === '2x2'
+                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                    }`}
+                  >
+                    <div className="font-semibold">2×2 (4프레임)</div>
+                    <div className="text-xs mt-1 opacity-80">간단한 바리에이션</div>
+                  </button>
+
+                  {/* 4x4 그리드 (기본값) */}
+                  <button
+                    onClick={() => setPixelArtGrid('4x4')}
+                    className={`p-3 rounded-lg border-2 transition-all ${
+                      pixelArtGrid === '4x4'
+                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                    }`}
+                  >
+                    <div className="font-semibold">4×4 (16프레임)</div>
+                    <div className="text-xs mt-1 opacity-80">애니메이션 시퀀스</div>
+                  </button>
+                </div>
+
+                {/* 설명 */}
+                <div className="mt-3 p-3 bg-white/50 rounded-lg">
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {pixelArtGrid === '1x1' && '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈 픽셀아트)'}
+                    {pixelArtGrid === '2x2' && '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)'}
+                    {pixelArtGrid === '4x4' && '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* 생성 버튼 */}
             <button
@@ -524,6 +596,10 @@ export function ImageGeneratorPanel({
                   ? '배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
                   : sessionType === 'ICON'
                   ? '아이콘 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'PIXELART_CHARACTER'
+                  ? '픽셀 캐릭터 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
+                  : sessionType === 'PIXELART_BACKGROUND'
+                  ? '픽셀 배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
                   : '현재 세션의 이미지를 참조하여 스타일 일관성을 높입니다'}
               </p>
 
@@ -568,6 +644,10 @@ export function ImageGeneratorPanel({
                         ? '배경 스타일 복사 정도를 조절합니다. 높을수록 참조 배경의 스타일을 강하게 따릅니다.'
                         : sessionType === 'ICON'
                         ? '아이콘 스타일 복사 정도를 조절합니다. 높을수록 참조 아이콘의 스타일을 강하게 따릅니다.'
+                        : sessionType === 'PIXELART_CHARACTER'
+                        ? '픽셀 캐릭터 외형 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 이미지와 동일하게 유지됩니다.'
+                        : sessionType === 'PIXELART_BACKGROUND'
+                        ? '픽셀 배경 스타일 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 배경의 스타일을 강하게 따릅니다.'
                         : '스타일 복사 정도를 조절합니다. 높을수록 참조 스타일을 강하게 따릅니다.'}
                     </p>
                   </div>

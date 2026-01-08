@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Palette, User, Mountain, Box } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3 } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -68,7 +68,7 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
             <label className="block text-sm font-semibold text-gray-700 mb-3">
               세션 타입
             </label>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               {/* STYLE */}
               <button
                 onClick={() => setSessionType('STYLE')}
@@ -138,6 +138,42 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   아이템/아이콘 스타일을 학습하여 다양한 오브젝트를 생성합니다
+                </p>
+              </button>
+
+              {/* PIXELART_CHARACTER */}
+              <button
+                onClick={() => setSessionType('PIXELART_CHARACTER')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'PIXELART_CHARACTER'
+                    ? 'bg-cyan-50 border-cyan-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-cyan-300 hover:bg-cyan-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Gamepad2 size={20} className={sessionType === 'PIXELART_CHARACTER' ? 'text-cyan-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'PIXELART_CHARACTER' ? 'text-cyan-900' : 'text-gray-700'}>픽셀 캐릭터</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  픽셀아트 캐릭터를 학습하여 게임 스프라이트를 생성합니다
+                </p>
+              </button>
+
+              {/* PIXELART_BACKGROUND */}
+              <button
+                onClick={() => setSessionType('PIXELART_BACKGROUND')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'PIXELART_BACKGROUND'
+                    ? 'bg-teal-50 border-teal-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-teal-300 hover:bg-teal-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Grid3x3 size={20} className={sessionType === 'PIXELART_BACKGROUND' ? 'text-teal-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'PIXELART_BACKGROUND' ? 'text-teal-900' : 'text-gray-700'}>픽셀 배경</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  픽셀아트 배경을 학습하여 게임 씬을 생성합니다
                 </p>
               </button>
             </div>

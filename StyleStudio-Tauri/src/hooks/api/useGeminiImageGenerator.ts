@@ -1,5 +1,7 @@
 import { SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
+import { PixelArtGridLayout, getPixelArtGridInfo } from '../../types/pixelart';
+import { ImageAnalysisResult } from '../../types/analysis';
 
 // Gemini API 타입 정의
 interface GeminiPart {
@@ -31,6 +33,8 @@ interface ImageGenerationParams {
   imageSize?: '1K' | '2K' | '4K'; // Gemini 3 Pro만 지원
   negativePrompt?: string; // 피해야 할 요소
   sessionType?: SessionType; // 세션 타입 (CHARACTER/STYLE)
+  analysis?: ImageAnalysisResult; // 이미지 분석 결과 (픽셀아트 해상도 추출용)
+  pixelArtGrid?: PixelArtGridLayout; // 픽셀아트 그리드 레이아웃 (선택)
 
   // 고급 설정
   seed?: number; // 재현성을 위한 시드 값
@@ -44,6 +48,44 @@ interface GenerationCallbacks {
   onProgress?: (status: string) => void;
   onComplete: (imageBase64: string, textResponse?: string) => void;
   onError: (error: Error) => void;
+}
+
+/**
+ * ASCII 그리드 생성 (프롬프트 시각화용)
+ */
+function generateGridASCII(rows: number, cols: number): string {
+  let ascii = '';
+  for (let r = 0; r < rows; r++) {
+    let row = '';
+    for (let c = 0; c < cols; c++) {
+      const frameNum = r * cols + c + 1;
+      row += `[${frameNum.toString().padStart(2, '0')}] `;
+    }
+    ascii += row.trim() + '\n';
+  }
+  return ascii.trim();
+}
+
+/**
+ * 해상도 문자열에서 숫자 추출
+ * @param resolutionStr - "64x64", "128x128" 형식의 문자열
+ * @returns 추출된 해상도 (기본값: 128)
+ */
+function parseResolutionEstimate(resolutionStr?: string): number {
+  if (!resolutionStr) return 128; // 기본값
+
+  // "64x64", "128x128", "256x256" 형식 파싱
+  const match = resolutionStr.match(/(\d+)x(\d+)/);
+  if (!match) return 128;
+
+  const width = parseInt(match[1], 10);
+  const height = parseInt(match[2], 10);
+
+  // 정사각형 가정, 더 큰 쪽 사용
+  const maxDimension = Math.max(width, height);
+
+  // 16px ~ 512px 범위로 제한
+  return Math.max(16, Math.min(512, maxDimension));
 }
 
 export function useGeminiImageGenerator() {
@@ -350,6 +392,295 @@ STEP 3: ICON-SPECIFIC REQUIREMENTS
 4. Is the style consistent with typical game/app icon standards?
 
 NEVER add your own artistic interpretation. CLONE the reference icon style EXACTLY.`;
+      } else if (hasReferenceImages && params.sessionType === 'PIXELART_CHARACTER') {
+        // 픽셀아트 캐릭터: 그리드 스프라이트 시트로 애니메이션 시퀀스 생성
+        const gridLayout = params.pixelArtGrid || '4x4';
+        logger.debug('🎮 픽셀아트 캐릭터 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+        const gridInfo = getPixelArtGridInfo(gridLayout);
+        const { rows, cols, totalFrames, cellSize, recommendedPixelSize } = gridInfo;
+
+        // 분석 결과에서 실제 해상도 추출 (fallback: gridInfo.recommendedPixelSize)
+        const pixelSize = parseResolutionEstimate(
+          params.analysis?.pixelart_specific?.resolution_estimate
+        ) || recommendedPixelSize;
+
+        fullPrompt = `🎮 MISSION: Create a PIXEL ART ANIMATION SPRITE SHEET on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} frames
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per frame
+🎯 PIXEL ART SIZE: ${pixelSize}x${pixelSize}px (centered in each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE frame of the animation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE ANIMATION (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ANIMATION REQUEST: "${params.prompt || 'idle stance'}"
+
+🎬 ANIMATION INTERPRETATION GUIDE:
+- "attack" / "공격" = Prepare → Wind up → Strike → Follow through → Return
+- "walk" / "걷기" = Lift foot → Move forward → Plant foot → Repeat (cycle)
+- "jump" / "점프" = Crouch → Launch → Rise → Peak → Fall → Land
+- "idle" / "대기" = Subtle breathing or swaying motion (loopable)
+- "run" / "달리기" = Faster walk cycle with more exaggerated motion
+
+📋 FRAME BREAKDOWN:
+For ${totalFrames} frames total, divide the animation into natural phases:
+- Beginning frames: Preparation/anticipation (20%)
+- Middle frames: Main action (50%)
+- End frames: Follow-through/recovery (30%)
+
+⚠️ MAKE IT LOOPABLE: First and last frames should connect smoothly!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE PIXEL ART CHARACTER STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔒 PIXEL GRID & RESOLUTION (CRITICAL):
+- Canvas size: ${pixelSize}x${pixelSize}px per frame
+- All pixels on integer grid coordinates
+- NO sub-pixel positioning, NO mixels (mixed pixel sizes)
+- Consistent pixel size throughout entire sprite
+- NO anti-aliasing (pure pixel edges, crisp and sharp)
+- NO blur or smoothing filters
+
+🔒 BODY PROPORTIONS (PIXEL-PERFECT COPY):
+- Head size in pixels → COPY EXACTLY (e.g., 8x8px, 16x16px)
+- Body height in pixels → COPY EXACTLY
+- Limb length in pixels → COPY EXACTLY
+- If reference is 2-head chibi pixel → Keep 2-head chibi pixel
+- Count pixels in reference and use SAME pixel counts
+
+🔒 COLOR PALETTE (EXACT MATCH):
+- Use EXACT same colors from reference (NO color interpolation)
+- Same palette size (4 colors, 16 colors, 32 colors, etc.)
+- NO smooth gradients, NO color blending
+- Match saturation, brightness, hue EXACTLY
+
+🔒 LINE & OUTLINE STYLE (MOST IMPORTANT!):
+⚠️ CRITICAL: Check reference outline thickness!
+- If reference has 1px outlines → Use EXACTLY 1px outlines (NOT 2px, NOT 3px)
+- If reference has NO outlines → Use NO outlines
+- If reference has colored outlines → Use SAME colored outlines
+- Pixel Perfect lines: NO doubles, NO jaggies, NO thick lines
+- Same edge treatment as reference
+- Clean silhouette for sprite use
+- NEVER make outlines thicker than reference!
+
+🔒 SHADING TECHNIQUE (COPY EXACTLY):
+- Copy shading method (dithering patterns, color banding, flat colors)
+- Same shadow pixel patterns (checkerboard, 2x2, etc.)
+- Same highlight placement
+- NO smooth shading, NO anti-aliasing
+
+🔒 FACIAL FEATURES (PIXEL DETAIL):
+- Eye size and position (exact pixel count, e.g., 2x2px eyes)
+- Hair pixel pattern and shape
+- Face outline pixels
+- Maintain pixel art simplification level
+
+🔒 ANIMATION CONSISTENCY:
+- Character size stays IDENTICAL across all frames
+- No morphing or size changes between frames
+- Maintain volume and silhouette
+- Only pose/position changes, never proportions
+- Outline thickness NEVER changes between frames
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Center ${pixelSize}×${pixelSize}px pixel art in each cell
+- Leave padding around each sprite (for clean separation)
+
+🎯 FRAME ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Frame 1 at (0,0), Frame 2 at (1,0), ..., Frame ${cols} at (${cols-1},0)
+Frame ${cols+1} at (0,1), ...
+
+⚠️ BLACK BACKGROUND: Use solid black (#000000) background for easy cropping.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECKLIST:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} frames total (${rows}×${cols} grid)?
+2. ✅ Each frame is ${pixelSize}×${pixelSize}px pixel art?
+3. ✅ Animation flows naturally across frames?
+4. ✅ Character style EXACTLY matches reference?
+5. ✅ Outline thickness EXACTLY matches reference (1px = 1px, NOT 2px)?
+6. ✅ NO anti-aliasing or smoothing?
+7. ✅ Black background for easy separation?
+
+CRITICAL: This is a sprite sheet for game development. Pixel-perfect precision is essential.
+⚠️ MOST IMPORTANT: If reference has 1px outlines, NEVER use 2px or thicker outlines!`;
+      } else if (hasReferenceImages && params.sessionType === 'PIXELART_BACKGROUND') {
+        // 픽셀아트 배경: 그리드 방식으로 여러 배경 바리에이션 생성
+        const gridLayout = params.pixelArtGrid || '4x4'; // 기본 4x4
+        logger.debug('🌍 픽셀아트 배경 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+        const gridInfo = getPixelArtGridInfo(gridLayout);
+        const { rows, cols, totalFrames, cellSize, recommendedPixelSize } = gridInfo;
+
+        // 분석 결과에서 실제 해상도 추출 (fallback: gridInfo.recommendedPixelSize)
+        const pixelSize = parseResolutionEstimate(
+          params.analysis?.pixelart_specific?.resolution_estimate
+        ) || recommendedPixelSize;
+
+        fullPrompt = `🌍 MISSION: Create PIXEL ART BACKGROUND VARIATIONS on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} variations
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per background
+🎯 PIXEL ART SIZE: ${pixelSize}x${pixelSize}px (centered in each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE variation of the environment.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE ENVIRONMENT (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENVIRONMENT REQUEST: "${params.prompt || 'outdoor landscape'}"
+
+🌍 ENVIRONMENT INTERPRETATION GUIDE:
+- "forest" / "숲" = Trees, foliage, woodland scenery
+- "dungeon" / "던전" = Stone walls, torches, enclosed space
+- "city" / "도시" = Buildings, streets, urban landscape
+- "cave" / "동굴" = Rocky interior, crystals, dark atmosphere
+- "castle" / "성" = Fortress, towers, medieval architecture
+- "beach" / "해변" = Sand, ocean, coastal scenery
+
+🎨 VARIATIONS (${totalFrames} total):
+Create ${totalFrames} different variations of the same environment:
+- Different times of day (dawn, noon, dusk, night)
+- Different weather (clear, rain, snow, fog)
+- Different angles (front view, side view, top-down)
+- Different areas (entrance, middle section, exit)
+
+⚠️ MAINTAIN CONSISTENCY: All variations share the same environment type and pixel art style!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE PIXEL ART BACKGROUND STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔒 PIXEL GRID & RESOLUTION (CRITICAL):
+- Canvas size: ${pixelSize}x${pixelSize}px per background
+- All tiles/objects on pixel-perfect grid
+- NO sub-pixel positioning
+- Consistent pixel size throughout
+- NO anti-aliasing (crisp pixel edges, sharp and clean)
+- NO blur or smoothing filters
+- Perfect pixel grid alignment throughout
+
+🔒 COLOR PALETTE & ATMOSPHERE (EXACT MATCH):
+- Use EXACT same color palette from reference (NO interpolation)
+- Same palette size (16 colors, 32 colors, 64 colors, etc.)
+- Match color temperature and saturation EXACTLY
+- Copy atmospheric color usage (fog, lighting, mood)
+- NO smooth gradients, NO color blending
+
+🔒 TILE-BASED DESIGN (if applicable):
+- Same tile size (8x8, 16x16, 32x32 pixels)
+- Consistent tile patterns
+- Same repetition strategy
+- Tile-based layout if reference uses tiles
+- Perfect alignment on pixel grid
+
+🔒 PERSPECTIVE & DEPTH:
+- Copy perspective type (top-down, side-view, isometric) EXACTLY
+- Same depth layering approach (foreground/background)
+- Consistent horizon line treatment
+- Maintain pixel art perspective conventions
+
+🔒 DETAIL LEVEL & TEXTURE:
+- Match level of pixel detail (simplified vs detailed)
+- Same texture density
+- Copy pattern complexity
+- Maintain consistent level across entire scene
+
+🔒 LIGHTING & SHADING (COPY EXACTLY):
+- Copy shading technique (dithering, banding, flat)
+- Same shadow pixel patterns
+- Match highlight placement style
+- NO smooth gradients, use pixel art shading methods
+
+🔒 OUTLINE & EDGES (MOST IMPORTANT!):
+⚠️ CRITICAL: Check reference edge treatment!
+- If reference has outlined tiles → Use EXACTLY same outline thickness (1px, 2px, etc.)
+- If reference has soft edges → Use same edge treatment
+- If reference has NO outlines → Use NO outlines
+- Consistent line weight if present
+- Copy edge pixel patterns EXACTLY
+- NO anti-aliasing on edges
+- NEVER make edges thicker or smoother than reference!
+
+🔒 VARIATION CONSISTENCY:
+- Environment type stays IDENTICAL across all variations
+- Pixel art style NEVER changes between variations
+- Only lighting/weather/angle changes, never the core style
+- Maintain pixel-perfect grid alignment
+- Outline/edge treatment NEVER changes between variations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Center ${pixelSize}×${pixelSize}px pixel art in each cell
+- Leave padding around each background (for clean separation)
+
+🎯 VARIATION ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Variation 1 at (0,0), Variation 2 at (1,0), ..., Variation ${cols} at (${cols-1},0)
+Variation ${cols+1} at (0,1), ...
+
+⚠️ BLACK BACKGROUND: Use solid black (#000000) background for easy cropping.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: ENVIRONMENTAL REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- NO characters or creatures (background only, pure environment)
+- Focus on environment and scenery
+- Suitable for game background use
+- Each variation should be unique yet cohesive
+- Maintain pixel art aesthetic throughout
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECKLIST:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} variations total (${rows}×${cols} grid)?
+2. ✅ Each variation is ${pixelSize}×${pixelSize}px pixel art?
+3. ✅ All variations share the same environment and style?
+4. ✅ Background style EXACTLY matches reference?
+5. ✅ Edge/outline treatment EXACTLY matches reference?
+6. ✅ NO anti-aliasing or smoothing?
+7. ✅ Black background for easy separation?
+8. ✅ NO characters or creatures in the backgrounds?
+
+CRITICAL: These are background variations for game development. Pixel-perfect precision is essential.
+⚠️ MOST IMPORTANT: Edge treatment must EXACTLY match reference (thin edges = thin edges, NO thickening)!`;
       } else if (hasReferenceImages && params.sessionType === 'CHARACTER') {
         // 캐릭터 세션: 포즈 변경 최우선 + 캐릭터 외형/비율 완벽 복사
         fullPrompt = `🚨 MISSION: Draw the EXACT SAME character from reference images, but in a NEW POSE.

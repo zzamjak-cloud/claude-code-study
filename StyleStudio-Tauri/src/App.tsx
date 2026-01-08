@@ -232,6 +232,7 @@ function App() {
           alert('분석 오류: ' + error.message);
         },
       },
+      currentSession?.type, // sessionType 전달
       isRefinementMode ? { previousAnalysis: analysisResult } : undefined
     );
   };

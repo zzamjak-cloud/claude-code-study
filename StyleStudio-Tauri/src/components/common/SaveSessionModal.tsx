@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Palette, User, Mountain, Box } from 'lucide-react';
+import { X, Save, Palette, User, Mountain, Box, Gamepad2, Grid3x3 } from 'lucide-react';
 import { Session, SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
 
@@ -77,7 +77,7 @@ export function SaveSessionModal({ isOpen, onClose, onSave, currentSession }: Sa
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               세션 타입
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <button
                 onClick={() => setSessionType('STYLE')}
                 className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
@@ -124,6 +124,30 @@ export function SaveSessionModal({ isOpen, onClose, onSave, currentSession }: Sa
               >
                 <Box size={20} />
                 <span>아이콘</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('PIXELART_CHARACTER')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'PIXELART_CHARACTER'
+                    ? 'bg-cyan-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Gamepad2 size={20} />
+                <span>픽셀 캐릭터</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('PIXELART_BACKGROUND')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'PIXELART_BACKGROUND'
+                    ? 'bg-teal-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Grid3x3 size={20} />
+                <span>픽셀 배경</span>
               </button>
             </div>
           </div>

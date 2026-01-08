@@ -2,8 +2,10 @@ import {
   STYLE_ANALYZER_PROMPT,
   MULTI_IMAGE_ANALYZER_PROMPT,
   REFINEMENT_ANALYZER_PROMPT,
+  PIXELART_ANALYZER_PROMPT,
 } from '../../lib/gemini/analysisPrompt';
 import { ImageAnalysisResult } from '../../types/analysis';
+import { SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
 
 interface AnalysisCallbacks {
@@ -21,6 +23,7 @@ export function useGeminiAnalyzer() {
     apiKey: string,
     imageBase64Array: string[],
     callbacks: AnalysisCallbacks,
+    sessionType?: SessionType,
     options?: AnalysisOptions
   ) => {
     try {
@@ -70,7 +73,12 @@ export function useGeminiAnalyzer() {
       let analysisPrompt: string;
       let promptType: string;
 
-      if (options?.previousAnalysis) {
+      // 픽셀아트 타입이면 픽셀아트 전용 프롬프트 사용
+      if (sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND') {
+        analysisPrompt = PIXELART_ANALYZER_PROMPT;
+        promptType = 'PIXELART';
+        logger.debug('📋 프롬프트 선택: PIXELART (픽셀아트 특화 분석)');
+      } else if (options?.previousAnalysis) {
         // 분석 강화 모드: 기존 분석 결과를 포함한 프롬프트 사용
         const previousAnalysisJson = JSON.stringify(options.previousAnalysis, null, 2);
         analysisPrompt = REFINEMENT_ANALYZER_PROMPT(previousAnalysisJson);

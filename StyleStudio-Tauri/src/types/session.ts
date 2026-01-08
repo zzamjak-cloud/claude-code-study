@@ -1,6 +1,6 @@
 import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
 
-export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON';
+export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND';
 
 // 번역된 분석 결과 (캐싱용)
 export interface KoreanAnalysisCache {
