@@ -2,6 +2,7 @@
 
 import { GeminiContent, GeminiStreamChunk } from '../../types/gemini'
 import { GEMINI_API_BASE_URL, GEMINI_MODELS, GEMINI_GENERATION_CONFIG } from '../constants/api'
+import { devLog } from '../utils/logger'
 
 export interface IGeminiService {
   streamGenerateContent(
@@ -81,6 +82,20 @@ export class GeminiService implements IGeminiService {
               const text = data.candidates[0].content.parts[0]?.text || ''
               if (text) {
                 fullResponse += text
+              }
+            }
+
+            // finishReason 확인 (응답이 왜 끝났는지 로그)
+            if (data.candidates && data.candidates[0]?.finishReason) {
+              const finishReason = data.candidates[0].finishReason
+              if (finishReason === 'MAX_TOKENS') {
+                devLog.warn('⚠️ [API] 최대 토큰 수에 도달하여 응답이 잘렸습니다. maxOutputTokens를 늘려야 합니다.')
+              } else if (finishReason === 'SAFETY') {
+                devLog.warn('⚠️ [API] 안전 필터에 의해 응답이 차단되었습니다.')
+              } else if (finishReason === 'STOP') {
+                devLog.log('✅ [API] 응답이 정상적으로 완료되었습니다. (총 길이: ' + fullResponse.length + '자)')
+              } else {
+                devLog.warn('⚠️ [API] 알 수 없는 종료 이유: ' + finishReason)
               }
             }
           } catch (e) {

@@ -77,6 +77,7 @@ export function useGameAnalysis() {
       // })
 
       let fullResponse = ''
+      let wasMaxTokens = false // MAX_TOKENS로 종료되었는지 추적
 
       // 진행 상황 추적기 초기화 (템플릿 프롬프트만 사용)
       const progressTracker = new StreamingProgressTracker(systemPrompt || '기본 분석 템플릿을 사용합니다.')
@@ -90,6 +91,11 @@ export function useGameAnalysis() {
           },
         ],
         onChunk: (chunk) => {
+          // finishReason 확인 (MAX_TOKENS 체크)
+          if (chunk.candidates && chunk.candidates[0]?.finishReason === 'MAX_TOKENS') {
+            wasMaxTokens = true
+          }
+
           if (chunk.candidates && chunk.candidates[0]?.content?.parts) {
             const text = chunk.candidates[0].content.parts[0]?.text || ''
             if (text) {
@@ -105,8 +111,19 @@ export function useGameAnalysis() {
 
               if (parts.length === 1) {
                 // markdown_content 태그가 없음
-                chatText = fullResponse
-                callbacks.onChatUpdate(chatText)
+                // 분석 모드에서는 모든 내용을 마크다운으로 처리 (대비책)
+                devLog.warn('⚠️ [분석] <markdown_content> 태그 없음 - 모든 내용을 마크다운으로 처리')
+                markdownContent = removeCitationNumbers(fullResponse)
+
+                // 진행 상황 추적
+                const progressMessage = progressTracker.update(markdownContent)
+                if (progressMessage) {
+                  callbacks.onChatUpdate(progressMessage)
+                } else {
+                  callbacks.onChatUpdate(progressTracker.getLastMessage() || '게임 분석 중...')
+                }
+
+                callbacks.onMarkdownUpdate(markdownContent)
               } else if (parts.length === 2) {
                 // markdown_content 태그가 열렸지만 아직 닫히지 않음
                 chatText = parts[0]
@@ -135,17 +152,43 @@ export function useGameAnalysis() {
         },
       })
 
-      // 디버그 로그 제거
-      // console.log('전체 응답:', fullResponse.substring(0, 100) + '...')
-
       // 최종 파싱
       const parts = fullResponse.split(/<markdown_content>|<\/markdown_content>/)
       let chatText = ''
+      let finalMarkdownContent = ''
 
       if (parts.length === 1) {
-        chatText = fullResponse
+        // 태그가 없으면 모든 내용을 마크다운으로 처리
+        devLog.log('📋 [분석 완료] 태그 없음 - 전체 내용을 마크다운으로 처리')
+        finalMarkdownContent = removeCitationNumbers(fullResponse)
+        chatText = '게임 분석이 완료되었습니다.'
+
+        // 최종 마크다운 업데이트
+        callbacks.onMarkdownUpdate(finalMarkdownContent)
       } else if (parts.length >= 3) {
+        // 태그가 있으면 태그 밖의 내용을 채팅으로 처리
         chatText = parts[0] + (parts[2] || '')
+        finalMarkdownContent = removeCitationNumbers(parts[1])
+
+        devLog.log('📋 [분석 완료] 태그 파싱 성공 - 마크다운 길이:', finalMarkdownContent.length)
+
+        // 최종 마크다운 업데이트
+        callbacks.onMarkdownUpdate(finalMarkdownContent)
+      } else if (parts.length === 2) {
+        // 태그가 열렸지만 닫히지 않은 경우
+        chatText = parts[0]
+        finalMarkdownContent = removeCitationNumbers(parts[1])
+
+        devLog.warn('⚠️ [분석 완료] 태그가 닫히지 않음 - 부분 처리')
+
+        // 최종 마크다운 업데이트
+        callbacks.onMarkdownUpdate(finalMarkdownContent)
+      }
+
+      // MAX_TOKENS 경고 추가
+      if (wasMaxTokens) {
+        const warningMessage = '\n\n⚠️ 경고: 분석 보고서가 너무 길어서 일부 내용이 잘렸을 수 있습니다. "계속 작성해줘" 또는 "마지막 항목을 완성해줘"라고 요청하세요.'
+        chatText = chatText ? chatText + warningMessage : warningMessage
       }
 
       callbacks.onComplete(chatText)

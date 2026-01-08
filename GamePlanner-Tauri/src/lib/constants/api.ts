@@ -12,7 +12,7 @@ export const GEMINI_GENERATION_CONFIG = {
   temperature: 0.7,
   topK: 40,
   topP: 0.95,
-  maxOutputTokens: 8192,
+  maxOutputTokens: 32768, // Gemini 2.5 Flash 최대 출력 토큰 (8192 → 32768로 증가)
 } as const
 
 export const CHAT_HISTORY_LIMIT = 8 // 최근 대화 히스토리 개수 (비용 최적화를 위해 10 → 8로 축소)

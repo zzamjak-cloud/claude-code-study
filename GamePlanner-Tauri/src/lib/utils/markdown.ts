@@ -93,8 +93,18 @@ export function extractMentionedGames(markdown: string): string[] {
 
 /**
  * 마크다운에서 Google Search 출처 참조 번호 제거
+ * 예: "텍스트 ([1], [2], [3])" → "텍스트"
+ * 예: "텍스트 ([1])" → "텍스트"
  */
 export function removeCitationNumbers(markdown: string): string {
-  return markdown.replace(/\[\d+(?:,\s*\d+)*\]/g, '')
+  // 1단계: 인용 번호 제거 (예: [1], [2, 3, 4])
+  let result = markdown.replace(/\[\d+(?:,\s*\d+)*\]/g, '')
+
+  // 2단계: 빈 괄호 또는 쉼표/공백만 있는 괄호 제거
+  // 예: "텍스트 (, , , )" → "텍스트 "
+  // 예: "텍스트 ()" → "텍스트 "
+  result = result.replace(/\s*\([,\s]*\)/g, '')
+
+  return result
 }
 
