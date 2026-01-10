@@ -748,7 +748,7 @@ export function ImageGeneratorPanel({
                   className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 disabled:cursor-not-allowed"
                 />
                 <span className="text-sm font-semibold text-gray-700">
-                  참조 이미지 사용 ({referenceImages.length}개)
+                  참조 이미지 {referenceImages.length}/14
                 </span>
               </label>
               <p className="text-xs text-gray-500 mt-1">

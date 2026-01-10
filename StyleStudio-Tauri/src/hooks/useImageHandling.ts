@@ -50,13 +50,18 @@ interface UseImageHandlingReturn {
   setUploadedImages: React.Dispatch<React.SetStateAction<string[]>>;
   handleImageSelect: (imageData: string) => void;
   handleRemoveImage: (index: number) => void;
+  showLimitWarning: boolean;
+  setShowLimitWarning: React.Dispatch<React.SetStateAction<boolean>>;
 }
+
+const MAX_IMAGES = 14;
 
 /**
  * 이미지 업로드 및 드롭 처리 Hook
  */
 export function useImageHandling(): UseImageHandlingReturn {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
+  const [showLimitWarning, setShowLimitWarning] = useState(false);
   const lastDropTimeRef = useRef(0);
 
   // 전역 드래그 앤 드롭 리스너
@@ -86,7 +91,13 @@ export function useImageHandling(): UseImageHandlingReturn {
               for (const filePath of imageFiles) {
                 const imageData = await loadTauriImage(filePath);
                 if (imageData) {
-                  setUploadedImages((prev) => [...prev, imageData]);
+                  setUploadedImages((prev) => {
+                    if (prev.length >= MAX_IMAGES) {
+                      setShowLimitWarning(true);
+                      return prev;
+                    }
+                    return [...prev, imageData];
+                  });
                 }
               }
             }
@@ -107,7 +118,13 @@ export function useImageHandling(): UseImageHandlingReturn {
   }, []);
 
   const handleImageSelect = (imageData: string) => {
-    setUploadedImages((prev) => [...prev, imageData]);
+    setUploadedImages((prev) => {
+      if (prev.length >= MAX_IMAGES) {
+        setShowLimitWarning(true);
+        return prev;
+      }
+      return [...prev, imageData];
+    });
   };
 
   const handleRemoveImage = (index: number) => {
@@ -119,6 +136,8 @@ export function useImageHandling(): UseImageHandlingReturn {
     setUploadedImages,
     handleImageSelect,
     handleRemoveImage,
+    showLimitWarning,
+    setShowLimitWarning,
   };
 }
 

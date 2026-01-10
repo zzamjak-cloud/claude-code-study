@@ -47,7 +47,7 @@ function App() {
   const [refineConfirm, setRefineConfirm] = useState(false);
 
   // 커스텀 훅 사용
-  const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage } =
+  const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage, showLimitWarning, setShowLimitWarning } =
     useImageHandling();
 
   // 창 크기 및 위치 저장/복원
@@ -644,6 +644,39 @@ function App() {
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
               >
                 분석하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 이미지 개수 제한 경고 다이얼로그 */}
+      {showLimitWarning && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowLimitWarning(false);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-md w-full p-6 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-2 text-red-600">이미지 개수 제한</h3>
+            <p className="text-gray-600 mb-4">
+              참조 이미지는 최대 14개까지 등록할 수 있습니다.
+            </p>
+            <p className="text-gray-600 mb-6">
+              기존 이미지를 제거한 후 새로운 이미지를 등록해 주세요.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowLimitWarning(false)}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
+              >
+                확인
               </button>
             </div>
           </div>
