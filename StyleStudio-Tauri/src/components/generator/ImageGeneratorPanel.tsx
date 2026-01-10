@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { join, downloadDir } from '@tauri-apps/api/path';
@@ -56,7 +56,11 @@ export function ImageGeneratorPanel({
   const [isGenerating, setIsGenerating] = useState(false);
   const [progressMessage, setProgressMessage] = useState('');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [pixelArtGrid, setPixelArtGrid] = useState<PixelArtGridLayout>('4x4');
+  const [pixelArtGrid, setPixelArtGrid] = useState<PixelArtGridLayout>('1x1'); // 기본값 1x1로 변경
+
+  // 줌 관련
+  const [zoomLevel, setZoomLevel] = useState<'fit' | 'actual' | number>('fit');
+  const [showZoomMenu, setShowZoomMenu] = useState(false);
 
   // 고급 설정
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -69,6 +73,15 @@ export function ImageGeneratorPanel({
 
   // 히스토리 영역 높이 (픽셀 단위)
   const [historyHeight, setHistoryHeight] = useState<number>(192); // 기본값: max-h-48 (192px)
+
+  // 줌 메뉴 외부 클릭 시 닫기
+  useEffect(() => {
+    if (showZoomMenu) {
+      const handleClickOutside = () => setShowZoomMenu(false);
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showZoomMenu]);
 
   const handleHistoryResize = (delta: number) => {
     setHistoryHeight((prev) => {
@@ -182,6 +195,7 @@ export function ImageGeneratorPanel({
           onComplete: async (imageBase64) => {
             const dataUrl = `data:image/png;base64,${imageBase64}`;
             setGeneratedImage(dataUrl);
+            setZoomLevel('fit'); // 이미지 생성 시 줌을 '화면에 맞춤'으로 리셋
             setIsGenerating(false);
             setIsTranslating(false);
             setProgressMessage('');
@@ -425,6 +439,71 @@ export function ImageGeneratorPanel({
               <Folder size={20} />
               <span>저장 폴더</span>
             </button>
+
+            {/* 줌 컨트롤 */}
+            {generatedImage && (
+              <div className="relative">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowZoomMenu(!showZoomMenu);
+                  }}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  <ZoomIn size={18} />
+                  <span className="text-sm font-medium">
+                    {zoomLevel === 'fit' ? '화면에 맞춤' : zoomLevel === 'actual' ? '원본 크기' : `${zoomLevel}%`}
+                  </span>
+                  <ChevronDown size={16} />
+                </button>
+
+                {/* 줌 드롭다운 메뉴 */}
+                {showZoomMenu && (
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-full mt-2 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-50 py-2 min-w-[180px]"
+                  >
+                    <button
+                      onClick={() => {
+                        setZoomLevel('fit');
+                        setShowZoomMenu(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                        zoomLevel === 'fit' ? 'bg-purple-50 text-purple-700 font-semibold' : 'text-gray-700'
+                      }`}
+                    >
+                      화면에 맞춤
+                    </button>
+                    <button
+                      onClick={() => {
+                        setZoomLevel('actual');
+                        setShowZoomMenu(false);
+                      }}
+                      className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                        zoomLevel === 'actual' ? 'bg-purple-50 text-purple-700 font-semibold' : 'text-gray-700'
+                      }`}
+                    >
+                      원본 크기 (100%)
+                    </button>
+                    <div className="border-t border-gray-200 my-2"></div>
+                    {[25, 50, 75, 100, 150, 200, 300].map((level) => (
+                      <button
+                        key={level}
+                        onClick={() => {
+                          setZoomLevel(level);
+                          setShowZoomMenu(false);
+                        }}
+                        className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 transition-colors ${
+                          zoomLevel === level ? 'bg-purple-50 text-purple-700 font-semibold' : 'text-gray-700'
+                        }`}
+                      >
+                        {level}%
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -869,22 +948,63 @@ export function ImageGeneratorPanel({
         {/* 오른쪽: 결과 표시 및 히스토리 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 결과 표시 영역 */}
-          <div className="flex-1 p-8 overflow-y-auto">
-            <div className="flex items-start justify-center min-h-full">
+          <div className={`flex-1 p-8 ${zoomLevel === 'fit' && generatedImage ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+            <div className={`flex items-start justify-center ${zoomLevel === 'fit' && generatedImage ? 'h-full' : 'min-h-full'}`}>
               {isGenerating ? (
                 <div className="flex flex-col items-center mt-20">
                   <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
                   <p className="text-gray-600 font-semibold">{progressMessage}</p>
                 </div>
               ) : generatedImage ? (
-                <div className="max-w-5xl w-full">
-                  <div className="bg-white rounded-xl shadow-2xl p-6">
-                    <img
-                      src={generatedImage}
-                      alt="Generated"
-                      className="w-full h-auto rounded-lg"
-                      style={{ maxHeight: 'none' }}
-                    />
+                <div className={`max-w-5xl w-full ${zoomLevel === 'fit' ? 'h-full flex flex-col' : ''}`}>
+                  {/* 이미지 표시 영역 */}
+                  <div
+                    className={`bg-white rounded-xl shadow-2xl ${
+                      zoomLevel === 'fit' ? '' : 'p-6 overflow-auto'
+                    }`}
+                    style={{
+                      ...(zoomLevel === 'fit' ? {
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1.5rem',
+                      } : {
+                        maxHeight: '70vh',
+                      }),
+                    }}
+                  >
+                    {zoomLevel === 'fit' ? (
+                      <img
+                        src={generatedImage}
+                        alt="Generated"
+                        className="rounded-lg"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          objectFit: 'contain',
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center">
+                        <img
+                          src={generatedImage}
+                          alt="Generated"
+                          className="rounded-lg"
+                          style={{
+                            ...(zoomLevel === 'actual' ? {
+                              width: 'auto',
+                              height: 'auto',
+                            } : {
+                              width: `${zoomLevel}%`,
+                              height: 'auto',
+                            }),
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
