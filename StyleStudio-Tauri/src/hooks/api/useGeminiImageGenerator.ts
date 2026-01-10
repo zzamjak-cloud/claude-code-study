@@ -664,8 +664,8 @@ Frame ${cols+1} at (0,1), ...
 CRITICAL: This is a sprite sheet for game development. Pixel-perfect precision is essential.
 ⚠️ MOST IMPORTANT: If reference has 1px outlines, NEVER use 2px or thicker outlines!`;
       } else if (hasReferenceImages && params.sessionType === 'PIXELART_BACKGROUND') {
-        // 픽셀아트 배경: 그리드 방식으로 여러 배경 바리에이션 생성
-        const gridLayout = params.pixelArtGrid || '4x4'; // 기본 4x4
+        // 픽셀아트 배경: 그리드 방식 또는 단일 배경
+        const gridLayout = params.pixelArtGrid || '1x1'; // 기본 1x1 (단일 배경)
         logger.debug('🌍 픽셀아트 배경 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
         const gridInfo = getPixelArtGridInfo(gridLayout);
         const { rows, cols, totalFrames, cellSize, recommendedPixelSize } = gridInfo;
@@ -675,7 +675,148 @@ CRITICAL: This is a sprite sheet for game development. Pixel-perfect precision i
           params.analysis?.pixelart_specific?.resolution_estimate
         ) || recommendedPixelSize;
 
-        fullPrompt = `🌍 MISSION: Create PIXEL ART BACKGROUND VARIATIONS on a 1024x1024 canvas.
+        // aspectRatio에 따른 캔버스 크기 결정
+        const aspectRatio = params.aspectRatio || '1:1';
+        let canvasWidth = 1024;
+        let canvasHeight = 1024;
+
+        if (aspectRatio === '9:16') {
+          // 9:16 세로 (예: 576x1024)
+          canvasWidth = 576;
+          canvasHeight = 1024;
+        } else if (aspectRatio === '16:9') {
+          // 16:9 가로 (예: 1024x576)
+          canvasWidth = 1024;
+          canvasHeight = 576;
+        } else if (aspectRatio === '3:4') {
+          // 3:4 세로 (예: 768x1024)
+          canvasWidth = 768;
+          canvasHeight = 1024;
+        } else if (aspectRatio === '4:3') {
+          // 4:3 가로 (예: 1024x768)
+          canvasWidth = 1024;
+          canvasHeight = 768;
+        }
+        // 1:1은 기본값 1024x1024
+
+        // 1x1 그리드 (단일 배경) vs 다중 그리드 (바리에이션)
+        if (gridLayout === '1x1') {
+          // 단일 배경 이미지 생성
+          fullPrompt = `🌍 MISSION: Create a SINGLE PIXEL ART BACKGROUND on a ${canvasWidth}x${canvasHeight} canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE CANVAS (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: ${canvasWidth}x${canvasHeight}px (ASPECT RATIO: ${aspectRatio})
+🎯 PIXEL ART SIZE: ${pixelSize}x${Math.floor(pixelSize * (canvasHeight / canvasWidth))}px target resolution
+🎯 OUTPUT: ONE complete pixel art background scene
+
+⚠️ CRITICAL ASPECT RATIO REQUIREMENT:
+- ALWAYS fill the ENTIRE ${canvasWidth}x${canvasHeight}px canvas
+- NO letterboxing (black bars on sides)
+- NO pillarboxing (black bars on top/bottom)
+- The pixel art background MUST occupy the FULL ${canvasWidth}x${canvasHeight}px canvas
+- Respect the ${aspectRatio} aspect ratio throughout
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE ENVIRONMENT (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENVIRONMENT REQUEST: "${params.prompt || 'pixel art background scene'}"
+
+🌍 ENVIRONMENT INTERPRETATION GUIDE:
+- "forest" / "숲" = Trees, foliage, woodland scenery
+- "dungeon" / "던전" = Stone walls, torches, enclosed space
+- "city" / "도시" = Buildings, streets, urban landscape
+- "cave" / "동굴" = Rocky interior, crystals, dark atmosphere
+- "castle" / "성" = Fortress, towers, medieval architecture
+- "beach" / "해변" = Sand, ocean, coastal scenery
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE PIXEL ART BACKGROUND STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔒 PIXEL GRID & RESOLUTION (CRITICAL):
+- Canvas size: ${canvasWidth}x${canvasHeight}px (FILL COMPLETELY)
+- Target pixel density: ${pixelSize}x${Math.floor(pixelSize * (canvasHeight / canvasWidth))}px equivalent
+- All tiles/objects on pixel-perfect grid
+- NO sub-pixel positioning
+- Consistent pixel size throughout
+- NO anti-aliasing (crisp pixel edges, sharp and clean)
+- NO blur or smoothing filters
+- Perfect pixel grid alignment throughout
+
+🔒 COLOR PALETTE & ATMOSPHERE (EXACT MATCH):
+- Use EXACT same color palette from reference (NO interpolation)
+- Same palette size (16 colors, 32 colors, 64 colors, etc.)
+- Match color temperature and saturation EXACTLY
+- Copy atmospheric color usage (fog, lighting, mood)
+- NO smooth gradients, NO color blending
+
+🔒 TILE-BASED DESIGN (if applicable):
+- Same tile size (8x8, 16x16, 32x32 pixels)
+- Consistent tile patterns
+- Same repetition strategy
+- Tile-based layout if reference uses tiles
+- Perfect alignment on pixel grid
+
+🔒 PERSPECTIVE & DEPTH:
+- Copy perspective type (top-down, side-view, isometric) EXACTLY
+- Same depth layering approach (foreground/background)
+- Consistent horizon line treatment
+- Maintain pixel art perspective conventions
+
+🔒 DETAIL LEVEL & TEXTURE:
+- Match level of pixel detail (simplified vs detailed)
+- Same texture density
+- Copy pattern complexity
+- Maintain consistent level across entire scene
+
+🔒 LIGHTING & SHADING (COPY EXACTLY):
+- Copy shading technique (hue shifting, color banding, flat, cell shading)
+- Same shadow pixel patterns (avoid old dithering patterns)
+- Match highlight placement style
+- Use modern pixel art shading: hue shifting and color banding preferred
+- NO smooth gradients, NO old-school dithering, use clean pixel art shading methods
+
+🔒 OUTLINE & EDGES (MOST IMPORTANT!):
+⚠️ CRITICAL: Check reference edge treatment!
+- If reference has outlined tiles → Use EXACTLY same outline thickness (1px, 2px, etc.)
+- If reference has soft edges → Use same edge treatment
+- If reference has NO outlines → Use NO outlines
+- Consistent line weight if present
+- Copy edge pixel patterns EXACTLY
+- NO anti-aliasing on edges
+- NEVER make edges thicker or smoother than reference!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FINAL REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ NEGATIVE PROMPT (AVOID):
+${params.negativePrompt || 'smooth gradients, realistic rendering, 3D effects'}
+- NO characters, people, humans, figures, portraits, faces, living beings
+- NO smooth gradients or realistic rendering
+- NO anti-aliasing or blur effects
+- NO modern high-resolution rendering
+- NO 3D effects or realistic lighting
+
+✅ OUTPUT CHECKLIST:
+1. ✅ Filled ENTIRE ${canvasWidth}x${canvasHeight}px canvas?
+2. ✅ ${aspectRatio} aspect ratio respected?
+3. ✅ Pixel-perfect grid alignment?
+4. ✅ Exact color palette match?
+5. ✅ Same tile size and patterns?
+6. ✅ Correct perspective and depth?
+7. ✅ NO anti-aliasing or smoothing?
+8. ✅ NO characters or living beings?
+
+CRITICAL: This is a pixel art background. Pixel-perfect precision and style matching are essential.
+⚠️ MOST IMPORTANT: Fill the ENTIRE ${canvasWidth}x${canvasHeight}px canvas with NO letterboxing!`;
+        } else {
+          // 다중 그리드 (바리에이션)
+          fullPrompt = `🌍 MISSION: Create PIXEL ART BACKGROUND VARIATIONS on a 1024x1024 canvas.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
@@ -829,6 +970,7 @@ STEP 5: ENVIRONMENTAL REQUIREMENTS
 
 CRITICAL: These are background variations for game development. Pixel-perfect precision is essential.
 ⚠️ MOST IMPORTANT: Edge treatment must EXACTLY match reference (thin edges = thin edges, NO thickening)!`;
+        }
       } else if (hasReferenceImages && params.sessionType === 'PIXELART_ICON') {
         // 픽셀아트 아이콘: 그리드 방식으로 여러 아이콘 바리에이션 생성
         const gridLayout = params.pixelArtGrid || '4x4'; // 기본 4x4
