@@ -330,6 +330,74 @@ const { progress } = useAutoSave({
 
 ## 최신 업데이트
 
+### 2026-01-10: 수동 이미지 저장 기능 추가 (오후)
+
+#### 기능 개요
+- **자동 저장**: 이미지 생성 시 자동으로 지정된 폴더에 저장
+- **수동 저장**: 사용자가 다운로드 버튼 클릭 시 원하는 위치에 저장 가능
+- **경로 툴팁**: 저장 폴더 경로에 마우스 호버 시 전체 경로 표시
+
+#### 구현 내용
+1. **다운로드 버튼 추가**:
+   - 위치: 생성된 이미지 좌측 상단 오버레이
+   - 스타일: 반투명 배경 + 그림자, 호버 시 강조
+   - 아이콘: `Download` (lucide-react)
+
+2. **수동 저장 함수** (`handleManualSave`):
+   - OS 네이티브 저장 다이얼로그 사용 (`@tauri-apps/plugin-dialog`의 `save`)
+   - 기본 저장 경로: 사용자 지정 폴더 또는 `Downloads/AI_Gen`
+   - 기본 파일명: `style-studio-[timestamp].jpg`
+   - 덮어쓰기 확인: OS 다이얼로그에서 자동 처리
+
+3. **저장 폴더 경로 표시 개선** (커스텀 툴팁):
+   - 폴더 이름만 표시 (예: `AI_Gen`)
+   - 마우스 호버 시 전체 경로 커스텀 툴팁 표시
+   - 툴팁 위치: 오른쪽 정렬 (`right-0`) → 화면 끝에서도 잘리지 않음
+   - 툴팁 스타일: 어두운 배경 (`bg-gray-900`), 그림자 효과, 애니메이션
+   - 호버 시 배경색 변경으로 인터랙티브 피드백
+   - 커서가 물음표 모양(`cursor-help`)으로 변경되어 툴팁 존재 표시
+
+4. **구현 위치**:
+   - Import 수정: `ImageGeneratorPanel.tsx:1-5`
+   - 툴팁 상태 관리: `ImageGeneratorPanel.tsx:65-66`
+   - 수동 저장 함수: `ImageGeneratorPanel.tsx:323-387`
+   - UI 버튼: `ImageGeneratorPanel.tsx:1044-1050`
+   - 커스텀 툴팁: `ImageGeneratorPanel.tsx:496-519`
+
+#### 사용 흐름
+1. 이미지 생성 완료
+2. 자동으로 지정된 폴더에 저장
+3. 사용자가 다운로드 버튼 클릭 (선택사항)
+4. OS 네이티브 저장 다이얼로그 표시
+5. 사용자가 경로 및 파일명 지정
+6. 동일한 파일명이 있으면 OS가 덮어쓰기 확인
+7. 저장 완료 후 경로 알림
+
+### 2026-01-10: macOS 썸네일 표시 수정 (오후)
+
+#### 문제 진단
+- **이슈**: 자동 저장된 파일이 macOS Finder에서 썸네일 표시 안 됨 (일반 문서 아이콘만 표시)
+- **원인**: 파일 확장자는 `.png`이지만 실제 파일 형식은 **JPEG** (Gemini API가 JPEG 데이터 반환)
+- **확인 방법**: `file *.png` 명령으로 "JPEG image data" 출력 확인
+
+#### 해결 방법
+- **파일 확장자 변경**: `.png` → `.jpg`로 변경
+- **구현 위치**: `ImageGeneratorPanel.tsx:276-321`
+- **핵심 변경**:
+  ```typescript
+  // 기존
+  const fileName = `style-studio-${timestamp}.png`;
+
+  // 수정
+  const fileName = `style-studio-${timestamp}.jpg`;
+  ```
+
+#### 결과
+- ✅ 파일 형식과 확장자 일치
+- ✅ macOS Finder에서 썸네일 정상 표시
+- ✅ Quick Look 미리보기 지원
+- ✅ 불필요한 재인코딩 단계 제거 (성능 향상)
+
 ### 2026-01-10: 픽셀아트 확장 및 Grid 시스템 강화
 
 #### 1. PIXELART_ICON 세션 타입 추가

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn } from 'lucide-react';
-import { open } from '@tauri-apps/plugin-dialog';
+import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn, Download } from 'lucide-react';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { join, downloadDir } from '@tauri-apps/api/path';
 import { ImageAnalysisResult } from '../../types/analysis';
@@ -61,6 +61,9 @@ export function ImageGeneratorPanel({
   // 줌 관련
   const [zoomLevel, setZoomLevel] = useState<'fit' | 'actual' | number>('fit');
   const [showZoomMenu, setShowZoomMenu] = useState(false);
+
+  // 경로 툴팁 관련
+  const [showPathTooltip, setShowPathTooltip] = useState(false);
 
   // 고급 설정
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -273,7 +276,7 @@ export function ImageGeneratorPanel({
     }
   };
 
-  // 자동 저장 함수
+  // 자동 저장 함수 (Gemini API가 JPEG로 반환하므로 .jpg로 저장)
   const autoSaveImage = async (imageDataUrl: string) => {
     try {
       // 저장 경로 결정
@@ -296,12 +299,12 @@ export function ImageGeneratorPanel({
         }
       }
 
-      // 파일명 생성
+      // 파일명 생성 (.jpg 확장자 사용 - Gemini가 JPEG 반환)
       const timestamp = Date.now();
-      const fileName = `style-studio-${timestamp}.png`;
+      const fileName = `style-studio-${timestamp}.jpg`;
       const fullPath = await join(savePath, fileName);
 
-      // Base64를 Uint8Array로 변환
+      // Base64를 Uint8Array로 변환 (원본 그대로 저장)
       const base64Data = imageDataUrl.split(',')[1];
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
@@ -317,6 +320,72 @@ export function ImageGeneratorPanel({
     } catch (error) {
       logger.error('❌ 자동 저장 오류:', error);
       throw error;
+    }
+  };
+
+  // 수동 저장 함수 (사용자가 다운로드 버튼 클릭 시)
+  const handleManualSave = async () => {
+    if (!generatedImage) {
+      return;
+    }
+
+    try {
+      // 기본 저장 경로 결정
+      let defaultPath = autoSavePath;
+
+      // 경로가 없거나 폴더가 존재하지 않으면 기본 경로 사용
+      if (!defaultPath || !(await exists(defaultPath))) {
+        const downloadPath = await downloadDir();
+        defaultPath = await join(downloadPath, 'AI_Gen');
+
+        // 기본 폴더가 없으면 생성
+        if (!(await exists(defaultPath))) {
+          await mkdir(defaultPath, { recursive: true });
+          logger.debug('📁 기본 폴더 생성됨:', defaultPath);
+        }
+      }
+
+      // 기본 파일명 생성
+      const timestamp = Date.now();
+      const defaultFileName = `style-studio-${timestamp}.jpg`;
+      const defaultFilePath = await join(defaultPath, defaultFileName);
+
+      // Tauri의 save 다이얼로그 사용 (OS 네이티브, 덮어쓰기 자동 확인)
+      const selectedPath = await save({
+        defaultPath: defaultFilePath,
+        filters: [
+          {
+            name: 'JPEG Image',
+            extensions: ['jpg', 'jpeg'],
+          },
+        ],
+        title: '이미지 저장',
+      });
+
+      // 사용자가 취소한 경우
+      if (!selectedPath) {
+        logger.debug('💾 사용자가 저장 취소');
+        return;
+      }
+
+      logger.debug('💾 수동 저장 경로:', selectedPath);
+
+      // Base64를 Uint8Array로 변환
+      const base64Data = generatedImage.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      // 파일 저장
+      await writeFile(selectedPath, bytes);
+      logger.debug('✅ 이미지 수동 저장 완료:', selectedPath);
+
+      alert(`이미지가 저장되었습니다.\n\n${selectedPath}`);
+    } catch (error) {
+      logger.error('❌ 수동 저장 오류:', error);
+      alert('이미지 저장에 실패했습니다: ' + (error as Error).message);
     }
   };
 
@@ -423,12 +492,30 @@ export function ImageGeneratorPanel({
           </div>
           {/* 자동 저장 폴더 정보 및 설정 버튼 */}
           <div className="flex items-center gap-3">
-            {/* 폴더 경로 표시 (항상 표시) */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
-              <FolderOpen size={16} className="text-green-600" />
-              <span className="text-sm text-green-700 font-medium max-w-xs truncate" title={autoSavePath || 'Downloads/AI_Gen (기본)'}>
-                {autoSavePath ? autoSavePath.split(/[/\\]/).filter(Boolean).pop() : 'Downloads/AI_Gen (기본)'}
-              </span>
+            {/* 폴더 경로 표시 (항상 표시) + 커스텀 툴팁 */}
+            <div className="relative">
+              <div
+                className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg cursor-help hover:bg-green-100 transition-colors"
+                onMouseEnter={() => setShowPathTooltip(true)}
+                onMouseLeave={() => setShowPathTooltip(false)}
+              >
+                <FolderOpen size={16} className="text-green-600" />
+                <span className="text-sm text-green-700 font-medium max-w-xs truncate">
+                  {autoSavePath ? autoSavePath.split(/[/\\]/).filter(Boolean).pop() : 'AI_Gen'}
+                </span>
+              </div>
+
+              {/* 커스텀 툴팁 (왼쪽으로 표시) */}
+              {showPathTooltip && (
+                <div className="absolute top-full right-0 mt-2 z-50 pointer-events-none">
+                  <div className="bg-gray-900 text-white text-xs rounded-lg shadow-xl px-3 py-2 whitespace-nowrap">
+                    <div className="font-semibold mb-1">저장 위치:</div>
+                    <div className="text-gray-300">
+                      {autoSavePath || '~/Downloads/AI_Gen (기본)'}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             {/* 폴더 선택 버튼 */}
             <button
@@ -959,7 +1046,7 @@ export function ImageGeneratorPanel({
                 <div className={`max-w-5xl w-full ${zoomLevel === 'fit' ? 'h-full flex flex-col' : ''}`}>
                   {/* 이미지 표시 영역 */}
                   <div
-                    className={`bg-white rounded-xl shadow-2xl ${
+                    className={`relative bg-white rounded-xl shadow-2xl ${
                       zoomLevel === 'fit' ? '' : 'p-6 overflow-auto'
                     }`}
                     style={{
@@ -974,6 +1061,15 @@ export function ImageGeneratorPanel({
                       }),
                     }}
                   >
+                    {/* 다운로드 버튼 (좌측 상단 오버레이) */}
+                    <button
+                      onClick={handleManualSave}
+                      className="absolute top-4 left-4 z-10 p-3 bg-white/90 hover:bg-white border border-gray-200 rounded-lg shadow-lg transition-all hover:shadow-xl group"
+                      title="이미지 저장"
+                    >
+                      <Download size={20} className="text-gray-700 group-hover:text-purple-600 transition-colors" />
+                    </button>
+
                     {zoomLevel === 'fit' ? (
                       <img
                         src={generatedImage}
