@@ -9,6 +9,7 @@ import { SaveSessionModal } from './components/common/SaveSessionModal';
 import { NewSessionModal } from './components/common/NewSessionModal';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
+import { useWindowState } from './hooks/useWindowState';
 import { ProgressIndicator } from './components/common/ProgressIndicator';
 import { ImageAnalysisResult } from './types/analysis';
 import { Session, SessionType } from './types/session';
@@ -48,6 +49,10 @@ function App() {
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage } =
     useImageHandling();
+
+  // 창 크기 및 위치 저장/복원
+  useWindowState();
+
   const {
     apiKey,
     sessions,
@@ -564,6 +569,16 @@ function App() {
                 onHistoryUpdate={handleHistoryUpdate}
                 onHistoryDelete={handleHistoryDelete}
                 onBack={handleBackToAnalysis}
+                autoSavePath={currentSession?.autoSavePath}
+                onAutoSavePathChange={async (path) => {
+                  if (currentSession) {
+                    const updatedSession = updateSession(currentSession, { autoSavePath: path });
+                    const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+                    setSessions(updatedSessions);
+                    setCurrentSession(updatedSession);
+                    await persistSessions(updatedSessions);
+                  }
+                }}
               />
             )
           )

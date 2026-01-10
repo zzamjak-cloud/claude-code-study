@@ -1,5 +1,8 @@
 import { useState, useMemo } from 'react';
-import { Wand2, Download, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin } from 'lucide-react';
+import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
+import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
+import { join, downloadDir } from '@tauri-apps/api/path';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
@@ -20,6 +23,8 @@ interface ImageGeneratorPanelProps {
   onHistoryUpdate?: (entryId: string, updates: Partial<GenerationHistoryEntry>) => void;
   onHistoryDelete?: (entryId: string) => void;
   onBack?: () => void;
+  autoSavePath?: string; // 자동 저장 폴더 경로
+  onAutoSavePathChange?: (path: string) => void; // 폴더 경로 변경 콜백
 }
 
 export function ImageGeneratorPanel({
@@ -33,6 +38,8 @@ export function ImageGeneratorPanel({
   onHistoryUpdate,
   onHistoryDelete,
   onBack,
+  autoSavePath,
+  onAutoSavePathChange,
 }: ImageGeneratorPanelProps) {
   const { positivePrompt, negativePrompt } = useMemo(
     () => buildUnifiedPrompt(analysis),
@@ -172,13 +179,22 @@ export function ImageGeneratorPanel({
             setProgressMessage(message);
             logger.debug('📊 진행:', message);
           },
-          onComplete: (imageBase64) => {
+          onComplete: async (imageBase64) => {
             const dataUrl = `data:image/png;base64,${imageBase64}`;
             setGeneratedImage(dataUrl);
             setIsGenerating(false);
             setIsTranslating(false);
             setProgressMessage('');
             logger.debug('✅ 생성 완료');
+
+            // 자동 저장
+            try {
+              const savedPath = await autoSaveImage(dataUrl);
+              logger.debug('💾 자동 저장 완료:', savedPath);
+            } catch (error) {
+              logger.error('❌ 자동 저장 실패:', error);
+              // 자동 저장 실패해도 이미지 표시는 계속
+            }
 
             // 히스토리에 추가
             if (onHistoryAdd) {
@@ -222,38 +238,71 @@ export function ImageGeneratorPanel({
     }
   };
 
-  const handleDownload = () => {
-    if (!generatedImage) return;
-
+  // 폴더 선택 함수
+  const handleSelectFolder = async () => {
     try {
-      // base64 데이터 URL을 Blob으로 변환
-      const byteString = atob(generatedImage.split(',')[1]);
-      const mimeString = generatedImage.split(',')[0].split(':')[1].split(';')[0];
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: '이미지 저장 폴더 선택',
+      });
 
-      const ab = new ArrayBuffer(byteString.length);
-      const ia = new Uint8Array(ab);
-      for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
+      if (selected && typeof selected === 'string') {
+        logger.debug('📁 폴더 선택됨:', selected);
+        if (onAutoSavePathChange) {
+          onAutoSavePathChange(selected);
+        }
+      }
+    } catch (error) {
+      logger.error('❌ 폴더 선택 오류:', error);
+      alert('폴더 선택에 실패했습니다: ' + (error as Error).message);
+    }
+  };
+
+  // 자동 저장 함수
+  const autoSaveImage = async (imageDataUrl: string) => {
+    try {
+      // 저장 경로 결정
+      let savePath = autoSavePath;
+
+      // 경로가 없거나 폴더가 존재하지 않으면 기본 경로 사용
+      if (!savePath || !(await exists(savePath))) {
+        const downloadPath = await downloadDir();
+        savePath = await join(downloadPath, 'AI_Gen');
+
+        // 기본 폴더가 없으면 생성
+        if (!(await exists(savePath))) {
+          await mkdir(savePath, { recursive: true });
+          logger.debug('📁 기본 폴더 생성됨:', savePath);
+        }
+
+        // 기본 경로로 변경 알림
+        if (onAutoSavePathChange) {
+          onAutoSavePathChange(savePath);
+        }
       }
 
-      const blob = new Blob([ab], { type: mimeString });
-      const blobUrl = URL.createObjectURL(blob);
+      // 파일명 생성
+      const timestamp = Date.now();
+      const fileName = `style-studio-${timestamp}.png`;
+      const fullPath = await join(savePath, fileName);
 
-      // 다운로드 링크 생성 및 클릭
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `style-studio-${Date.now()}.png`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Base64를 Uint8Array로 변환
+      const base64Data = imageDataUrl.split(',')[1];
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
 
-      // Blob URL 해제
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+      // 파일 저장
+      await writeFile(fullPath, bytes);
+      logger.debug('✅ 이미지 자동 저장 완료:', fullPath);
 
-      logger.debug('✅ 이미지 다운로드 완료');
+      return fullPath;
     } catch (error) {
-      logger.error('❌ 다운로드 오류:', error);
-      alert('이미지 다운로드에 실패했습니다: ' + (error as Error).message);
+      logger.error('❌ 자동 저장 오류:', error);
+      throw error;
     }
   };
 
@@ -307,32 +356,6 @@ export function ImageGeneratorPanel({
     setDeleteConfirm(null);
   };
 
-  // 프리셋 적용
-  const applyPreset = (presetType: 'pose-variation' | 'character-design' | 'style-variation') => {
-    if (presetType === 'pose-variation') {
-      // 포즈/표정/동작 베리에이션 (캐릭터 외형 유지)
-      setSeed(undefined);
-      setTemperature(0.8);
-      setTopK(40);
-      setTopP(0.95);
-      setReferenceStrength(0.95);
-    } else if (presetType === 'character-design') {
-      // 다양한 캐릭터 디자인 (스타일 유지)
-      setSeed(undefined);
-      setTemperature(1.2);
-      setTopK(60);
-      setTopP(0.95);
-      setReferenceStrength(0.6);
-    } else if (presetType === 'style-variation') {
-      // 헤어/의상/악세사리 변경 (캐릭터 외형 유지)
-      setSeed(undefined);
-      setTemperature(1.0);
-      setTopK(50);
-      setTopP(0.90);
-      setReferenceStrength(0.85);
-    }
-  };
-
   // 히스토리 핀 토글
   const handleTogglePin = (e: React.MouseEvent, entryId: string) => {
     e.stopPropagation();
@@ -377,21 +400,32 @@ export function ImageGeneratorPanel({
                   ? '픽셀 캐릭터 세션'
                   : sessionType === 'PIXELART_BACKGROUND'
                   ? '픽셀 배경 세션'
+                  : sessionType === 'PIXELART_ICON'
+                  ? '픽셀 아이콘 세션'
                   : '스타일 세션'}{' '}
                 · Gemini 3 Pro
               </p>
             </div>
           </div>
-          {/* 다운로드 버튼 (이미지 생성 시 표시) */}
-          {generatedImage && !isGenerating && (
+          {/* 자동 저장 폴더 정보 및 설정 버튼 */}
+          <div className="flex items-center gap-3">
+            {/* 폴더 경로 표시 (항상 표시) */}
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+              <FolderOpen size={16} className="text-green-600" />
+              <span className="text-sm text-green-700 font-medium max-w-xs truncate" title={autoSavePath || 'Downloads/AI_Gen (기본)'}>
+                {autoSavePath ? autoSavePath.split(/[/\\]/).filter(Boolean).pop() : 'Downloads/AI_Gen (기본)'}
+              </span>
+            </div>
+            {/* 폴더 선택 버튼 */}
             <button
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all shadow-lg"
+              onClick={handleSelectFolder}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all shadow-lg"
+              title="자동 저장 폴더 선택"
             >
-              <Download size={20} />
-              <span>다운로드</span>
+              <Folder size={20} />
+              <span>저장 폴더</span>
             </button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -443,9 +477,11 @@ export function ImageGeneratorPanel({
                     : sessionType === 'ICON'
                     ? '예: 불타는 검, 빛나는 / flaming sword, glowing'
                     : sessionType === 'PIXELART_CHARACTER'
-                    ? `애니메이션 동작을 설명하세요 (예: attack, walk, jump, idle)\n${pixelArtGrid === '1x1' ? '→ 단일 이미지로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 포즈 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16프레임 애니메이션 시퀀스로 생성됩니다' : '→ 여러 프레임으로 생성됩니다'}`
+                    ? `애니메이션 동작을 설명하세요 (예: attack, walk, jump, idle)\n${pixelArtGrid === '1x1' ? '→ 단일 이미지로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 포즈 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16프레임 애니메이션 시퀀스로 생성됩니다' : pixelArtGrid === '6x6' ? '→ 36프레임 복잡한 애니메이션으로 생성됩니다' : pixelArtGrid === '8x8' ? '→ 64프레임 매우 상세한 애니메이션으로 생성됩니다' : '→ 여러 프레임으로 생성됩니다'}`
                     : sessionType === 'PIXELART_BACKGROUND'
-                    ? `배경 바리에이션을 설명하세요 (예: forest at different times, dungeon levels)\n${pixelArtGrid === '1x1' ? '→ 단일 배경으로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 씬 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16개 배경 바리에이션으로 생성됩니다' : '→ 여러 배경 바리에이션으로 생성됩니다'}`
+                    ? `배경 바리에이션을 설명하세요 (예: forest at different times, dungeon levels)\n${pixelArtGrid === '1x1' ? '→ 단일 배경으로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 씬 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16개 배경 바리에이션으로 생성됩니다' : pixelArtGrid === '6x6' ? '→ 36개 배경 대형 세트로 생성됩니다' : pixelArtGrid === '8x8' ? '→ 64개 배경 초대형 세트로 생성됩니다' : '→ 여러 배경 바리에이션으로 생성됩니다'}`
+                    : sessionType === 'PIXELART_ICON'
+                    ? `픽셀아트 아이콘을 설명하세요 (예: health potion, mana crystal, gold coin)\n${pixelArtGrid === '1x1' ? '→ 단일 아이콘으로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 아이콘 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16개 아이콘 세트로 생성됩니다' : pixelArtGrid === '6x6' ? '→ 36개 아이콘 대형 세트로 생성됩니다' : pixelArtGrid === '8x8' ? '→ 64개 아이콘 초대형 세트로 생성됩니다' : '→ 여러 아이콘으로 생성됩니다'}`
                     : '예: 밤 풍경, 비오는 날씨 / night scene, rainy weather'
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
@@ -456,60 +492,107 @@ export function ImageGeneratorPanel({
               </p>
             </div>
 
-            {/* 픽셀아트 타입일 때만 그리드 선택 표시 */}
-            {(sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND') && (
-              <div className="p-4 bg-gradient-to-r from-cyan-50 to-teal-50 rounded-lg border border-cyan-200">
+            {/* 픽셀아트 타입과 ICON 타입일 때 그리드 선택 표시 */}
+            {(sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'ICON') && (
+              <div className={`p-4 rounded-lg border ${
+                sessionType === 'ICON'
+                  ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200'
+                  : 'bg-gradient-to-r from-cyan-50 to-teal-50 border-cyan-200'
+              }`}>
                 <label className="block text-sm font-bold text-gray-800 mb-3">
-                  🎮 스프라이트 시트 그리드
+                  {sessionType === 'ICON' ? '🎨 아이콘 그리드' : '🎮 스프라이트 시트 그리드'}
                 </label>
 
                 <div className="grid grid-cols-3 gap-2">
                   {/* 1x1 그리드 */}
                   <button
                     onClick={() => setPixelArtGrid('1x1')}
-                    className={`p-3 rounded-lg border-2 transition-all ${
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
                       pixelArtGrid === '1x1'
-                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                        ? sessionType === 'ICON'
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
+                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : sessionType === 'ICON'
+                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
+                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
                     }`}
                   >
-                    <div className="font-semibold">1×1 (단일프레임)</div>
-                    <div className="text-xs mt-1 opacity-80">단일 이미지</div>
+                    1×1
                   </button>
 
                   {/* 2x2 그리드 */}
                   <button
                     onClick={() => setPixelArtGrid('2x2')}
-                    className={`p-3 rounded-lg border-2 transition-all ${
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
                       pixelArtGrid === '2x2'
-                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                        ? sessionType === 'ICON'
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
+                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : sessionType === 'ICON'
+                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
+                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
                     }`}
                   >
-                    <div className="font-semibold">2×2 (4프레임)</div>
-                    <div className="text-xs mt-1 opacity-80">간단한 바리에이션</div>
+                    2×2
                   </button>
 
                   {/* 4x4 그리드 (기본값) */}
                   <button
                     onClick={() => setPixelArtGrid('4x4')}
-                    className={`p-3 rounded-lg border-2 transition-all ${
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
                       pixelArtGrid === '4x4'
-                        ? 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                        ? sessionType === 'ICON'
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
+                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : sessionType === 'ICON'
+                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
+                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
                     }`}
                   >
-                    <div className="font-semibold">4×4 (16프레임)</div>
-                    <div className="text-xs mt-1 opacity-80">애니메이션 시퀀스</div>
+                    4×4
+                  </button>
+
+                  {/* 6x6 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('6x6')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
+                      pixelArtGrid === '6x6'
+                        ? sessionType === 'ICON'
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
+                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : sessionType === 'ICON'
+                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
+                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                    }`}
+                  >
+                    6×6
+                  </button>
+
+                  {/* 8x8 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('8x8')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
+                      pixelArtGrid === '8x8'
+                        ? sessionType === 'ICON'
+                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
+                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
+                        : sessionType === 'ICON'
+                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
+                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
+                    }`}
+                  >
+                    8×8
                   </button>
                 </div>
 
                 {/* 설명 */}
                 <div className="mt-3 p-3 bg-white/50 rounded-lg">
                   <p className="text-xs text-gray-700 leading-relaxed">
-                    {pixelArtGrid === '1x1' && '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈 픽셀아트)'}
-                    {pixelArtGrid === '2x2' && '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)'}
-                    {pixelArtGrid === '4x4' && '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)'}
+                    {pixelArtGrid === '1x1' && (sessionType === 'ICON' ? '✨ 단일 아이콘을 생성합니다 (1024px 풀사이즈)' : '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)')}
+                    {pixelArtGrid === '2x2' && (sessionType === 'ICON' ? '✨ 4가지 아이콘 바리에이션을 생성합니다' : '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)')}
+                    {pixelArtGrid === '4x4' && (sessionType === 'ICON' ? '✨ 16개 아이콘 세트를 생성합니다' : '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)')}
+                    {pixelArtGrid === '6x6' && (sessionType === 'ICON' ? '✨ 36개 아이콘 대형 세트를 생성합니다' : '✨ 36프레임 복잡한 애니메이션을 생성합니다')}
+                    {pixelArtGrid === '8x8' && (sessionType === 'ICON' ? '✨ 64개 아이콘 초대형 세트를 생성합니다' : '✨ 64프레임 매우 상세한 애니메이션을 생성합니다')}
                   </p>
                 </div>
               </div>
@@ -600,6 +683,8 @@ export function ImageGeneratorPanel({
                   ? '픽셀 캐릭터 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
                   : sessionType === 'PIXELART_BACKGROUND'
                   ? '픽셀 배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
+                  : sessionType === 'PIXELART_ICON'
+                  ? '픽셀 아이콘 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
                   : '현재 세션의 이미지를 참조하여 스타일 일관성을 높입니다'}
               </p>
 
@@ -648,6 +733,8 @@ export function ImageGeneratorPanel({
                         ? '픽셀 캐릭터 외형 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 이미지와 동일하게 유지됩니다.'
                         : sessionType === 'PIXELART_BACKGROUND'
                         ? '픽셀 배경 스타일 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 배경의 스타일을 강하게 따릅니다.'
+                        : sessionType === 'PIXELART_ICON'
+                        ? '픽셀 아이콘 스타일 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 아이콘의 스타일을 강하게 따릅니다.'
                         : '스타일 복사 정도를 조절합니다. 높을수록 참조 스타일을 강하게 따릅니다.'}
                     </p>
                   </div>
@@ -676,35 +763,6 @@ export function ImageGeneratorPanel({
 
               {showAdvanced && (
                 <div className="mt-4 space-y-4">
-                  {/* 프리셋 버튼 */}
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      프리셋
-                    </label>
-                    <div className="space-y-2">
-                      <button
-                        onClick={() => applyPreset('pose-variation')}
-                        className="w-full flex flex-col items-start p-3 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200"
-                      >
-                        <span className="text-sm font-semibold text-blue-800">포즈/표정/동작 베리에이션</span>
-                        <span className="text-xs text-blue-600 mt-0.5">캐릭터 외형을 유지하면서 다양한 포즈와 표정</span>
-                      </button>
-                      <button
-                        onClick={() => applyPreset('character-design')}
-                        className="w-full flex flex-col items-start p-3 bg-green-50 hover:bg-green-100 rounded-lg transition-colors border border-green-200"
-                      >
-                        <span className="text-sm font-semibold text-green-800">다양한 캐릭터 디자인</span>
-                        <span className="text-xs text-green-600 mt-0.5">참조 스타일로 다양한 캐릭터 생성</span>
-                      </button>
-                      <button
-                        onClick={() => applyPreset('style-variation')}
-                        className="w-full flex flex-col items-start p-3 bg-purple-50 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200"
-                      >
-                        <span className="text-sm font-semibold text-purple-800">헤어/의상/악세사리 변경</span>
-                        <span className="text-xs text-purple-600 mt-0.5">캐릭터 외형을 유지하면서 스타일 변형</span>
-                      </button>
-                    </div>
-                  </div>
                   {/* Seed 값 */}
                   <div>
                     <div className="flex items-center justify-between mb-2">

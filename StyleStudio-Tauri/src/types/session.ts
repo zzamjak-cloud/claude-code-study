@@ -1,6 +1,6 @@
 import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
 
-export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND';
+export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON';
 
 // 번역된 분석 결과 (캐싱용)
 export interface KoreanAnalysisCache {
@@ -23,6 +23,7 @@ export interface Session {
   koreanAnalysis?: KoreanAnalysisCache; // 번역된 결과 캐시
   imageCount: number; // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리 (선택)
+  autoSavePath?: string; // 자동 저장 폴더 경로 (선택)
 }
 
 // 생성 히스토리 엔트리

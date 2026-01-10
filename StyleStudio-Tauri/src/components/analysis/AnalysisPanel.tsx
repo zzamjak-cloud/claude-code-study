@@ -57,6 +57,9 @@ export function AnalysisPanel({
 }: AnalysisPanelProps) {
   const [deleteImageConfirm, setDeleteImageConfirm] = useState<number | null>(null);
 
+  // 배경 타입 체크
+  const isBackgroundType = currentSession?.type === 'BACKGROUND' || currentSession?.type === 'PIXELART_BACKGROUND';
+
   if (images.length === 0) {
     return null;
   }
@@ -216,13 +219,15 @@ export function AnalysisPanel({
               onKoreanUpdate={onStyleKoreanUpdate}
             />
 
-            {/* 3. 캐릭터 카드 */}
-            <CharacterCard
-              character={analysisResult.character}
-              koreanCharacter={koreanAnalysis?.character}
-              onUpdate={onCharacterUpdate}
-              onKoreanUpdate={onCharacterKoreanUpdate}
-            />
+            {/* 3. 캐릭터 카드 (배경 타입에서는 숨김) */}
+            {!isBackgroundType && (
+              <CharacterCard
+                character={analysisResult.character}
+                koreanCharacter={koreanAnalysis?.character}
+                onUpdate={onCharacterUpdate}
+                onKoreanUpdate={onCharacterKoreanUpdate}
+              />
+            )}
 
             {/* 4. 구도 카드 */}
             <CompositionCard

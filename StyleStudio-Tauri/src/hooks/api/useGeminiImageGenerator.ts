@@ -313,7 +313,142 @@ STEP 3: CRITICAL REQUIREMENTS
 NEVER add your own style interpretation. CLONE the reference style EXACTLY.`;
       } else if (hasReferenceImages && params.sessionType === 'ICON') {
         // 아이콘 세션: 아이콘 스타일 유지하며 다양한 오브젝트 생성
-        fullPrompt = `🎨 MISSION: Create a NEW ITEM/OBJECT ICON while PERFECTLY REPLICATING the visual style from reference icons.
+        // Grid 지원 추가
+        if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
+          const gridLayout = params.pixelArtGrid;
+          logger.debug('🎨 아이콘 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+          const gridInfo = getPixelArtGridInfo(gridLayout);
+          const { rows, cols, totalFrames, cellSize } = gridInfo;
+          const iconSize = cellSize; // 각 셀 전체를 사용
+
+          fullPrompt = `🎨 MISSION: Create MULTIPLE ICON VARIATIONS in a grid layout on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} icons
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per icon
+🎯 ICON SIZE: ${iconSize}x${iconSize}px (fills each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE complete icon.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE ICON REQUEST (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ICON REQUEST: "${params.prompt || 'various game items'}"
+
+🎯 INTERPRET THE ITEM REQUEST:
+- "sword" / "검" = Blade weapon, hilt, guard
+- "potion" / "물약" = Bottle/flask with liquid
+- "coin" / "동전" = Currency, circular metal object
+- "crystal" / "크리스탈" = Gem, mineral, shiny rock
+- "weapon" / "무기" = Various combat tools (sword, axe, bow)
+- "food" / "음식" = Consumable items (apple, bread, meat)
+
+🎨 ICON VARIATIONS (${totalFrames} total):
+Create ${totalFrames} different variations or related items:
+- Different types (red potion, blue potion, green potion)
+- Different sizes or levels (small coin, medium coin, large coin)
+- Different rarities (common sword, rare sword, legendary sword)
+- Related items (health potion, mana potion, stamina potion, antidote)
+
+⚠️ CRITICAL: The reference icons show the VISUAL STYLE to copy - create NEW items with that style!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE THE ICON VISUAL STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While creating NEW items, COPY these style elements EXACTLY:
+
+🔒 ICON FORM & STRUCTURE:
+- Overall shape language (rounded, angular, organic, geometric)
+- Proportion and scale approach
+- Silhouette clarity and readability
+- Size ratio of details to main object
+
+🔒 LINE & EDGE TREATMENT:
+- Outline thickness and style (thick, thin, absent)
+- Edge quality (sharp, soft, stylized)
+- Line color and contrast
+- Highlight/outline technique
+
+🔒 COLOR & SHADING STYLE:
+- Color palette and harmony
+- Shading technique (cel-shaded, gradient, flat)
+- Highlight placement and intensity
+- Shadow style and opacity
+- Color saturation and brightness levels
+
+🔒 MATERIAL REPRESENTATION:
+- How metals look (shiny, matte, reflective)
+- How glass/crystals appear (transparent, luminous)
+- How fabrics are shown (textured, smooth)
+- Surface quality representation
+
+🔒 LIGHTING & EFFECTS:
+- Light source direction (top-down, angled, etc.)
+- Glow/shine effects style
+- Shadow casting approach
+- Special effects (sparkles, aura, etc.)
+
+🔒 BACKGROUND & FRAMING:
+- Background treatment (solid color, gradient, transparent)
+- Framing approach (centered, tilted, floating)
+- Border/frame style if present
+- Negative space handling
+
+🔒 VARIATION CONSISTENCY:
+- Icon style stays IDENTICAL across all variations
+- Only item type/color changes, never the core visual style
+- Maintain consistent quality and detail level
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Each icon fills its ${iconSize}×${iconSize}px cell completely
+- NO padding or spacing (icons fill cells edge-to-edge)
+
+🎯 ICON ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Icon 1 at (0,0), Icon 2 at (1,0), ..., Icon ${cols} at (${cols-1},0)
+Icon ${cols+1} at (0,1), ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: ICON-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Clear, recognizable silhouette for each icon
+- Readable at small sizes
+- Focus on single main object per icon (no complex scenes)
+- Consistent detail level with references
+- Suitable for game inventory or UI use
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} icons total (${rows}×${cols} grid)?
+2. ✅ Each icon fills its ${iconSize}×${iconSize}px cell?
+3. ✅ All icons share the same visual style?
+4. ✅ Icon style EXACTLY matches reference?
+5. ✅ Clear and readable at small sizes?
+6. ✅ Consistent quality across all icons?
+
+CRITICAL: These are game/app icons. Visual consistency and readability are essential.
+NEVER add your own artistic interpretation. CLONE the reference icon style EXACTLY.`;
+        } else {
+          // 단일 아이콘 생성 (기존 프롬프트)
+          fullPrompt = `🎨 MISSION: Create a NEW ITEM/OBJECT ICON while PERFECTLY REPLICATING the visual style from reference icons.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 1: UNDERSTAND THE REQUESTED ITEM (HIGHEST PRIORITY)
@@ -392,6 +527,7 @@ STEP 3: ICON-SPECIFIC REQUIREMENTS
 4. Is the style consistent with typical game/app icon standards?
 
 NEVER add your own artistic interpretation. CLONE the reference icon style EXACTLY.`;
+        }
       } else if (hasReferenceImages && params.sessionType === 'PIXELART_CHARACTER') {
         // 픽셀아트 캐릭터: 그리드 스프라이트 시트로 애니메이션 시퀀스 생성
         const gridLayout = params.pixelArtGrid || '4x4';
@@ -477,10 +613,11 @@ STEP 3: REPLICATE PIXEL ART CHARACTER STYLE 100%
 - NEVER make outlines thicker than reference!
 
 🔒 SHADING TECHNIQUE (COPY EXACTLY):
-- Copy shading method (dithering patterns, color banding, flat colors)
-- Same shadow pixel patterns (checkerboard, 2x2, etc.)
+- Copy shading method (hue shifting, color banding, flat colors, cell shading)
+- Same shadow pixel patterns (avoid old dithering patterns)
 - Same highlight placement
-- NO smooth shading, NO anti-aliasing
+- Use modern pixel art shading: hue shifting and color banding preferred
+- NO smooth shading, NO anti-aliasing, NO old-school dithering
 
 🔒 FACIAL FEATURES (PIXEL DETAIL):
 - Eye size and position (exact pixel count, e.g., 2x2px eyes)
@@ -617,10 +754,11 @@ STEP 3: REPLICATE PIXEL ART BACKGROUND STYLE 100%
 - Maintain consistent level across entire scene
 
 🔒 LIGHTING & SHADING (COPY EXACTLY):
-- Copy shading technique (dithering, banding, flat)
-- Same shadow pixel patterns
+- Copy shading technique (hue shifting, color banding, flat, cell shading)
+- Same shadow pixel patterns (avoid old dithering patterns)
 - Match highlight placement style
-- NO smooth gradients, use pixel art shading methods
+- Use modern pixel art shading: hue shifting and color banding preferred
+- NO smooth gradients, NO old-school dithering, use clean pixel art shading methods
 
 🔒 OUTLINE & EDGES (MOST IMPORTANT!):
 ⚠️ CRITICAL: Check reference edge treatment!
@@ -656,6 +794,16 @@ Variation ${cols+1} at (0,1), ...
 
 ⚠️ BLACK BACKGROUND: Use solid black (#000000) background for easy cropping.
 
+🚨 CRITICAL ASPECT RATIO REQUIREMENT:
+- ALWAYS fill the ENTIRE ${pixelSize}x${pixelSize}px area within each cell
+- NO letterboxing (black bars on top/bottom)
+- NO pillarboxing (black bars on left/right)
+- The pixel art MUST occupy the FULL ${pixelSize}x${pixelSize}px canvas
+- If target aspect ratio is 9:16 (vertical), the background MUST be vertically oriented and fill the full height
+- If target aspect ratio is 16:9 (horizontal), the background MUST be horizontally oriented and fill the full width
+- NEVER leave empty black space at top, bottom, left, or right edges
+- Extend or crop the environment to match the exact aspect ratio requested
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 5: ENVIRONMENTAL REQUIREMENTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -681,6 +829,162 @@ STEP 5: ENVIRONMENTAL REQUIREMENTS
 
 CRITICAL: These are background variations for game development. Pixel-perfect precision is essential.
 ⚠️ MOST IMPORTANT: Edge treatment must EXACTLY match reference (thin edges = thin edges, NO thickening)!`;
+      } else if (hasReferenceImages && params.sessionType === 'PIXELART_ICON') {
+        // 픽셀아트 아이콘: 그리드 방식으로 여러 아이콘 바리에이션 생성
+        const gridLayout = params.pixelArtGrid || '4x4'; // 기본 4x4
+        logger.debug('💎 픽셀아트 아이콘 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+        const gridInfo = getPixelArtGridInfo(gridLayout);
+        const { rows, cols, totalFrames, cellSize, recommendedPixelSize } = gridInfo;
+
+        // 분석 결과에서 실제 해상도 추출 (fallback: gridInfo.recommendedPixelSize)
+        const pixelSize = parseResolutionEstimate(
+          params.analysis?.pixelart_specific?.resolution_estimate
+        ) || recommendedPixelSize;
+
+        fullPrompt = `💎 MISSION: Create PIXEL ART ICON VARIATIONS on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} icons
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per icon
+🎯 PIXEL ART SIZE: ${pixelSize}x${pixelSize}px (centered in each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE icon variation.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE ICON TYPE (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ICON REQUEST: "${params.prompt || 'game item icons'}"
+
+💎 ICON INTERPRETATION GUIDE:
+- "potion" / "물약" = Bottle/flask with liquid, health/mana restoration item
+- "coin" / "동전" = Currency, circular metal object, gold/silver
+- "gem" / "보석" = Crystal, jewel, shiny precious stone
+- "weapon" / "무기" = Sword, axe, bow, dagger, or other combat tools
+- "food" / "음식" = Apple, bread, meat, consumable items
+- "key" / "열쇠" = Unlock item, metallic, distinctive shape
+- "scroll" / "두루마리" = Parchment, magic spell, rolled paper
+
+🎨 ICON VARIATIONS (${totalFrames} total):
+Create ${totalFrames} different variations of the same icon type:
+- Different colors (red potion, blue potion, green potion)
+- Different sizes or levels (small gem, medium gem, large gem)
+- Different states (empty bottle, half-full, full)
+- Different rarities (common, rare, legendary)
+- Different subtypes (health potion, mana potion, stamina potion)
+
+⚠️ MAINTAIN CONSISTENCY: All icons share the same style and basic form!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE PIXEL ART ICON STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔒 PIXEL GRID & RESOLUTION (CRITICAL):
+- Canvas size: ${pixelSize}x${pixelSize}px per icon
+- All pixels on perfect integer grid
+- NO sub-pixel positioning
+- Consistent pixel size throughout
+- NO anti-aliasing (pure pixel edges, crisp and sharp)
+- NO blur or smoothing filters
+- Perfect pixel grid alignment
+
+🔒 ICON FORM & STRUCTURE (COPY EXACTLY):
+- Overall shape language from reference (rounded, angular, organic)
+- Same proportion and scale approach
+- Clear silhouette for readability at small sizes
+- Size ratio of details to main object EXACTLY matches reference
+
+🔒 OUTLINE & EDGE STYLE (MOST IMPORTANT!):
+⚠️ CRITICAL: Check reference outline style!
+- If reference has 1px black outlines → Use EXACTLY 1px black outlines (NOT 2px!)
+- If reference has colored outlines → Use SAME colored outlines
+- If reference has NO outlines → Use NO outlines
+- Pixel Perfect lines: NO doubles, NO jaggies
+- Same edge treatment as reference
+- Clear icon readability
+- NEVER make outlines thicker than reference!
+
+🔒 COLOR PALETTE (EXACT MATCH):
+- Use EXACT same colors from reference (NO color interpolation)
+- Same palette size (4 colors, 8 colors, 16 colors, etc.)
+- Match saturation, brightness, hue EXACTLY
+- NO smooth gradients, NO color blending
+- Use color variations for different icon types (e.g., red/blue/green potions)
+
+🔒 SHADING TECHNIQUE (COPY EXACTLY):
+- Copy shading method (hue shifting, color banding, flat colors, cell shading)
+- Same highlight placement and style
+- Same shadow pixel patterns (avoid old dithering patterns)
+- Use modern pixel art shading: hue shifting and color banding preferred
+- NO smooth shading, NO anti-aliasing, NO old-school dithering
+
+🔒 MATERIAL REPRESENTATION (MATCH REFERENCE):
+- How glass/liquid appears (transparency, shine)
+- How metal looks (reflective, matte, colored)
+- How gems/crystals are rendered (facets, glow)
+- Surface texture style (smooth, rough, pixelated)
+
+🔒 BACKGROUND & FRAMING (COPY EXACTLY):
+- Background treatment from reference (solid color, gradient, transparent)
+- Border/frame style if present in reference
+- Centered composition
+- Consistent negative space handling
+
+🔒 VARIATION CONSISTENCY:
+- Icon style stays IDENTICAL across all variations
+- Only colors/details change, never the core pixel art style
+- Outline thickness NEVER changes between variations
+- Pixel grid alignment maintained across all icons
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Center ${pixelSize}×${pixelSize}px pixel art in each cell
+- Leave padding around each icon (for clean separation)
+
+🎯 ICON ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Icon 1 at (0,0), Icon 2 at (1,0), ..., Icon ${cols} at (${cols-1},0)
+Icon ${cols+1} at (0,1), ...
+
+⚠️ BLACK BACKGROUND: Use solid black (#000000) background for easy cropping.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: ICON-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Clear, recognizable silhouette at small sizes
+- Readable as game UI icon
+- Focus on single main object per icon
+- Consistent icon clarity across all variations
+- Suitable for game inventory, shop, or UI use
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECKLIST:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} icons total (${rows}×${cols} grid)?
+2. ✅ Each icon is ${pixelSize}×${pixelSize}px pixel art?
+3. ✅ All icons share the same style and form?
+4. ✅ Icon style EXACTLY matches reference?
+5. ✅ Outline thickness EXACTLY matches reference (1px = 1px, NOT 2px)?
+6. ✅ NO anti-aliasing or smoothing?
+7. ✅ Black background for easy separation?
+8. ✅ Clear and readable at small sizes?
+
+CRITICAL: These are game UI icons. Pixel-perfect precision and readability are essential.
+⚠️ MOST IMPORTANT: If reference has 1px outlines, NEVER use 2px or thicker outlines!`;
       } else if (hasReferenceImages && params.sessionType === 'CHARACTER') {
         // 캐릭터 세션: 포즈 변경 최우선 + 캐릭터 외형/비율 완벽 복사
         fullPrompt = `🚨 MISSION: Draw the EXACT SAME character from reference images, but in a NEW POSE.

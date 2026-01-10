@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Upload, Image as ImageIcon, FolderOpen } from 'lucide-react';
+import { Image as ImageIcon, FolderOpen } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -49,29 +49,39 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
     };
   }, []);
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      logger.debug('📁 선택된 파일 개수:', files.length);
-      // 모든 파일을 읽기
-      Array.from(files).forEach((file) => {
-        readImageFile(file);
-      });
-    }
-  };
+  // 투명 배경을 흰색으로 변환하는 함수
+  const convertTransparentToWhite = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // Canvas 생성
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
 
-  const readImageFile = (file: File) => {
-    logger.debug('📖 파일 읽기 시작:', file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      logger.debug('✅ 파일 읽기 완료, 데이터 길이:', result.length);
-      onImageSelectRef.current(result);
-    };
-    reader.onerror = (e) => {
-      logger.error('❌ 파일 읽기 실패:', e);
-    };
-    reader.readAsDataURL(file);
+        if (!ctx) {
+          reject(new Error('Canvas context를 가져올 수 없습니다'));
+          return;
+        }
+
+        // 흰색 배경 그리기
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 이미지 그리기 (투명 부분은 흰색으로 표시됨)
+        ctx.drawImage(img, 0, 0);
+
+        // Canvas를 PNG로 변환
+        const convertedDataUrl = canvas.toDataURL('image/png');
+        logger.debug('✅ 투명 배경을 흰색으로 변환 완료');
+        resolve(convertedDataUrl);
+      };
+      img.onerror = () => {
+        reject(new Error('이미지 로드 실패'));
+      };
+      img.src = dataUrl;
+    });
   };
 
   // Tauri로 이미지 로드
@@ -96,7 +106,16 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
 
       const dataUrl = `data:${mimeType};base64,${base64}`;
       logger.debug('✅ Tauri 파일 변환 완료, 데이터 길이:', dataUrl.length);
-      onImageSelectRef.current(dataUrl);
+
+      try {
+        // 투명 배경을 흰색으로 변환
+        const convertedImage = await convertTransparentToWhite(dataUrl);
+        onImageSelectRef.current(convertedImage);
+      } catch (error) {
+        logger.error('❌ 이미지 변환 실패:', error);
+        // 변환 실패 시 원본 이미지 사용
+        onImageSelectRef.current(dataUrl);
+      }
     } catch (error) {
       logger.error('❌ Tauri 파일 읽기 오류:', error);
       alert('파일 읽기 오류: ' + (error as Error).message);
@@ -160,7 +179,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
             {isDragging ? (
               <ImageIcon size={48} className="text-purple-600" />
             ) : (
-              <Upload size={48} className="text-gray-400" />
+              <FolderOpen size={48} className="text-gray-400" />
             )}
           </div>
 
@@ -175,7 +194,7 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
           </p>
 
           <div className="flex flex-col gap-3 w-full max-w-xs">
-            {/* Tauri 파일 선택 버튼 (권장) */}
+            {/* Tauri 파일 선택 버튼 */}
             <button
               onClick={handleTauriFileSelect}
               className="flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
@@ -183,21 +202,6 @@ export function ImageUpload({ onImageSelect }: ImageUploadProps) {
               <FolderOpen size={20} />
               <span>파일 선택</span>
             </button>
-
-            {/* 브라우저 파일 선택 (백업용) */}
-            <label className="cursor-pointer">
-              <div className="flex items-center justify-center gap-2 bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-3 rounded-lg font-semibold transition-all">
-                <Upload size={20} />
-                <span>브라우저 선택 (대체)</span>
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileInput}
-                className="hidden"
-              />
-            </label>
           </div>
         </div>
       </div>

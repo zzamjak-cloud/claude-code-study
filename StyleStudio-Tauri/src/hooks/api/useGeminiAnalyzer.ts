@@ -3,6 +3,8 @@ import {
   MULTI_IMAGE_ANALYZER_PROMPT,
   REFINEMENT_ANALYZER_PROMPT,
   PIXELART_ANALYZER_PROMPT,
+  BACKGROUND_ANALYZER_PROMPT,
+  PIXELART_BACKGROUND_ANALYZER_PROMPT,
 } from '../../lib/gemini/analysisPrompt';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType } from '../../types/session';
@@ -73,8 +75,17 @@ export function useGeminiAnalyzer() {
       let analysisPrompt: string;
       let promptType: string;
 
-      // 픽셀아트 타입이면 픽셀아트 전용 프롬프트 사용
-      if (sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND') {
+      // 배경 타입 체크 (캐릭터 제외)
+      if (sessionType === 'BACKGROUND') {
+        analysisPrompt = BACKGROUND_ANALYZER_PROMPT;
+        promptType = 'BACKGROUND';
+        logger.debug('📋 프롬프트 선택: BACKGROUND (배경 전용, 캐릭터 제외)');
+      } else if (sessionType === 'PIXELART_BACKGROUND') {
+        analysisPrompt = PIXELART_BACKGROUND_ANALYZER_PROMPT;
+        promptType = 'PIXELART_BACKGROUND';
+        logger.debug('📋 프롬프트 선택: PIXELART_BACKGROUND (픽셀아트 배경 전용, 캐릭터 제외)');
+      } else if (sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_ICON') {
+        // 픽셀아트 캐릭터/아이콘 타입이면 픽셀아트 전용 프롬프트 사용
         analysisPrompt = PIXELART_ANALYZER_PROMPT;
         promptType = 'PIXELART';
         logger.debug('📋 프롬프트 선택: PIXELART (픽셀아트 특화 분석)');

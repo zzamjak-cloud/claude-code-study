@@ -3,7 +3,7 @@
  *
  * 1024px 캔버스를 그리드로 분할하여 여러 프레임의 픽셀아트를 생성합니다.
  */
-export type PixelArtGridLayout = '1x1' | '2x2' | '4x4';
+export type PixelArtGridLayout = '1x1' | '2x2' | '4x4' | '6x6' | '8x8';
 
 /**
  * 그리드 레이아웃별 상세 정보
@@ -47,6 +47,22 @@ export function getPixelArtGridInfo(layout: PixelArtGridLayout): PixelArtGridInf
         totalFrames: 16,
         cellSize: 256,
         recommendedPixelSize: 64,
+      };
+    case '6x6':
+      return {
+        rows: 6,
+        cols: 6,
+        totalFrames: 36,
+        cellSize: Math.floor(1024 / 6), // 약 170px
+        recommendedPixelSize: 42,
+      };
+    case '8x8':
+      return {
+        rows: 8,
+        cols: 8,
+        totalFrames: 64,
+        cellSize: 128,
+        recommendedPixelSize: 32,
       };
   }
 }

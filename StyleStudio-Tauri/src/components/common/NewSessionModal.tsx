@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3 } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -174,6 +174,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   픽셀아트 배경을 학습하여 게임 씬을 생성합니다
+                </p>
+              </button>
+
+              {/* PIXELART_ICON */}
+              <button
+                onClick={() => setSessionType('PIXELART_ICON')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'PIXELART_ICON'
+                    ? 'bg-indigo-50 border-indigo-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-indigo-300 hover:bg-indigo-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles size={20} className={sessionType === 'PIXELART_ICON' ? 'text-indigo-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'PIXELART_ICON' ? 'text-indigo-900' : 'text-gray-700'}>픽셀 아이콘</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  픽셀아트 아이콘을 학습하여 게임 UI 요소를 생성합니다
                 </p>
               </button>
             </div>

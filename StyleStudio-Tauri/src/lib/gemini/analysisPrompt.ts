@@ -155,6 +155,54 @@ ${previousAnalysis}
 JSON만 출력하고 다른 설명은 하지 마라.
 `;
 
+export const BACKGROUND_ANALYZER_PROMPT = `
+너는 전문 배경 아티스트이자 이미지 분석 전문가야.
+
+사용자가 제공한 배경 이미지를 정밀 분석하여 다음 JSON 포맷으로 출력해:
+
+{
+  "style": {
+    "art_style": "화풍 (예: oil painting, anime, pixel art, 3D render, realistic)",
+    "technique": "기법 (예: thick impasto, cel shading, watercolor, flat color)",
+    "color_palette": "색상 특징 (예: vibrant colors, muted tones, pastel)",
+    "lighting": "조명 (예: dramatic lighting, soft ambient, flat lighting)",
+    "mood": "분위기 (예: melancholic, energetic, peaceful, mysterious)"
+  },
+  "character": {
+    "gender": "N/A - background only",
+    "age_group": "N/A - background only",
+    "hair": "N/A - background only",
+    "eyes": "N/A - background only",
+    "face": "N/A - background only",
+    "outfit": "N/A - background only",
+    "accessories": "N/A - background only",
+    "body_proportions": "N/A - background only",
+    "limb_proportions": "N/A - background only",
+    "torso_shape": "N/A - background only",
+    "hand_style": "N/A - background only"
+  },
+  "composition": {
+    "pose": "N/A - background only",
+    "angle": "카메라 앵글 (예: bird's eye view, ground level, horizon level)",
+    "background": "배경 상세 설명 (지형, 건물, 자연 요소, 시간대, 날씨 등)",
+    "depth_of_field": "심도 (예: shallow, deep focus, layered depth)"
+  },
+  "negative_prompt": "배경 이미지에서 피해야 할 요소들 (예: characters, people, humans, figures, portraits, faces, living beings) - 배경 순수성을 해치는 요소들을 영문 키워드로 나열"
+}
+
+**중요 분석 지침 (배경 전용):**
+- **절대 캐릭터를 포함하지 말 것**: 이미지에 사람이나 캐릭터가 있더라도 완전히 무시하고 배경만 분석
+- **character 섹션**: 모든 필드를 "N/A - background only"로 채울 것
+- **composition.pose**: "N/A - background only"로 채울 것
+- **composition.background**: 배경의 모든 요소를 상세히 기술 (지형, 건물, 자연 요소, 시간대, 날씨, 분위기 등)
+- **composition.angle**: 배경을 바라보는 카메라 앵글 (조감도, 지평선, 저각도 등)
+- **composition.depth_of_field**: 배경의 깊이감 표현 (레이어, 원근감 등)
+- **negative_prompt**: 반드시 "characters, people, humans, figures, portraits, faces, living beings"를 포함하여 캐릭터가 생성되지 않도록 차단
+- **style 섹션**: 배경의 그림 스타일, 기법, 색감, 조명, 분위기에 집중
+- 반드시 유효한 JSON 형식으로만 응답할 것
+- JSON 외의 다른 텍스트는 포함하지 말 것
+`;
+
 export const PIXELART_ANALYZER_PROMPT = `
 너는 전문 픽셀 아티스트이자 이미지 분석 전문가야.
 
@@ -163,7 +211,7 @@ export const PIXELART_ANALYZER_PROMPT = `
 {
   "style": {
     "art_style": "pixel art (예: 8-bit NES style, 16-bit SNES style, 32-bit GBA style, modern indie pixel art)",
-    "technique": "픽셀아트 기법 (예: dithering, banding, flat shading, pixel perfect lines, limited palette)",
+    "technique": "픽셀아트 기법 (예: hue shifting, color banding, flat shading, pixel perfect lines, limited palette)",
     "color_palette": "색상 팔레트 (예: 4-color Gameboy palette, 16-color limited palette, vibrant SNES colors, pastel indie palette)",
     "lighting": "조명 (예: flat lighting, simple cel-shaded, retro ambient, dramatic pixel shadows)",
     "mood": "분위기"
@@ -194,7 +242,7 @@ export const PIXELART_ANALYZER_PROMPT = `
     "style_era": "스타일 시대 (예: NES 8-bit era, SNES 16-bit era, GBA 32-bit era, Modern indie pixel art)",
     "perspective": "시점 (예: Top-down, Side-view, Isometric, Front-view, Three-quarter view)",
     "outline_style": "외곽선 스타일 (예: Black 1px outlines, Colored sel-out outlines, No outlines, Thick pixel borders)",
-    "shading_technique": "음영 기법 (예: Dithering patterns, Color banding, Flat colors, Gradient dithering, Hue shifting)",
+    "shading_technique": "음영 기법 (예: Hue shifting, Color banding, Flat colors, Cell shading, Gradient banding)",
     "anti_aliasing": "안티앨리어싱 사용 여부 (예: None - pure pixels, Selective AA on curves, Manual pixel smoothing)"
   },
   "negative_prompt": "픽셀아트에서 피해야 할 요소들 (영문 키워드: blur, anti-aliasing, smooth gradients, photorealistic, high detail rendering, vector art, mixels, fuzzy edges, noise texture, interpolation, sub-pixel rendering)"
@@ -223,11 +271,13 @@ export const PIXELART_ANALYZER_PROMPT = `
    - 제한된 팔레트인지 자유로운 팔레트인지 판단
    - 레트로 콘솔 팔레트 제약 여부 확인 (NES 54색, SNES 32,768색 등)
 
-5. **음영 기법 (Shading Technique)**:
-   - **Dithering**: 체크무늬 패턴으로 그라데이션 표현 (checkerboard, 2x2 pattern 등)
+5. **음영 기법 (Shading Technique) - 최신 픽셀아트 스타일**:
+   - **Hue shifting**: 색상 변화로 명암 표현 (현대 픽셀아트의 주요 기법)
    - **Color banding**: 명확한 색상 띠로 구분 (distinct bands)
    - **Flat colors**: 단색 영역 (no shading)
-   - **Hue shifting**: 색상 변화로 명암 표현
+   - **Cell shading**: 애니메이션 스타일의 명확한 음영 경계
+   - **Gradient banding**: 부드러운 색상 전환을 여러 단계의 띠로 표현
+   - ⚠️ **Dithering은 제외**: 오래된 기법으로 최신 픽셀아트에서는 거의 사용하지 않음
 
 6. **시점 (Perspective)**:
    - **Top-down**: 위에서 내려다보는 시점 (2D RPG 스타일)
@@ -265,4 +315,101 @@ export const PIXELART_ANALYZER_PROMPT = `
 - pixelart_specific 섹션을 반드시 포함할 것
 - 각 항목은 구체적이고 명확하게 작성
 - 생성형 AI가 픽셀아트를 재현할 수 있도록 정밀한 정보 제공
+`;
+
+export const PIXELART_BACKGROUND_ANALYZER_PROMPT = `
+너는 전문 픽셀 아트 배경 아티스트이자 이미지 분석 전문가야.
+
+사용자가 제공한 픽셀 아트 배경 이미지를 정밀 분석하여 다음 JSON 포맷으로 출력해:
+
+{
+  "style": {
+    "art_style": "pixel art background (예: 8-bit NES background, 16-bit SNES background, 32-bit GBA background, modern indie pixel art background)",
+    "technique": "픽셀아트 기법 (예: hue shifting, color banding, flat shading, pixel perfect lines, limited palette)",
+    "color_palette": "색상 팔레트 (예: 4-color Gameboy palette, 16-color limited palette, vibrant SNES colors, pastel indie palette)",
+    "lighting": "조명 (예: flat lighting, simple cel-shaded, retro ambient, dramatic pixel shadows)",
+    "mood": "분위기"
+  },
+  "character": {
+    "gender": "N/A - background only",
+    "age_group": "N/A - background only",
+    "hair": "N/A - background only",
+    "eyes": "N/A - background only",
+    "face": "N/A - background only",
+    "outfit": "N/A - background only",
+    "accessories": "N/A - background only",
+    "body_proportions": "N/A - background only",
+    "limb_proportions": "N/A - background only",
+    "torso_shape": "N/A - background only",
+    "hand_style": "N/A - background only"
+  },
+  "composition": {
+    "pose": "N/A - background only",
+    "angle": "카메라 앵글 (예: top-down, side-view, isometric)",
+    "background": "픽셀아트 배경 상세 설명 (지형, 건물, 타일, 자연 요소, 시간대, 날씨 등)",
+    "depth_of_field": "심도 (예: layered parallax, single plane, multi-layer depth)"
+  },
+  "pixelart_specific": {
+    "resolution_estimate": "추정 해상도 (예: 256x240 NES, 320x240 SNES, 240x160 GBA, 512x512 modern)",
+    "color_palette_count": "사용된 색상 수 (예: 4 colors, 16 colors, 32 colors, 64+ colors)",
+    "pixel_density": "픽셀 밀도 (예: Low-res 8-bit, Mid-res 16-bit, Hi-res 32-bit, Modern high-res)",
+    "style_era": "스타일 시대 (예: NES 8-bit era, SNES 16-bit era, GBA 32-bit era, Modern indie pixel art)",
+    "perspective": "시점 (예: Top-down, Side-view, Isometric, Front-view, Parallax scrolling)",
+    "outline_style": "외곽선 스타일 (예: Black 1px outlines, Colored sel-out outlines, No outlines, Thick pixel borders)",
+    "shading_technique": "음영 기법 (예: Hue shifting, Color banding, Flat colors, Cell shading, Gradient banding)",
+    "anti_aliasing": "안티앨리어싱 사용 여부 (예: None - pure pixels, Selective AA on curves, Manual pixel smoothing)",
+    "tiling_pattern": "타일 패턴 (예: 16x16 tiles, 32x32 tiles, seamless repeating, modular tiles)",
+    "parallax_layers": "패럴랙스 레이어 (예: single layer, 2-layer depth, 3-layer depth, multi-layer parallax)"
+  },
+  "negative_prompt": "픽셀아트 배경에서 피해야 할 요소들 (영문 키워드: blur, anti-aliasing, smooth gradients, photorealistic, high detail rendering, vector art, mixels, fuzzy edges, noise texture, interpolation, sub-pixel rendering, characters, people, humans, figures, portraits, faces, living beings)"
+}
+
+**중요 분석 지침 (픽셀아트 배경 특화):**
+
+1. **절대 캐릭터를 포함하지 말 것**:
+   - 이미지에 사람이나 캐릭터가 있더라도 완전히 무시하고 배경만 분석
+   - **character 섹션**: 모든 필드를 "N/A - background only"로 채울 것
+   - **composition.pose**: "N/A - background only"로 채울 것
+   - **negative_prompt**: 반드시 "characters, people, humans, figures, portraits, faces, living beings"를 포함하여 캐릭터가 생성되지 않도록 차단
+
+2. **픽셀 그리드 확인 (Pixel Grid Analysis)**:
+   - 모든 픽셀이 정수 좌표 그리드에 정렬되어 있는지 확인
+   - Mixels (서로 다른 크기의 픽셀 혼재) 여부 체크
+   - 픽셀 크기가 일관되는지 확인
+
+3. **타일 시스템 분석 (Tiling System)**:
+   - 배경이 타일로 구성되었는지 확인 (16x16, 32x32 등)
+   - 반복 가능한 타일 패턴인지 분석
+   - 모듈형 타일 시스템 사용 여부
+
+4. **패럴랙스 레이어 (Parallax Layers)**:
+   - 배경이 여러 레이어로 구성되었는지 분석
+   - 전경, 중경, 후경 구분
+   - 깊이감 표현 방식
+
+5. **해상도 및 시점 (Resolution & Perspective)**:
+   - 레트로 콘솔 해상도 (NES 256x240, SNES 320x240 등)
+   - Top-down (RPG), Side-view (플랫포머), Isometric (시뮬레이션)
+
+6. **색상 팔레트 (Color Palette)**:
+   - 레트로 콘솔 제약 준수 여부
+   - 배경 전용 색상 수 (4색, 16색, 32색 등)
+
+7. **composition.background 필드**:
+   - 배경의 모든 요소를 픽셀 단위로 상세히 기술
+   - 지형, 건물, 타일, 자연 요소, 시간대, 날씨, 분위기 등
+   - 픽셀아트 특유의 표현 방식 명시 (예: dithered sky, tiled grass, modular rocks)
+
+8. **Negative Prompt 생성 (매우 중요)**:
+   - 픽셀아트 배경을 해치는 요소를 명확히 나열
+   - **필수 포함**: blur, anti-aliasing, smooth gradients, photorealistic
+   - **필수 포함**: mixels, fuzzy edges, interpolation, sub-pixel rendering
+   - **필수 포함**: characters, people, humans, figures, portraits, faces, living beings (배경 전용 보장)
+
+**출력 형식:**
+- 반드시 유효한 JSON 형식으로만 응답
+- JSON 외의 다른 텍스트는 포함하지 말 것
+- pixelart_specific 섹션을 반드시 포함할 것
+- 각 항목은 구체적이고 명확하게 작성
+- 생성형 AI가 캐릭터 없는 순수 픽셀아트 배경을 재현할 수 있도록 정밀한 정보 제공
 `;

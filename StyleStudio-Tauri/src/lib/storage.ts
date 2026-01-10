@@ -4,6 +4,15 @@ import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { Session } from '../types/session';
 import { logger } from './logger';
 
+// 창 상태 타입
+export interface WindowState {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  maximized: boolean;
+}
+
 // Store 인스턴스를 가져오는 헬퍼 함수
 async function getStore(): Promise<Store> {
   return await Store.load('settings.json');
@@ -136,4 +145,17 @@ export async function importSessionFromFile(): Promise<Session | null> {
     logger.error('❌ 세션 파일 불러오기 오류:', error);
     throw error;
   }
+}
+
+// 창 상태 저장
+export async function saveWindowState(windowState: WindowState): Promise<void> {
+  const store = await getStore();
+  await store.set('window_state', windowState);
+  await store.save();
+}
+
+// 저장된 창 상태 가져오기
+export async function getWindowState(): Promise<WindowState | null> {
+  const store = await getStore();
+  return await store.get<WindowState>('window_state') || null;
 }

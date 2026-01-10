@@ -14,7 +14,10 @@
       {
         "title": "StyleStudio",
         "width": 1400,
-        "height": 900
+        "height": 900,
+        "maximized": true,
+        "resizable": true,
+        "fullscreen": false
       }
     ],
     "security": {
