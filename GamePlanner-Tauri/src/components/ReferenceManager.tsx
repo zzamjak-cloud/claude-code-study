@@ -1,7 +1,7 @@
 // 참조 파일 관리 컴포넌트
 
 import { useState, useEffect } from 'react'
-import { FileText, Plus, Trash2, Loader2, HelpCircle, X, FileSearch } from 'lucide-react'
+import { FileText, Plus, Trash2, Loader2, HelpCircle, X, FileSearch, Link } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { ReferenceFile } from '../types/referenceFile'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -24,6 +24,10 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
   const [summaryViewFile, setSummaryViewFile] = useState<ReferenceFile | null>(null)
   const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
+
+  // Google Spreadsheet URL 입력 모달 상태
+  const [showUrlModal, setShowUrlModal] = useState(false)
+  const [sheetUrl, setSheetUrl] = useState('')
 
   // 세션에서 참조 파일 목록 가져오기
   useEffect(() => {
@@ -191,6 +195,41 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
     }
   }
 
+  // Google Spreadsheet URL 추가
+  const handleAddGoogleSheet = async () => {
+    const url = sheetUrl.trim()
+
+    // URL 검증
+    if (!url) {
+      alert('Google Spreadsheet URL을 입력해주세요.')
+      return
+    }
+
+    if (!url.includes('docs.google.com/spreadsheets')) {
+      alert('올바른 Google Spreadsheet URL이 아닙니다.\n예시: https://docs.google.com/spreadsheets/d/...')
+      return
+    }
+
+    setShowUrlModal(false)
+    setIsAdding(true)
+
+    try {
+      // Google Spreadsheet URL을 processFiles에 전달 (파일 경로처럼 처리)
+      await processFiles([url])
+      setSheetUrl('')
+    } catch (error) {
+      console.error('Google Spreadsheet 추가 실패:', error)
+      alert(`Google Spreadsheet 추가 실패: ${error instanceof Error ? error.message : String(error)}`)
+      setIsAdding(false)
+    }
+  }
+
+  // URL 입력 모달 취소
+  const handleCancelUrlModal = () => {
+    setShowUrlModal(false)
+    setSheetUrl('')
+  }
+
   // 파일 삭제 확인 다이얼로그 표시
   const handleDeleteFile = (fileId: string) => {
     setDeleteConfirm(fileId)
@@ -277,6 +316,15 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
             title="도움말"
           >
             <HelpCircle className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setShowUrlModal(true)}
+            disabled={isAdding}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Google Spreadsheet URL 추가"
+          >
+            <Link className="w-4 h-4" />
+            <span className="hidden sm:inline">Google Sheets</span>
           </button>
           <button
             onClick={handleAddFile}
@@ -510,7 +558,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
                   <li><strong>CSV (.csv):</strong> 쉼표로 구분된 데이터를 읽기 쉬운 형식으로 변환합니다.</li>
                   <li><strong>Markdown (.md, .markdown):</strong> 마크다운 문서를 그대로 읽습니다.</li>
                   <li><strong>텍스트 (.txt):</strong> 일반 텍스트 파일을 읽습니다.</li>
-                  <li><strong>Google Spreadsheet:</strong> Google 스프레드시트 URL을 입력하면 자동으로 다운로드하여 파싱합니다.</li>
+                  <li><strong>Google Spreadsheet:</strong> <span className="text-green-600 font-semibold">"Google Sheets" 버튼</span>을 클릭하여 Google 스프레드시트 URL을 입력하면 자동으로 데이터를 가져옵니다. (공유 설정 필수)</li>
                 </ul>
               </div>
 
@@ -542,6 +590,72 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
                   <li>중복 등록: 동일한 파일 경로의 파일은 중복 등록할 수 없습니다.</li>
                 </ul>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Google Spreadsheet URL 입력 모달 */}
+      {showUrlModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={handleCancelUrlModal}
+        >
+          <div
+            className="bg-card border border-border rounded-lg shadow-xl max-w-lg w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <Link className="w-5 h-5 text-green-600" />
+              <h3 className="text-lg font-semibold">Google Spreadsheet 추가</h3>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Spreadsheet URL
+                </label>
+                <input
+                  type="text"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleAddGoogleSheet()
+                    } else if (e.key === 'Escape') {
+                      handleCancelUrlModal()
+                    }
+                  }}
+                  placeholder="https://docs.google.com/spreadsheets/d/..."
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
+                <p className="font-semibold mb-2">💡 사용 방법:</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Google Spreadsheet를 열고 <strong>공유</strong> 버튼을 클릭하세요.</li>
+                  <li><strong>"링크가 있는 모든 사용자"</strong>로 공유 설정을 변경하세요.</li>
+                  <li>브라우저 주소창의 URL을 복사하여 위에 붙여넣으세요.</li>
+                  <li>시트의 모든 데이터가 텍스트로 변환되어 참조 파일로 등록됩니다.</li>
+                </ol>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end mt-6">
+              <button
+                onClick={handleCancelUrlModal}
+                className="px-4 py-2 rounded-lg bg-muted hover:bg-accent transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleAddGoogleSheet}
+                className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors font-medium"
+              >
+                추가
+              </button>
             </div>
           </div>
         </div>

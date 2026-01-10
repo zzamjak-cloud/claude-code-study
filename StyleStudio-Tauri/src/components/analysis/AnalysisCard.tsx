@@ -68,15 +68,6 @@ export function AnalysisCard<T extends Record<string, any>>({
     },
   });
 
-  // 영어 원본이 변경되면 한글 표시도 영어 원본으로 업데이트 (번역은 나중에)
-  // 영어 원본이 변경되었을 때만 업데이트 (편집 중이 아닐 때, 캐시가 없을 때만)
-  useEffect(() => {
-    // 편집 중이 아니고, 캐시가 없을 때만 영어 원본 표시
-    if (!editingField && !koreanDataProp) {
-      setKoreanDataDisplay(data);
-    }
-  }, [data, editingField, koreanDataProp]);
-
   // 캐시가 업데이트되면 반영 (번역 완료 시)
   useEffect(() => {
     if (koreanDataProp) {
@@ -88,7 +79,7 @@ export function AnalysisCard<T extends Record<string, any>>({
       // 캐시가 없으면 영어 원본 표시
       setKoreanDataDisplay(data);
     }
-  }, [koreanDataProp, data, editingField, title]);
+  }, [koreanDataProp, editingField, title]);
 
   // Textarea 자동 높이 조정
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {

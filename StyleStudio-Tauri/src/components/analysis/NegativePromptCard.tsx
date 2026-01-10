@@ -36,7 +36,7 @@ export function NegativePromptCard({
       logger.debug('⚠️ [NegativePromptCard] 캐시 없음, 영어 원본 사용');
       setKoreanPromptDisplay(negativePrompt);
     }
-  }, [koreanNegativeProp, negativePrompt, isEditing]);
+  }, [koreanNegativeProp, isEditing]);
 
   const handleSave = async () => {
     if (!onUpdate) return;

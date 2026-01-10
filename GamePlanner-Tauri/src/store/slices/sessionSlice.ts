@@ -114,11 +114,23 @@ export const createSessionSlice: StateCreator<
       const newSessions = state.sessions.filter((s) => s.id !== sessionId)
       const isCurrentSession = state.currentSessionId === sessionId
 
+      if (!isCurrentSession) {
+        // 다른 세션을 삭제한 경우, 상태 변경 없음
+        return { sessions: newSessions }
+      }
+
+      // 현재 세션을 삭제한 경우, 같은 타입의 세션 중 가장 최근 세션 선택
+      const sameTypeSessions = newSessions
+        .filter((s) => s.type === state.currentSessionType)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+
+      const nextSession = sameTypeSessions[0] || null
+
       return {
         sessions: newSessions,
-        currentSessionId: isCurrentSession ? (newSessions[0]?.id || null) : state.currentSessionId,
-        messages: isCurrentSession ? (newSessions[0]?.messages || []) : state.messages,
-        markdownContent: isCurrentSession ? (newSessions[0]?.markdownContent || '') : state.markdownContent,
+        currentSessionId: nextSession?.id || null,
+        messages: nextSession?.messages || [],
+        markdownContent: nextSession?.markdownContent || '',
       }
     })
   },

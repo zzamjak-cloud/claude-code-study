@@ -3,15 +3,10 @@
 import * as XLSX from 'xlsx'
 import { readFile } from '@tauri-apps/plugin-fs'
 import { fetch } from '@tauri-apps/plugin-http'
+import * as pdfjsLib from 'pdfjs-dist'
 
-// pdf-parse는 동적 import로 처리 (ESM 모듈 호환성 문제)
-let pdfParseModule: any = null
-async function getPdfParse() {
-  if (!pdfParseModule) {
-    pdfParseModule = await import('pdf-parse')
-  }
-  return pdfParseModule.default || pdfParseModule
-}
+// PDF.js Worker 설정 (로컬 파일 사용)
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.mjs'
 
 export interface ParsedFileContent {
   text: string
@@ -32,23 +27,42 @@ export function getFileType(fileName: string): string {
 }
 
 /**
- * PDF 파일 파싱
+ * PDF 파일 파싱 (pdfjs-dist 사용)
  */
 export async function parsePDF(filePath: string, fileName: string): Promise<ParsedFileContent> {
   try {
     const fileData = await readFile(filePath)
-    // Uint8Array를 Buffer로 변환 (Node.js 환경 호환)
-    // @ts-ignore - Buffer는 Node.js 타입이지만 브라우저에서도 사용 가능
-    const buffer = Buffer.from(fileData)
-    const pdfParse = await getPdfParse()
-    const pdfData = await pdfParse(buffer)
-    
+
+    // PDF 문서 로드
+    const loadingTask = pdfjsLib.getDocument({ data: fileData })
+    const pdf = await loadingTask.promise
+
+    let text = ''
+
+    // 모든 페이지 텍스트 추출
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      const textContent = await page.getTextContent()
+
+      // 텍스트 아이템들을 문자열로 변환
+      const pageText = textContent.items
+        .map((item: any) => {
+          if ('str' in item) {
+            return item.str
+          }
+          return ''
+        })
+        .join(' ')
+
+      text += pageText + '\n\n'
+    }
+
     return {
-      text: pdfData.text,
+      text: text.trim(),
       metadata: {
         fileName,
         fileType: 'pdf',
-        pageCount: pdfData.numpages,
+        pageCount: pdf.numPages,
       },
     }
   } catch (error) {

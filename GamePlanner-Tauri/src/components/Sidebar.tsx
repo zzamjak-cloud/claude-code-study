@@ -25,6 +25,12 @@ export function Sidebar() {
   // 삭제 확인 다이얼로그 상태
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
 
+  // 세션 불러오기 성공 다이얼로그 상태
+  const [importSuccessInfo, setImportSuccessInfo] = useState<{
+    title: string
+    summary: string
+  } | null>(null)
+
   // 템플릿 관리 모달 상태
   const [showTemplateManager, setShowTemplateManager] = useState(false)
 
@@ -388,14 +394,19 @@ export function Sidebar() {
       if (referenceCount > 0) summaryParts.push(`참조 파일 ${referenceCount}개`)
 
       const summary = summaryParts.length > 0
-        ? `\n\n복원된 내용:\n- ${summaryParts.join('\n- ')}`
-        : ''
+        ? summaryParts.join(', ')
+        : '세션을 성공적으로 불러왔습니다.'
 
-      alert(`세션을 불러왔습니다!${summary}`)
+      // 성공 다이얼로그 표시
+      setImportSuccessInfo({
+        title: sessionData.title || '세션',
+        summary: summary
+      })
     } catch (error) {
       console.error('세션 불러오기 실패:', error)
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류'
-      alert('세션 불러오기에 실패했습니다.\n\n' + errorMessage)
+      // 에러는 간단히 콘솔에만 출력 (추후 커스텀 에러 다이얼로그 추가 가능)
+      console.error('세션 불러오기 오류:', errorMessage)
     }
   }
 
@@ -651,6 +662,31 @@ export function Sidebar() {
                 className="px-4 py-2 rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors font-medium"
               >
                 삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 세션 불러오기 성공 다이얼로그 */}
+      {importSuccessInfo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">세션 불러오기 완료</h3>
+            <p className="text-muted-foreground mb-4">
+              <span className="font-semibold text-foreground">"{importSuccessInfo.title}"</span> 세션을 성공적으로 불러왔습니다.
+            </p>
+            {importSuccessInfo.summary && (
+              <div className="bg-muted/50 rounded-lg p-3 mb-6 text-sm">
+                <p className="text-muted-foreground">복원된 내용: {importSuccessInfo.summary}</p>
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setImportSuccessInfo(null)}
+                className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+              >
+                확인
               </button>
             </div>
           </div>
