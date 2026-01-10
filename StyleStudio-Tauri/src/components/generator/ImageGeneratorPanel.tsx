@@ -1036,9 +1036,9 @@ export function ImageGeneratorPanel({
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 결과 표시 영역 */}
           <div className={`flex-1 p-8 ${zoomLevel === 'fit' && generatedImage ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-            <div className={`flex items-start justify-center ${zoomLevel === 'fit' && generatedImage ? 'h-full' : 'min-h-full'}`}>
+            <div className={`flex items-center justify-center ${zoomLevel === 'fit' && generatedImage ? 'h-full' : 'min-h-full'}`}>
               {isGenerating ? (
-                <div className="flex flex-col items-center mt-20">
+                <div className="flex flex-col items-center">
                   <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
                   <p className="text-gray-600 font-semibold">{progressMessage}</p>
                 </div>
@@ -1104,7 +1104,7 @@ export function ImageGeneratorPanel({
                   </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-400 mt-20">
+                <div className="text-center text-gray-400">
                   <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
                   <p className="text-lg font-semibold">이미지를 생성해보세요</p>
                   <p className="text-sm mt-2">왼쪽 설정을 조정하고 "이미지 생성" 버튼을 클릭하세요</p>
