@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-01-10
-> **버전**: 6.0
-> **상태**: Phase 3 완료, 7가지 세션 타입 지원 (픽셀아트 포함)
+> **최종 업데이트**: 2026-01-11
+> **버전**: 6.1
+> **상태**: Phase 3 완료, 7가지 세션 타입 모두 Grid 지원
 
 ---
 
@@ -35,9 +35,9 @@
 
 | 타입 | 아이콘 | 색상 | 목적 | 참조 이미지 | Grid 지원 |
 |------|--------|------|------|------------|---------|
-| **STYLE** | 🎨 Palette | 보라색 | 특정 화풍/아트 스타일 재현 | 선택 | ✗ |
-| **CHARACTER** | 👤 User | 파란색 | 캐릭터 외형 유지, 포즈 변경 | 필수 | ✗ |
-| **BACKGROUND** | ⛰️ Mountain | 녹색 | 배경 스타일 학습, 다양한 환경 생성 | 필수 | ✗ |
+| **STYLE** | 🎨 Palette | 보라색 | 특정 화풍/아트 스타일 재현 | 선택 | ✓ (1x1~8x8) |
+| **CHARACTER** | 👤 User | 파란색 | 캐릭터 외형 유지, 포즈 변경 | 필수 | ✓ (1x1~8x8) |
+| **BACKGROUND** | ⛰️ Mountain | 녹색 | 배경 스타일 학습, 다양한 환경 생성 | 필수 | ✓ (1x1~8x8) |
 | **ICON** | 📦 Box | 주황색 | 아이템/아이콘 스타일 학습, 오브젝트 생성 | 필수 | ✓ (1x1~8x8) |
 | **PIXELART_CHARACTER** | 🎮 Gamepad2 | 마젠타 | 픽셀아트 캐릭터 학습, 애니메이션 시트 생성 | 필수 | ✓ (1x1~8x8) |
 | **PIXELART_BACKGROUND** | 🏞️ Grid3x3 | 청록색 | 픽셀아트 배경 학습, 게임 씬 생성 | 필수 | ✓ (1x1~8x8) |
@@ -84,14 +84,17 @@
   - 신체 비율 정밀 복사 (head-to-body ratio, limb proportions)
   - 얼굴, 머리, 의상 디테일 완벽 유지
   - 순백색 배경, 전신 표시
+  - Grid 지원 (1x1 ~ 8x8): 여러 포즈 바리에이션 동시 생성
 
 - **STYLE**: 스타일 복제 최우선
   - 아트 스타일, 기법, 색상, 조명 완벽 복사
   - 피사체/구도는 사용자 프롬프트에 따라 변경
+  - Grid 지원 (1x1 ~ 8x8): 여러 스타일 작품 동시 생성
 
 - **BACKGROUND**: 배경 스타일 유지 + 환경 변경
   - 색상 팔레트, 조명, 분위기 복사
   - 캐릭터 없이 순수 환경만 생성
+  - Grid 지원 (1x1 ~ 8x8): 여러 배경 바리에이션 동시 생성
 
 - **ICON**: 아이콘 스타일 유지 + 오브젝트 변경
   - 형태, 라인, 색상, 음영 스타일 복사
@@ -131,7 +134,11 @@
 
 - **썸네일 그리드**: 생성한 모든 이미지 히스토리 저장
 - **핀 기능**: 즐겨찾기 표시 (노란색 테두리)
-- **설정 복원**: 히스토리에서 설정값 불러오기
+- **설정 복원**: 히스토리에서 모든 설정값 불러오기
+  - 비율, 크기, Seed, Temperature, Top-K, Top-P, Reference Strength
+  - **Grid 레이아웃** (pixelArtGrid)
+  - 추가 프롬프트
+- **상세 정보 툴팁**: 마우스 호버 시 생성 시간, 비율, 크기, Grid, Seed 표시
 - **개별 삭제**: 확인 다이얼로그
 
 ---
@@ -206,6 +213,22 @@ interface KoreanAnalysisCache {
   negativePrompt?: string;
   positivePrompt?: string;
   customPromptEnglish?: string;    // 이미지 생성용 영어 번역
+}
+```
+
+### GenerationSettings
+
+```typescript
+interface GenerationSettings {
+  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  imageSize: '1K' | '2K' | '4K';
+  seed?: number;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+  referenceStrength?: number;
+  useReferenceImages: boolean;
+  pixelArtGrid?: PixelArtGridLayout;  // 스프라이트 그리드 레이아웃 (1x1, 2x2, 4x4, 6x6, 8x8)
 }
 ```
 
@@ -329,6 +352,142 @@ const { progress } = useAutoSave({
 ---
 
 ## 최신 업데이트
+
+### 2026-01-11: 전체 세션 타입 Grid 지원 완료 및 히스토리 개선 (오후)
+
+#### 개요
+모든 세션 타입(STYLE 포함)에 Grid 지원을 추가하고, 히스토리 저장/복원 시스템을 개선했습니다.
+
+#### 1. STYLE 세션 타입 Grid 지원 추가
+
+**UI 업데이트** (ImageGeneratorPanel.tsx):
+- Grid 옵션 조건문에 `STYLE` 추가
+- 타입별 색상 구분: purple (보라색)
+- 타입별 라벨: "✨ 스타일 그리드"
+- 타입별 설명 추가:
+  - 1x1: 단일 이미지 생성
+  - 2x2: 4가지 스타일 바리에이션
+  - 4x4: 16가지 다양한 스타일 작품
+  - 6x6: 36가지 스타일 대형 세트
+  - 8x8: 64가지 스타일 초대형 세트
+
+**프롬프트 로직 추가** (useGeminiImageGenerator.ts):
+- Grid 생성 프롬프트 구현 (1x1 제외)
+- 스타일 복제 시스템:
+  - 참조 이미지의 시각적 스타일 100% 복제
+  - 콘텐츠/구성만 변경 (스타일은 절대 불변)
+  - 아트 기법, 색상, 라인, 음영, 텍스처 정밀 복사
+- 컨텐츠 바리에이션 (Grid 1x1 제외):
+  - 다양한 구도 (풍경, 인물, 클로즈업, 광각)
+  - 다양한 피사체 (사람, 오브젝트, 자연, 추상)
+  - 다양한 무드 (즐거움, 극적, 평화, 활기)
+  - 다양한 시점 (눈높이, 조감도, 올려다보기)
+  - 다양한 초점 (중앙, 3분할, 비대칭)
+
+#### 2. 히스토리 시스템 개선
+
+**타입 정의 업데이트** (session.ts):
+```typescript
+import { PixelArtGridLayout } from './pixelart';
+
+interface GenerationSettings {
+  aspectRatio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
+  imageSize: '1K' | '2K' | '4K';
+  seed?: number;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+  referenceStrength?: number;
+  useReferenceImages: boolean;
+  pixelArtGrid?: PixelArtGridLayout;  // 새로 추가
+}
+```
+
+**히스토리 저장 개선** (ImageGeneratorPanel.tsx:274-297):
+- `pixelArtGrid` 정보를 히스토리에 저장
+- 모든 생성 옵션 완전 보존
+
+**히스토리 복원 개선** (ImageGeneratorPanel.tsx:454-485):
+```typescript
+// 스프라이트 그리드 레이아웃 복원
+if (entry.settings.pixelArtGrid) {
+  setPixelArtGrid(entry.settings.pixelArtGrid);
+}
+```
+
+**툴팁 개선** (ImageGeneratorPanel.tsx:1174-1240):
+- 생성 시간, 비율, 크기 기본 표시
+- Grid 레이아웃 조건부 표시
+- Seed 값 조건부 표시
+- 멀티라인 툴팁으로 모든 설정 정보 한눈에 확인
+
+#### 사용 예시
+
+**STYLE (4x4 Grid)**:
+- 프롬프트: "various fantasy landscapes"
+- 결과: 16가지 판타지 풍경 (산, 숲, 성, 해변 등)
+- 특징: 모든 이미지에서 아트 스타일 100% 일관성 유지
+
+#### 기술적 세부사항
+- 전체 세션 타입: 7개 모두 Grid 지원 완료
+- Grid 크기: 1x1 ~ 8x8 (최대 64개)
+- 캔버스: 1024x1024px 고정
+- 히스토리: 완전한 설정 보존 및 복원
+- 툴팁: 동적으로 관련 정보만 표시
+
+### 2026-01-11: CHARACTER 및 BACKGROUND 타입 Grid 지원 추가 (오전)
+
+#### 개요
+일관된 UX 제공을 위해 CHARACTER와 BACKGROUND 타입에도 Sprite Grid Sheet 옵션(1x1 ~ 8x8)을 추가했습니다.
+
+#### 변경 사항
+
+1. **ImageGeneratorPanel.tsx UI 개선**:
+   - Grid 옵션 조건문 확장 (CHARACTER, BACKGROUND 추가)
+   - 타입별 색상 구분:
+     - CHARACTER: 파란색 (blue)
+     - BACKGROUND: 녹색 (green)
+     - ICON: 주황색 (amber)
+     - PIXELART_*: 청록색 (cyan)
+   - 타입별 라벨 적용:
+     - CHARACTER: "👤 캐릭터 그리드"
+     - BACKGROUND: "⛰️ 배경 그리드"
+   - 헬퍼 함수 추가:
+     - `getGridButtonStyle()`: 타입별 버튼 스타일 반환
+     - `getGridDescription()`: 타입별 Grid 설명 반환
+
+2. **useGeminiImageGenerator.ts 로직 추가**:
+   - **BACKGROUND 타입**:
+     - Grid 생성 프롬프트 추가 (1x1 제외)
+     - 여러 배경 바리에이션 동시 생성 (시간대, 날씨, 각도, 계절)
+     - 스타일 일관성 유지하며 환경 변화
+   - **CHARACTER 타입**:
+     - Grid 생성 프롬프트 추가 (1x1 제외)
+     - 여러 캐릭터 포즈 동시 생성 (동작, 표정, 각도)
+     - 신체 비율 100% 유지하며 포즈만 변경
+
+3. **구현 문서 업데이트**:
+   - 세션 타입 표에 Grid 지원 표시 (✓)
+   - 세션 타입별 생성 전략에 Grid 설명 추가
+   - Grid 시스템 상세에 타입 추가
+
+#### 사용 예시
+
+**CHARACTER (2x2 Grid)**:
+- 프롬프트: "various action poses"
+- 결과: 4가지 포즈 (서있기, 앉기, 달리기, 점프 등)
+- 특징: 모든 포즈에서 캐릭터 외형 동일
+
+**BACKGROUND (4x4 Grid)**:
+- 프롬프트: "forest scenes"
+- 결과: 16가지 숲 배경 (아침, 낮, 저녁, 밤 × 날씨 변화)
+- 특징: 모든 배경에서 스타일 일관성 유지
+
+#### 기술적 세부사항
+- Grid 크기: 1x1 ~ 8x8 (최대 64개)
+- 캔버스: 1024x1024px 고정
+- 셀 크기: Grid에 따라 자동 계산
+- 배경색: 타입별 구분 (CHARACTER/BACKGROUND는 흰색, PIXELART는 검은색)
 
 ### 2026-01-10: UI 중앙 정렬 개선 (오후)
 
@@ -486,7 +645,10 @@ const { progress } = useAutoSave({
 
 ## Grid 시스템 상세
 
-### 지원 타입
+### 지원 타입 (전체 7가지 세션 타입)
+- **STYLE**: 1x1 ~ 8x8 (최대 64가지 스타일 작품)
+- **CHARACTER**: 1x1 ~ 8x8 (최대 64가지 캐릭터 포즈)
+- **BACKGROUND**: 1x1 ~ 8x8 (최대 64개 배경 바리에이션)
 - **ICON**: 1x1 ~ 8x8 (최대 64개 아이콘)
 - **PIXELART_CHARACTER**: 1x1 ~ 8x8 (최대 64프레임 애니메이션)
 - **PIXELART_BACKGROUND**: 1x1 ~ 8x8 (최대 64개 배경 바리에이션)
@@ -510,6 +672,22 @@ const { progress } = useAutoSave({
 
 ---
 
-**문서 버전**: 6.0
-**작성일**: 2026-01-10
+## 다음 개발 계획
+
+### Phase 4: 고급 기능
+- **여러 캐릭터 세션 통합**: 여러 캐릭터를 한 장면에 배치
+- **레이어 시스템**: 캐릭터 + 배경 레이어 분리 생성
+- **일괄 생성**: 여러 프롬프트 큐 처리
+- **템플릿 시스템**: 자주 사용하는 설정 프리셋 저장
+
+### Phase 5: 최적화 및 확장
+- **데이터베이스 전환**: SQLite로 대용량 세션 관리
+- **이미지 압축**: WebP 포맷 지원
+- **클라우드 동기화**: 세션 백업 및 공유
+- **플러그인 시스템**: 커스텀 후처리 필터
+
+---
+
+**문서 버전**: 6.1
+**작성일**: 2026-01-11
 **다음 단계**: 여러 캐릭터 세션 통합 생성 시스템

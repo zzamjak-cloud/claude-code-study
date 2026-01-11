@@ -240,7 +240,136 @@ export function useGeminiImageGenerator() {
 
       if (hasReferenceImages && params.sessionType === 'BACKGROUND') {
         // 배경 세션: 배경 스타일 유지하며 다양한 환경 생성
-        fullPrompt = `🌄 MISSION: Create a NEW ENVIRONMENT/LOCATION while PERFECTLY REPLICATING the visual style from reference backgrounds.
+        // Grid 지원 추가
+        if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
+          const gridLayout = params.pixelArtGrid;
+          logger.debug('🌄 배경 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+          const gridInfo = getPixelArtGridInfo(gridLayout);
+          const { rows, cols, totalFrames, cellSize } = gridInfo;
+          const backgroundSize = cellSize; // 각 셀 전체를 사용
+
+          fullPrompt = `🌄 MISSION: Create MULTIPLE BACKGROUND VARIATIONS in a grid layout on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} backgrounds
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per background
+🎯 BACKGROUND SIZE: ${backgroundSize}x${backgroundSize}px (fills each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE complete background scene.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE ENVIRONMENT REQUEST (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENVIRONMENT REQUEST: "${params.prompt || 'various natural scenes'}"
+
+🎯 INTERPRET THE ENVIRONMENT REQUEST:
+- "forest" / "숲" = Trees, foliage, woodland atmosphere
+- "beach" / "해변" = Sand, ocean, coastal scenery
+- "city" / "도시" = Buildings, urban structures, streets
+- "cave" / "동굴" = Rocky interior, enclosed space, dim lighting
+- "castle" / "성" = Fortress, towers, medieval architecture
+- "mountain" / "산" = Rocky peaks, cliffs, elevation
+
+🎨 BACKGROUND VARIATIONS (${totalFrames} total):
+Create ${totalFrames} different variations of the environment:
+- Different times of day (dawn, noon, dusk, night)
+- Different weather (clear, rain, snow, fog)
+- Different angles (front view, side view, perspective)
+- Different areas (entrance, middle, deep area, exit)
+- Different seasons (spring, summer, autumn, winter)
+
+⚠️ CRITICAL: The reference images show the VISUAL STYLE to copy - create NEW scenes with that style!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE THE BACKGROUND VISUAL STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While creating NEW environments, COPY these style elements EXACTLY:
+
+🔒 ART STYLE & TECHNIQUE:
+- Drawing/painting technique (watercolor, cel-shaded, realistic, etc.)
+- Line quality and edge treatment
+- Level of detail and stylization
+- Artistic approach (loose, precise, impressionistic, etc.)
+
+🔒 COLOR PALETTE & ATMOSPHERE:
+- Color harmony and relationships
+- Saturation, brightness, contrast levels
+- Color temperature (warm/cool tones)
+- Atmospheric effects (fog, haze, lighting)
+
+🔒 LIGHTING & MOOD:
+- Light direction and intensity
+- Shadow style and softness
+- Time of day feeling
+- Overall mood and atmosphere
+
+🔒 COMPOSITION STYLE:
+- Depth handling (foreground/midground/background)
+- Perspective approach
+- Scale and proportion style
+- Framing and layout principles
+
+🔒 TEXTURE & DETAIL:
+- Surface texture treatment
+- Material representation style
+- Level of detail consistency
+- Pattern and repetition style
+
+🔒 VARIATION CONSISTENCY:
+- Background style stays IDENTICAL across all variations
+- Only environment type/time/weather changes, never the core visual style
+- Maintain consistent quality and detail level
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Each background fills its ${backgroundSize}×${backgroundSize}px cell completely
+- NO padding or spacing (backgrounds fill cells edge-to-edge)
+
+🎯 BACKGROUND ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Background 1 at (0,0), Background 2 at (1,0), ..., Background ${cols} at (${cols-1},0)
+Background ${cols+1} at (0,1), ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: BACKGROUND-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- NO characters, people, or creatures (background only)
+- Focus entirely on environment and scenery
+- Maintain consistent style throughout all variations
+- Create cohesive, immersive environments
+- Suitable for game/animation backgrounds
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} backgrounds total (${rows}×${cols} grid)?
+2. ✅ Each background fills its ${backgroundSize}×${backgroundSize}px cell?
+3. ✅ All backgrounds share the same visual style?
+4. ✅ Background style EXACTLY matches reference?
+5. ✅ Purely environmental without characters/creatures?
+6. ✅ Consistent quality across all backgrounds?
+
+CRITICAL: These are environment backgrounds. Visual consistency and immersion are essential.
+NEVER add your own style interpretation. CLONE the reference style EXACTLY.`;
+        } else {
+          // 단일 배경 생성 (기존 프롬프트)
+          fullPrompt = `🌄 MISSION: Create a NEW ENVIRONMENT/LOCATION while PERFECTLY REPLICATING the visual style from reference backgrounds.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 1: UNDERSTAND THE REQUESTED ENVIRONMENT (HIGHEST PRIORITY)
@@ -311,6 +440,7 @@ STEP 3: CRITICAL REQUIREMENTS
 4. Is the style consistent across the entire image?
 
 NEVER add your own style interpretation. CLONE the reference style EXACTLY.`;
+        }
       } else if (hasReferenceImages && params.sessionType === 'ICON') {
         // 아이콘 세션: 아이콘 스타일 유지하며 다양한 오브젝트 생성
         // Grid 지원 추가
@@ -1129,7 +1259,135 @@ CRITICAL: These are game UI icons. Pixel-perfect precision and readability are e
 ⚠️ MOST IMPORTANT: If reference has 1px outlines, NEVER use 2px or thicker outlines!`;
       } else if (hasReferenceImages && params.sessionType === 'CHARACTER') {
         // 캐릭터 세션: 포즈 변경 최우선 + 캐릭터 외형/비율 완벽 복사
-        fullPrompt = `🚨 MISSION: Draw the EXACT SAME character from reference images, but in a NEW POSE.
+        // Grid 지원 추가
+        if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
+          const gridLayout = params.pixelArtGrid;
+          logger.debug('👤 캐릭터 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+          const gridInfo = getPixelArtGridInfo(gridLayout);
+          const { rows, cols, totalFrames, cellSize } = gridInfo;
+          const characterSize = cellSize; // 각 셀 전체를 사용
+
+          fullPrompt = `👤 MISSION: Create MULTIPLE CHARACTER POSE VARIATIONS in a grid layout on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} poses
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per character
+🎯 CHARACTER SIZE: ${characterSize}x${characterSize}px (fills each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE complete character pose.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE POSE REQUEST (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POSE REQUEST: "${params.prompt || 'various character poses'}"
+
+🎯 INTERPRET THE POSE REQUEST:
+- "standing" / "서있는" = Natural upright stance, arms relaxed
+- "sitting" / "앉은" = Legs bent, bottom on ground or chair
+- "running" / "달리는" = Dynamic motion, one leg forward
+- "jumping" / "점프" = Airborne, legs bent or extended
+- "attacking" / "공격" = Combat pose, weapon or fist extended
+- "idle" / "대기" = Relaxed stance, slight movement
+
+🎨 POSE VARIATIONS (${totalFrames} total):
+Create ${totalFrames} different character poses:
+- Different actions (standing, walking, running, jumping, sitting)
+- Different expressions (happy, sad, angry, surprised, neutral)
+- Different angles (front, side, back, 3/4 view)
+- Different arm/leg positions
+- Animation frames (walk cycle, run cycle, etc.)
+
+⚠️ CRITICAL: The reference images show the CHARACTER APPEARANCE to copy - their POSE is just an example!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: COPY CHARACTER APPEARANCE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+While creating NEW poses, copy these features EXACTLY:
+
+🔒 BODY PROPORTIONS (NEVER CHANGE THESE):
+- Head-to-body ratio: Count heads in reference (e.g., 2-head, 3-head, 8-head) → USE EXACT SAME RATIO
+- Leg length: Measure legs vs torso in reference → COPY EXACT RATIO
+- If legs are SHORT in reference → Keep them SHORT in ALL poses
+- If legs are LONG in reference → Keep them LONG in ALL poses
+- Arm length, torso height, limb thickness → ALL identical to reference
+- Overall "chibi" or "realistic" style → MUST match reference
+
+🔒 HAIR:
+- Hairstyle, bangs/fringe, length, color
+- DO NOT omit bangs if present in reference
+- Hair should move naturally with pose changes
+
+🔒 FACE:
+- Eye style, nose, mouth, face shape
+- Facial expression can change per pose
+
+🔒 CLOTHING:
+- Outfit design, colors, accessories
+- Clothing should flow naturally with pose
+
+🔒 ART STYLE:
+- Line quality, shading, coloring technique
+- Style MUST stay identical across all poses
+
+🔒 POSE CONSISTENCY:
+- Character appearance stays IDENTICAL across all poses
+- Only pose/expression changes, never proportions or design
+- Maintain consistent character volume and silhouette
+- NEVER change body proportions between poses
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Each character fills its ${characterSize}×${characterSize}px cell completely
+- Center character in each cell with white background
+- Full body visible (head to feet)
+
+🎯 CHARACTER ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Pose 1 at (0,0), Pose 2 at (1,0), ..., Pose ${cols} at (${cols-1},0)
+Pose ${cols+1} at (0,1), ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: CHARACTER-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Full body visible in every pose (no cropping)
+- White or transparent background
+- Clear silhouette for each pose
+- Consistent character design across all cells
+- Suitable for character reference sheets
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} character poses total (${rows}×${cols} grid)?
+2. ✅ Each character fills its ${characterSize}×${characterSize}px cell?
+3. ✅ All characters share the EXACT SAME appearance/proportions?
+4. ✅ Body proportions EXACTLY match reference (leg length, head ratio)?
+5. ✅ Full body visible in every pose?
+6. ✅ Consistent quality across all poses?
+
+CRITICAL: These are character pose variations. The CHARACTER must stay identical, only the POSE changes.
+NEVER "improve" or "normalize" body proportions. COPY them EXACTLY across all poses.
+If reference shows SHORT legs → ALL poses MUST have SHORT legs.
+If reference shows LONG legs → ALL poses MUST have LONG legs.`;
+        } else {
+          // 단일 포즈 변경 (기존 프롬프트)
+          fullPrompt = `🚨 MISSION: Draw the EXACT SAME character from reference images, but in a NEW POSE.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 STEP 1: APPLY NEW POSE (HIGHEST PRIORITY)
@@ -1194,9 +1452,152 @@ If reference shows SHORT legs (chibi/casual style) → Your output MUST also hav
 If reference shows LONG legs (realistic style) → Your output MUST also have LONG legs.
 
 NEVER "improve" or "normalize" body proportions. COPY them EXACTLY.`;
-      } else if (hasReferenceImages) {
+        }
+      } else if (hasReferenceImages && params.sessionType === 'STYLE') {
         // 스타일 세션: 스타일 일관성 최우선
-        fullPrompt = `🎨 ABSOLUTE PRIORITY: REPLICATE THE VISUAL STYLE SHOWN IN THE REFERENCE IMAGES ABOVE
+        // Grid 지원 추가
+        if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
+          const gridLayout = params.pixelArtGrid;
+          logger.debug('✨ 스타일 그리드:', gridLayout, '(전달값:', params.pixelArtGrid, ')');
+          const gridInfo = getPixelArtGridInfo(gridLayout);
+          const { rows, cols, totalFrames, cellSize } = gridInfo;
+          const artworkSize = cellSize; // 각 셀 전체를 사용
+
+          fullPrompt = `✨ MISSION: Create MULTIPLE STYLE VARIATIONS in a grid layout on a 1024x1024 canvas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LAYOUT (CRITICAL!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 CANVAS: 1024x1024px (fixed)
+🎯 GRID LAYOUT: ${rows} rows × ${cols} columns = ${totalFrames} artworks
+🎯 CELL SIZE: ${cellSize}x${cellSize}px per artwork
+🎯 ARTWORK SIZE: ${artworkSize}x${artworkSize}px (fills each cell)
+
+📐 GRID STRUCTURE:
+${generateGridASCII(rows, cols)}
+
+⚠️ CRITICAL: Each cell contains ONE complete artwork.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: UNDERSTAND THE CONTENT REQUEST (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CONTENT REQUEST: "${params.prompt || 'various artistic compositions'}"
+
+🎨 CONTENT VARIATIONS (${totalFrames} total):
+Create ${totalFrames} different variations of the content:
+- Different compositions (landscape, portrait, close-up, wide shot)
+- Different subjects (people, objects, nature, abstract)
+- Different moods (happy, dramatic, peaceful, energetic)
+- Different perspectives (eye-level, bird's eye, worm's eye)
+- Different focal points (center, rule of thirds, asymmetric)
+
+⚠️ CRITICAL: The reference images show the VISUAL STYLE to copy - create NEW content with that style!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: REPLICATE THE VISUAL STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You are a STYLE CLONING AI. Your job is to PERFECTLY COPY the visual style shown in the reference images.
+
+While creating NEW content, COPY these style elements EXACTLY:
+
+🔒 ART STYLE & TECHNIQUE:
+- Drawing/painting technique (watercolor, oil, digital, pencil, etc.)
+- Artistic approach (realistic, impressionistic, abstract, stylized)
+- Level of realism/stylization
+- Brushwork or line quality
+- Artist's signature style
+
+🔒 COLOR & PALETTE:
+- Exact color palette from references
+- Color saturation, brightness, contrast levels
+- Color relationships and harmonies
+- Color temperature (warm/cool tones)
+- Color application technique
+
+🔒 LINES & EDGES:
+- Line weight, thickness, variation
+- Line quality (smooth, rough, sketchy, clean)
+- Edge treatment (hard, soft, blurred, sharp)
+- Line style consistency
+- Outline presence and style
+
+🔒 SHADING & LIGHTING:
+- Shading technique (cell-shaded, soft, gradient, flat)
+- Light source direction and intensity
+- Shadow style and density
+- Highlight placement and intensity
+- Overall lighting mood
+
+🔒 TEXTURE & SURFACE:
+- Material rendering style
+- Texture detail level
+- Surface treatment (smooth, rough, textured)
+- Texture techniques and patterns
+- Surface finish (matte, glossy, mixed)
+
+🔒 COMPOSITION & LAYOUT:
+- Compositional principles from reference
+- Balance and symmetry approach
+- Depth and space handling
+- Focal point strategy
+- Visual flow and hierarchy
+
+🔒 OVERALL AESTHETIC:
+- Visual "feel" and atmosphere
+- Mood and emotional tone
+- Artistic signature and identity
+- Visual consistency and coherence
+
+🔒 VARIATION CONSISTENCY:
+- Art style stays IDENTICAL across all variations
+- Only content/composition changes, never the core visual style
+- Maintain consistent quality and detail level
+- All artworks feel like they're by the same artist
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: LAYOUT ON 1024x1024 CANVAS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Each artwork fills its ${artworkSize}×${artworkSize}px cell completely
+- NO padding or spacing (artworks fill cells edge-to-edge)
+
+🎯 ARTWORK ORDER:
+Read left-to-right, top-to-bottom (like reading text):
+Artwork 1 at (0,0), Artwork 2 at (1,0), ..., Artwork ${cols} at (${cols-1},0)
+Artwork ${cols+1} at (0,1), ...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: STYLE-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Each artwork is a complete composition
+- Style consistency is MANDATORY across all cells
+- Content can vary, but style NEVER changes
+- Quality level must be consistent
+- All artworks should look like portfolio pieces
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} artworks total (${rows}×${cols} grid)?
+2. ✅ Each artwork fills its ${artworkSize}×${artworkSize}px cell?
+3. ✅ All artworks share the same visual style?
+4. ✅ Art style EXACTLY matches reference?
+5. ✅ Content varies but style is consistent?
+6. ✅ Consistent quality across all artworks?
+
+CRITICAL: These are style variations. The VISUAL STYLE must stay identical, only the CONTENT changes.
+NEVER add your own style interpretation. CLONE the reference style EXACTLY.`;
+        } else {
+          // 단일 작품 생성 (기존 프롬프트)
+          fullPrompt = `🎨 ABSOLUTE PRIORITY: REPLICATE THE VISUAL STYLE SHOWN IN THE REFERENCE IMAGES ABOVE
 This is your PRIMARY and MOST IMPORTANT task. Everything else is secondary.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1263,6 +1664,10 @@ The reference images are YOUR STYLE BIBLE. Follow them EXACTLY.
 ${params.prompt}
 
 REMEMBER: The style shown in references is MANDATORY. The subject/content can change, but the VISUAL STYLE must stay identical.`;
+        }
+      } else if (hasReferenceImages) {
+        // 기타 세션 타입 (참조 이미지 있지만 위 조건에 해당 안 됨)
+        fullPrompt = `${params.prompt}`;
       } else {
         // 참조 이미지가 없을 때: 일반 프롬프트
         fullPrompt = params.prompt;

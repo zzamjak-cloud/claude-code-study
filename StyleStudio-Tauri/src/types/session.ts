@@ -1,4 +1,5 @@
 import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
+import { PixelArtGridLayout } from './pixelart';
 
 export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON';
 
@@ -48,4 +49,5 @@ export interface GenerationSettings {
   topP?: number;
   referenceStrength?: number; // 참조 이미지 영향력 (0.0 ~ 1.0)
   useReferenceImages: boolean;
+  pixelArtGrid?: PixelArtGridLayout; // 스프라이트 그리드 레이아웃 (1x1, 2x2, 4x4, 6x6, 8x8)
 }

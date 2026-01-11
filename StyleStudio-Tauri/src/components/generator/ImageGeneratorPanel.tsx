@@ -94,6 +94,64 @@ export function ImageGeneratorPanel({
     });
   };
 
+  // 타입별 그리드 버튼 스타일 헬퍼 함수
+  const getGridButtonStyle = (isSelected: boolean) => {
+    if (isSelected) {
+      // 선택된 상태
+      if (sessionType === 'CHARACTER') return 'bg-blue-600 text-white border-blue-700 shadow-lg';
+      if (sessionType === 'BACKGROUND') return 'bg-green-600 text-white border-green-700 shadow-lg';
+      if (sessionType === 'ICON') return 'bg-amber-600 text-white border-amber-700 shadow-lg';
+      if (sessionType === 'STYLE') return 'bg-purple-600 text-white border-purple-700 shadow-lg';
+      return 'bg-cyan-600 text-white border-cyan-700 shadow-lg'; // PIXELART_*
+    } else {
+      // 선택되지 않은 상태
+      if (sessionType === 'CHARACTER') return 'bg-white text-gray-700 border-blue-200 hover:border-blue-400';
+      if (sessionType === 'BACKGROUND') return 'bg-white text-gray-700 border-green-200 hover:border-green-400';
+      if (sessionType === 'ICON') return 'bg-white text-gray-700 border-amber-200 hover:border-amber-400';
+      if (sessionType === 'STYLE') return 'bg-white text-gray-700 border-purple-200 hover:border-purple-400';
+      return 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'; // PIXELART_*
+    }
+  };
+
+  // 타입별 그리드 설명 헬퍼 함수
+  const getGridDescription = (grid: PixelArtGridLayout) => {
+    if (sessionType === 'CHARACTER') {
+      if (grid === '1x1') return '✨ 단일 캐릭터 포즈를 생성합니다 (1024px 풀사이즈)';
+      if (grid === '2x2') return '✨ 4가지 캐릭터 포즈 바리에이션을 생성합니다';
+      if (grid === '4x4') return '✨ 16가지 다양한 캐릭터 포즈를 생성합니다';
+      if (grid === '6x6') return '✨ 36가지 캐릭터 포즈 대형 세트를 생성합니다';
+      if (grid === '8x8') return '✨ 64가지 캐릭터 포즈 초대형 세트를 생성합니다';
+    }
+    if (sessionType === 'BACKGROUND') {
+      if (grid === '1x1') return '✨ 단일 배경을 생성합니다 (1024px 풀사이즈)';
+      if (grid === '2x2') return '✨ 4가지 배경 바리에이션을 생성합니다';
+      if (grid === '4x4') return '✨ 16가지 다양한 배경을 생성합니다';
+      if (grid === '6x6') return '✨ 36가지 배경 대형 세트를 생성합니다';
+      if (grid === '8x8') return '✨ 64가지 배경 초대형 세트를 생성합니다';
+    }
+    if (sessionType === 'ICON') {
+      if (grid === '1x1') return '✨ 단일 아이콘을 생성합니다 (1024px 풀사이즈)';
+      if (grid === '2x2') return '✨ 4가지 아이콘 바리에이션을 생성합니다';
+      if (grid === '4x4') return '✨ 16개 아이콘 세트를 생성합니다';
+      if (grid === '6x6') return '✨ 36개 아이콘 대형 세트를 생성합니다';
+      if (grid === '8x8') return '✨ 64개 아이콘 초대형 세트를 생성합니다';
+    }
+    if (sessionType === 'STYLE') {
+      if (grid === '1x1') return '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)';
+      if (grid === '2x2') return '✨ 4가지 스타일 바리에이션을 생성합니다';
+      if (grid === '4x4') return '✨ 16가지 다양한 스타일 작품을 생성합니다';
+      if (grid === '6x6') return '✨ 36가지 스타일 대형 세트를 생성합니다';
+      if (grid === '8x8') return '✨ 64가지 스타일 초대형 세트를 생성합니다';
+    }
+    // PIXELART_*
+    if (grid === '1x1') return '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)';
+    if (grid === '2x2') return '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)';
+    if (grid === '4x4') return '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)';
+    if (grid === '6x6') return '✨ 36프레임 복잡한 애니메이션을 생성합니다';
+    if (grid === '8x8') return '✨ 64프레임 매우 상세한 애니메이션을 생성합니다';
+    return '';
+  };
+
   const handleGenerate = async () => {
     if (!apiKey) {
       alert('API 키를 먼저 설정해주세요. Style Studio 헤더의 설정 아이콘을 클릭하여 API 키를 입력하세요.');
@@ -231,6 +289,7 @@ export function ImageGeneratorPanel({
                   topP: topP,
                   referenceStrength: referenceStrength,
                   useReferenceImages: sessionType === 'CHARACTER' || useReferenceImages,
+                  pixelArtGrid: pixelArtGrid, // 스프라이트 그리드 레이아웃
                 },
               };
               onHistoryAdd(historyEntry);
@@ -408,6 +467,11 @@ export function ImageGeneratorPanel({
     setTopK(entry.settings.topK ?? 40);
     setTopP(entry.settings.topP ?? 0.95);
     setReferenceStrength(entry.settings.referenceStrength ?? 1.0);
+
+    // 스프라이트 그리드 레이아웃 복원
+    if (entry.settings.pixelArtGrid) {
+      setPixelArtGrid(entry.settings.pixelArtGrid);
+    }
 
     // 추가 포즈/동작 프롬프트 복원
     if (entry.additionalPrompt) {
@@ -658,30 +722,36 @@ export function ImageGeneratorPanel({
               </p>
             </div>
 
-            {/* 픽셀아트 타입과 ICON 타입일 때 그리드 선택 표시 */}
-            {(sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'ICON') && (
+            {/* 그리드 옵션 지원 타입: 모든 세션 타입 */}
+            {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON') && (
               <div className={`p-4 rounded-lg border ${
-                sessionType === 'ICON'
+                sessionType === 'CHARACTER'
+                  ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'
+                  : sessionType === 'BACKGROUND'
+                  ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                  : sessionType === 'ICON'
                   ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200'
+                  : sessionType === 'STYLE'
+                  ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
                   : 'bg-gradient-to-r from-cyan-50 to-teal-50 border-cyan-200'
               }`}>
                 <label className="block text-sm font-bold text-gray-800 mb-3">
-                  {sessionType === 'ICON' ? '🎨 아이콘 그리드' : '🎮 스프라이트 시트 그리드'}
+                  {sessionType === 'CHARACTER'
+                    ? '👤 캐릭터 그리드'
+                    : sessionType === 'BACKGROUND'
+                    ? '⛰️ 배경 그리드'
+                    : sessionType === 'ICON'
+                    ? '🎨 아이콘 그리드'
+                    : sessionType === 'STYLE'
+                    ? '✨ 스타일 그리드'
+                    : '🎮 스프라이트 시트 그리드'}
                 </label>
 
                 <div className="grid grid-cols-3 gap-2">
                   {/* 1x1 그리드 */}
                   <button
                     onClick={() => setPixelArtGrid('1x1')}
-                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
-                      pixelArtGrid === '1x1'
-                        ? sessionType === 'ICON'
-                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
-                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : sessionType === 'ICON'
-                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
-                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
-                    }`}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(pixelArtGrid === '1x1')}`}
                   >
                     1×1
                   </button>
@@ -689,15 +759,7 @@ export function ImageGeneratorPanel({
                   {/* 2x2 그리드 */}
                   <button
                     onClick={() => setPixelArtGrid('2x2')}
-                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
-                      pixelArtGrid === '2x2'
-                        ? sessionType === 'ICON'
-                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
-                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : sessionType === 'ICON'
-                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
-                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
-                    }`}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(pixelArtGrid === '2x2')}`}
                   >
                     2×2
                   </button>
@@ -705,15 +767,7 @@ export function ImageGeneratorPanel({
                   {/* 4x4 그리드 (기본값) */}
                   <button
                     onClick={() => setPixelArtGrid('4x4')}
-                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
-                      pixelArtGrid === '4x4'
-                        ? sessionType === 'ICON'
-                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
-                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : sessionType === 'ICON'
-                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
-                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
-                    }`}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(pixelArtGrid === '4x4')}`}
                   >
                     4×4
                   </button>
@@ -721,15 +775,7 @@ export function ImageGeneratorPanel({
                   {/* 6x6 그리드 */}
                   <button
                     onClick={() => setPixelArtGrid('6x6')}
-                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
-                      pixelArtGrid === '6x6'
-                        ? sessionType === 'ICON'
-                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
-                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : sessionType === 'ICON'
-                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
-                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
-                    }`}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(pixelArtGrid === '6x6')}`}
                   >
                     6×6
                   </button>
@@ -737,15 +783,7 @@ export function ImageGeneratorPanel({
                   {/* 8x8 그리드 */}
                   <button
                     onClick={() => setPixelArtGrid('8x8')}
-                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${
-                      pixelArtGrid === '8x8'
-                        ? sessionType === 'ICON'
-                          ? 'bg-amber-600 text-white border-amber-700 shadow-lg'
-                          : 'bg-cyan-600 text-white border-cyan-700 shadow-lg'
-                        : sessionType === 'ICON'
-                          ? 'bg-white text-gray-700 border-amber-200 hover:border-amber-400'
-                          : 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'
-                    }`}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(pixelArtGrid === '8x8')}`}
                   >
                     8×8
                   </button>
@@ -754,11 +792,7 @@ export function ImageGeneratorPanel({
                 {/* 설명 */}
                 <div className="mt-3 p-3 bg-white/50 rounded-lg">
                   <p className="text-xs text-gray-700 leading-relaxed">
-                    {pixelArtGrid === '1x1' && (sessionType === 'ICON' ? '✨ 단일 아이콘을 생성합니다 (1024px 풀사이즈)' : '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)')}
-                    {pixelArtGrid === '2x2' && (sessionType === 'ICON' ? '✨ 4가지 아이콘 바리에이션을 생성합니다' : '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)')}
-                    {pixelArtGrid === '4x4' && (sessionType === 'ICON' ? '✨ 16개 아이콘 세트를 생성합니다' : '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)')}
-                    {pixelArtGrid === '6x6' && (sessionType === 'ICON' ? '✨ 36개 아이콘 대형 세트를 생성합니다' : '✨ 36프레임 복잡한 애니메이션을 생성합니다')}
-                    {pixelArtGrid === '8x8' && (sessionType === 'ICON' ? '✨ 64개 아이콘 초대형 세트를 생성합니다' : '✨ 64프레임 매우 상세한 애니메이션을 생성합니다')}
+                    {getGridDescription(pixelArtGrid)}
                   </p>
                 </div>
               </div>
@@ -1137,11 +1171,29 @@ export function ImageGeneratorPanel({
                     // 시간순 역순 (최신 먼저)
                     return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
                   })
-                  .map((entry) => (
+                  .map((entry) => {
+                    // 툴팁 텍스트 생성
+                    const tooltipParts = [
+                      `생성 시간: ${new Date(entry.timestamp).toLocaleString()}`,
+                      `비율: ${entry.settings.aspectRatio}`,
+                      `크기: ${entry.settings.imageSize}`,
+                    ];
+
+                    if (entry.settings.pixelArtGrid) {
+                      tooltipParts.push(`그리드: ${entry.settings.pixelArtGrid}`);
+                    }
+
+                    if (entry.settings.seed !== undefined) {
+                      tooltipParts.push(`Seed: ${entry.settings.seed}`);
+                    }
+
+                    const tooltipText = tooltipParts.join('\n');
+
+                    return (
                   <div
                     key={entry.id}
                     className="group relative"
-                    title={`생성 시간: ${new Date(entry.timestamp).toLocaleString()}`}
+                    title={tooltipText}
                   >
                     {/* 핀 아이콘 (좌측 상단) */}
                     <button
@@ -1184,7 +1236,8 @@ export function ImageGeneratorPanel({
                       )}
                     </div>
                   </div>
-                ))}
+                    );
+                  })}
                 </div>
               </div>
             </>
