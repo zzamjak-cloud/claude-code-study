@@ -69,6 +69,8 @@ function App() {
     handleHistoryAdd,
     handleHistoryUpdate,
     handleHistoryDelete,
+    handleDocumentAdd,
+    handleDocumentDelete,
     saveSessionWithoutTranslation,
     updateKoreanCache,
   } = useSessionManagement();
@@ -570,6 +572,9 @@ function App() {
                 onHistoryDelete={handleHistoryDelete}
                 onBack={handleBackToAnalysis}
                 autoSavePath={currentSession?.autoSavePath}
+                referenceDocuments={currentSession?.referenceDocuments}
+                onDocumentAdd={handleDocumentAdd}
+                onDocumentDelete={handleDocumentDelete}
                 onAutoSavePathChange={async (path) => {
                   if (currentSession) {
                     const updatedSession = updateSession(currentSession, { autoSavePath: path });

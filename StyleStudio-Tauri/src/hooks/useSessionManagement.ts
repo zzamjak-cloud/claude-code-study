@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Session, GenerationHistoryEntry, KoreanAnalysisCache } from '../types/session';
+import { ReferenceDocument } from '../types/referenceDocument';
 import { ImageAnalysisResult } from '../types/analysis';
 import {
   loadApiKey,
@@ -36,6 +37,8 @@ interface UseSessionManagementReturn {
   handleHistoryAdd: (entry: GenerationHistoryEntry) => void;
   handleHistoryUpdate: (entryId: string, updates: Partial<GenerationHistoryEntry>) => void;
   handleHistoryDelete: (entryId: string) => void;
+  handleDocumentAdd: (document: ReferenceDocument) => void;
+  handleDocumentDelete: (documentId: string) => void;
   saveSessionWithoutTranslation: (updatedAnalysis: ImageAnalysisResult) => Promise<void>;
   updateKoreanCache: (updates: Partial<KoreanAnalysisCache>) => void;
 }
@@ -234,6 +237,38 @@ export function useSessionManagement(): UseSessionManagementReturn {
     persistSessions(updatedSessions);
   };
 
+  const handleDocumentAdd = (document: ReferenceDocument) => {
+    if (!currentSession) return;
+
+    const updatedDocuments = [...(currentSession.referenceDocuments || []), document];
+    const updatedSession = updateSession(currentSession, {
+      referenceDocuments: updatedDocuments,
+    });
+
+    const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+    setSessions(updatedSessions);
+    setCurrentSession(updatedSession);
+    persistSessions(updatedSessions);
+    logger.debug('문서 추가됨:', document.fileName);
+  };
+
+  const handleDocumentDelete = (documentId: string) => {
+    if (!currentSession) return;
+
+    const updatedDocuments = (currentSession.referenceDocuments || []).filter(
+      (doc) => doc.id !== documentId
+    );
+    const updatedSession = updateSession(currentSession, {
+      referenceDocuments: updatedDocuments,
+    });
+
+    const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+    setSessions(updatedSessions);
+    setCurrentSession(updatedSession);
+    persistSessions(updatedSessions);
+    logger.debug('문서 삭제됨:', documentId);
+  };
+
   return {
     apiKey,
     setApiKey,
@@ -253,6 +288,8 @@ export function useSessionManagement(): UseSessionManagementReturn {
     handleHistoryAdd,
     handleHistoryUpdate,
     handleHistoryDelete,
+    handleDocumentAdd,
+    handleDocumentDelete,
     saveSessionWithoutTranslation,
     updateKoreanCache,
   };

@@ -1,4 +1,5 @@
 import { SessionType } from '../../types/session';
+import { ReferenceDocument } from '../../types/referenceDocument';
 import { logger } from '../../lib/logger';
 import { PixelArtGridLayout, getPixelArtGridInfo } from '../../types/pixelart';
 import { ImageAnalysisResult } from '../../types/analysis';
@@ -35,6 +36,7 @@ interface ImageGenerationParams {
   sessionType?: SessionType; // 세션 타입 (CHARACTER/STYLE)
   analysis?: ImageAnalysisResult; // 이미지 분석 결과 (픽셀아트 해상도 추출용)
   pixelArtGrid?: PixelArtGridLayout; // 픽셀아트 그리드 레이아웃 (선택)
+  referenceDocuments?: ReferenceDocument[]; // 참조 문서 (UI 세션 전용)
 
   // 고급 설정
   seed?: number; // 재현성을 위한 시드 값
@@ -698,6 +700,19 @@ NEVER add your own artistic interpretation. CLONE the reference icon style EXACT
 - Comfortable spacing and typography`;
         }
 
+        // 문서 내용 통합 (UI 세션 전용)
+        let docContext = '';
+        if (params.referenceDocuments && params.referenceDocuments.length > 0) {
+          const docSummaries = params.referenceDocuments
+            .map(doc => {
+              const summary = doc.summary || doc.content.substring(0, 200);
+              return `[${doc.fileName}] ${summary.substring(0, 200)}`;
+            })
+            .join('\n');
+
+          docContext = `\n\n━━━ 기획 문서 참조 ━━━\n${docSummaries}\n`;
+        }
+
         if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
           // Grid 모드
           const gridInfo = getPixelArtGridInfo(params.pixelArtGrid);
@@ -716,7 +731,7 @@ Request: "${params.prompt || 'various mobile app screens'}"
 Create ${totalFrames} different UI screens:
 - Different types (Home, List, Detail, Form, Empty state)
 - Different states (Default, Loading, Error, Success)
-- Different density (Minimal, Medium, Data-rich)
+- Different density (Minimal, Medium, Data-rich)${docContext}
 
 ━━━ STEP 3: STYLE REPLICATION 100% ━━━
 Copy EXACTLY from reference UI:
@@ -742,7 +757,7 @@ Output: ${rows}×${cols} grid of UI screens. Style: EXACT match to reference.`;
           // 단일 이미지 모드
           fullPrompt = `📱 Create ONE UI SCREEN in the exact style of reference.
 
-Request: "${params.prompt || 'mobile app screen'}"
+Request: "${params.prompt || 'mobile app screen'}"${docContext}
 
 ━━━ STYLE REPLICATION 100% ━━━
 🔒 Design system, Color palette, Typography, Component style, Navigation

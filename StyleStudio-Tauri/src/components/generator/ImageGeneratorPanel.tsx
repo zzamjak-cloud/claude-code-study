@@ -6,11 +6,13 @@ import { join, downloadDir } from '@tauri-apps/api/path';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
+import { ReferenceDocument } from '../../types/referenceDocument';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
 import { useTranslation } from '../../hooks/useTranslation';
 import { Resizer } from '../common/Resizer';
 import { logger } from '../../lib/logger';
+import { DocumentManager } from './DocumentManager';
 
 interface ImageGeneratorPanelProps {
   apiKey: string;
@@ -25,6 +27,9 @@ interface ImageGeneratorPanelProps {
   onBack?: () => void;
   autoSavePath?: string; // 자동 저장 폴더 경로
   onAutoSavePathChange?: (path: string) => void; // 폴더 경로 변경 콜백
+  referenceDocuments?: ReferenceDocument[]; // 참조 문서 (UI 세션 전용)
+  onDocumentAdd?: (document: ReferenceDocument) => void;
+  onDocumentDelete?: (documentId: string) => void;
 }
 
 export function ImageGeneratorPanel({
@@ -40,6 +45,9 @@ export function ImageGeneratorPanel({
   onBack,
   autoSavePath,
   onAutoSavePathChange,
+  referenceDocuments = [],
+  onDocumentAdd,
+  onDocumentDelete,
 }: ImageGeneratorPanelProps) {
   const { positivePrompt, negativePrompt } = useMemo(
     () => buildUnifiedPrompt(analysis),
@@ -256,6 +264,8 @@ export function ImageGeneratorPanel({
           // 픽셀아트 전용 설정
           analysis: analysis, // 이미지 분석 결과 (픽셀아트 해상도 추출용)
           pixelArtGrid: pixelArtGrid, // 픽셀아트 그리드 레이아웃
+          // UI 세션 전용 설정
+          referenceDocuments: referenceDocuments, // 참조 문서 (UI 세션에서 기획 내용 반영)
         },
         {
           onProgress: (message) => {
@@ -300,6 +310,7 @@ export function ImageGeneratorPanel({
                   useReferenceImages: sessionType === 'CHARACTER' || useReferenceImages,
                   pixelArtGrid: pixelArtGrid, // 스프라이트 그리드 레이아웃
                 },
+                referenceDocumentIds: referenceDocuments?.map(doc => doc.id), // 참조 문서 ID 목록
               };
               onHistoryAdd(historyEntry);
               logger.debug('📜 히스토리에 추가됨:', historyEntry.id);
@@ -730,6 +741,16 @@ export function ImageGeneratorPanel({
                 한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.
               </p>
             </div>
+
+            {/* 기획 문서 첨부 (UI 세션 전용) */}
+            {sessionType === 'UI' && onDocumentAdd && onDocumentDelete && (
+              <DocumentManager
+                documents={referenceDocuments}
+                apiKey={apiKey}
+                onAdd={onDocumentAdd}
+                onDelete={onDocumentDelete}
+              />
+            )}
 
             {/* 그리드 옵션 지원 타입: 모든 세션 타입 */}
             {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'UI') && (
@@ -1212,6 +1233,10 @@ export function ImageGeneratorPanel({
 
                     if (entry.settings.seed !== undefined) {
                       tooltipParts.push(`Seed: ${entry.settings.seed}`);
+                    }
+
+                    if (entry.referenceDocumentIds && entry.referenceDocumentIds.length > 0) {
+                      tooltipParts.push(`📄 참조 문서: ${entry.referenceDocumentIds.length}개`);
                     }
 
                     const tooltipText = tooltipParts.join('\n');

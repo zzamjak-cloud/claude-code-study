@@ -1,5 +1,6 @@
 import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
 import { PixelArtGridLayout } from './pixelart';
+import { ReferenceDocument } from './referenceDocument';
 
 export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI';
 
@@ -26,6 +27,7 @@ export interface Session {
   imageCount: number; // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리 (선택)
   autoSavePath?: string; // 자동 저장 폴더 경로 (선택)
+  referenceDocuments?: ReferenceDocument[]; // 참조 문서 (UI 세션 전용)
 }
 
 // 생성 히스토리 엔트리
@@ -38,6 +40,7 @@ export interface GenerationHistoryEntry {
   imageBase64: string; // 생성된 이미지 (Base64)
   settings: GenerationSettings; // 사용된 설정
   isPinned?: boolean; // 즐겨찾기 표시
+  referenceDocumentIds?: string[]; // 참조 문서 ID 목록 (UI 세션 전용)
 }
 
 // 생성 설정
