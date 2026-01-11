@@ -681,9 +681,27 @@ export function ImageGeneratorPanel({
 
       <div className="flex-1 flex overflow-hidden">
         {/* 왼쪽: 설정 패널 */}
-        <div className="w-96 bg-white border-r border-gray-200 p-6 overflow-y-auto">
-          <div className="space-y-6">
-            {/* 사용자 맞춤 프롬프트 안내 (자동 적용) */}
+        <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
+          {/* 고정 영역: 생성 버튼 */}
+          <div className="p-6 pb-4 border-b border-gray-200 bg-white">
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
+                isGenerating
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:shadow-xl'
+              }`}
+            >
+              <Wand2 size={20} />
+              <span>{isGenerating ? '생성 중...' : '이미지 생성'}</span>
+            </button>
+          </div>
+
+          {/* 스크롤 가능 영역: 설정들 */}
+          <div className="flex-1 overflow-y-auto p-6 pt-6">
+            <div className="space-y-6">
+              {/* 사용자 맞춤 프롬프트 안내 (자동 적용) */}
             {analysis.user_custom_prompt && (
               <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
                 <div className="flex items-center justify-between mb-1">
@@ -831,20 +849,6 @@ export function ImageGeneratorPanel({
                 </div>
               </div>
             )}
-
-            {/* 생성 버튼 */}
-            <button
-              onClick={handleGenerate}
-              disabled={isGenerating}
-              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
-                isGenerating
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:shadow-xl'
-              }`}
-            >
-              <Wand2 size={20} />
-              <span>{isGenerating ? '생성 중...' : '이미지 생성'}</span>
-            </button>
 
             {/* 비율 선택 */}
             <div>
@@ -1111,6 +1115,7 @@ export function ImageGeneratorPanel({
                 </div>
               </div>
             )}
+            </div>
           </div>
         </div>
 
