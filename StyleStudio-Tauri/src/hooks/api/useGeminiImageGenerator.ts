@@ -658,6 +658,102 @@ STEP 3: ICON-SPECIFIC REQUIREMENTS
 
 NEVER add your own artistic interpretation. CLONE the reference icon style EXACTLY.`;
         }
+      } else if (hasReferenceImages && params.sessionType === 'UI') {
+        // UI 세션: UI 디자인 스타일 유지하며 다양한 화면 생성
+
+        // platform_type 추출하여 UI 요소 크기 결정
+        const platformType = params.analysis?.ui_specific?.platform_type?.toLowerCase() || '';
+        let uiSizeGuidance = '';
+
+        if (platformType.includes('mobile') || platformType.includes('phone') ||
+            platformType.includes('ios') || platformType.includes('android')) {
+          uiSizeGuidance = `
+🔒 UI ELEMENT SIZING (MOBILE):
+- Larger touch targets (minimum 44×44px)
+- Bigger buttons and interactive elements
+- More spacing between elements for thumb accessibility
+- Larger typography (16px+ for body text)
+- Prominent CTAs and primary actions`;
+        } else if (platformType.includes('desktop') || platformType.includes('web') ||
+                   platformType.includes('landing')) {
+          uiSizeGuidance = `
+🔒 UI ELEMENT SIZING (DESKTOP):
+- Compact, dense layout with more information
+- Smaller interactive elements (mouse precision)
+- Tighter spacing between elements
+- Smaller typography (14px body text acceptable)
+- Multiple columns and sidebars`;
+        } else if (platformType.includes('tablet') || platformType.includes('ipad')) {
+          uiSizeGuidance = `
+🔒 UI ELEMENT SIZING (TABLET):
+- Medium-sized touch targets (40×40px)
+- Balanced spacing (between mobile and desktop)
+- Flexible layout adapting to orientation
+- Moderate typography (15px body text)`;
+        } else {
+          uiSizeGuidance = `
+🔒 UI ELEMENT SIZING (ADAPTIVE):
+- Balanced sizing suitable for multiple platforms
+- Standard touch targets (40×40px)
+- Comfortable spacing and typography`;
+        }
+
+        if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
+          // Grid 모드
+          const gridInfo = getPixelArtGridInfo(params.pixelArtGrid);
+          const { rows, cols, totalFrames, cellSize } = gridInfo;
+
+          fullPrompt = `📱 MISSION: Create ${totalFrames} UI SCREEN DESIGNS in a ${rows}×${cols} grid on 1024x1024 canvas.
+
+━━━ STEP 1: GRID LAYOUT ━━━
+Canvas: 1024×1024px
+Grid: ${rows}×${cols} = ${totalFrames} screens
+Cell Size: ${cellSize}×${cellSize}px
+${generateGridASCII(rows, cols)}
+
+━━━ STEP 2: UI REQUEST ━━━
+Request: "${params.prompt || 'various mobile app screens'}"
+Create ${totalFrames} different UI screens:
+- Different types (Home, List, Detail, Form, Empty state)
+- Different states (Default, Loading, Error, Success)
+- Different density (Minimal, Medium, Data-rich)
+
+━━━ STEP 3: STYLE REPLICATION 100% ━━━
+Copy EXACTLY from reference UI:
+🔒 Design system (Glassmorphism, Neumorphism, Flat, Material)
+🔒 Color palette (Background, Accent, Text - EXACT match)
+🔒 Typography (Font family, weights, hierarchy)
+🔒 Component style (Buttons, inputs, cards, icons)
+🔒 Navigation pattern (Bottom tabs, Sidebar, Top bar)
+${uiSizeGuidance}
+
+━━━ STEP 4: QUALITY BOOSTERS ━━━
+Trending on Dribbble. Behance winner. Figma. UI/UX. High Fidelity. Clean interface. User-centered design.
+
+━━━ EXECUTION RULES ━━━
+✅ FLAT UI screens (NO device frames, NO phone mockups)
+✅ Lorem Ipsum text (AI cannot write accurate text)
+✅ Consistent style across all cells
+❌ NO phone mockups, device frames, hands, photographs, messy layouts
+
+Output: ${rows}×${cols} grid of UI screens. Style: EXACT match to reference.`;
+
+        } else {
+          // 단일 이미지 모드
+          fullPrompt = `📱 Create ONE UI SCREEN in the exact style of reference.
+
+Request: "${params.prompt || 'mobile app screen'}"
+
+━━━ STYLE REPLICATION 100% ━━━
+🔒 Design system, Color palette, Typography, Component style, Navigation
+${uiSizeGuidance}
+
+━━━ QUALITY ━━━
+Dribbble. Behance. Figma. UI/UX. High Fidelity.
+FLAT UI only. Lorem Ipsum text. NO mockups.
+
+Output: Single flat UI screen matching reference style.`;
+        }
       } else if (hasReferenceImages && params.sessionType === 'PIXELART_CHARACTER') {
         // 픽셀아트 캐릭터: 그리드 스프라이트 시트로 애니메이션 시퀀스 생성
         const gridLayout = params.pixelArtGrid || '4x4';

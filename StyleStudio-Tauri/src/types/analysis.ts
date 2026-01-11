@@ -42,6 +42,14 @@ export interface PixelArtSpecificAnalysis {
   anti_aliasing: string;          // 안티앨리어싱 사용 여부 (예: "None - pure pixels", "Selective AA on curves")
 }
 
+// UI 디자인 특화 분석 결과 (UI 타입일 때만 사용)
+export interface UISpecificAnalysis {
+  platform_type: string;   // 플랫폼 및 유형 (예: "Mobile App - Fintech Dashboard", "Desktop Web - E-commerce Landing")
+  visual_style: string;    // 비주얼 스타일 (예: "Glassmorphism with Dark Mode", "Minimalist Flat Design")
+  key_elements: string;    // 핵심 UI 요소 (예: "Credit card visual, transaction list, circular progress bar")
+  color_theme: string;     // 색상 테마 (예: "Deep Navy (#1A1F3A) with Neon Green (#00FF88)")
+}
+
 // 전체 분석 결과
 export interface ImageAnalysisResult {
   style: StyleAnalysis;
@@ -50,4 +58,5 @@ export interface ImageAnalysisResult {
   negative_prompt: string; // 피해야 할 요소들 (예: realistic hands, detailed fingers, 8-head proportions)
   user_custom_prompt?: string; // 사용자가 직접 입력한 맞춤형 프롬프트 (분석 강화 시 유지)
   pixelart_specific?: PixelArtSpecificAnalysis; // 픽셀아트 타입일 때만 존재
+  ui_specific?: UISpecificAnalysis; // UI 타입일 때만 존재
 }

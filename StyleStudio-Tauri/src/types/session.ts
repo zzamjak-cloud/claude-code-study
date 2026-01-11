@@ -1,7 +1,7 @@
 import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
 import { PixelArtGridLayout } from './pixelart';
 
-export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON';
+export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI';
 
 // 번역된 분석 결과 (캐싱용)
 export interface KoreanAnalysisCache {
@@ -11,6 +11,7 @@ export interface KoreanAnalysisCache {
   negativePrompt?: string; // 한국어 번역
   positivePrompt?: string; // 한국어 번역
   customPromptEnglish?: string; // 사용자 맞춤 프롬프트의 영어 번역 (이미지 생성용)
+  uiAnalysis?: import('./analysis').UISpecificAnalysis; // UI 디자인 분석 결과 (한국어 번역)
 }
 
 export interface Session {

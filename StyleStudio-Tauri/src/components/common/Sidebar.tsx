@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings, GripVertical, Mountain, Box, Gamepad2, Grid3x3 } from 'lucide-react';
+import { Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings, GripVertical, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor } from 'lucide-react';
 import { Session, SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
 
@@ -41,6 +41,18 @@ function getSessionTypeInfo(type: SessionType) {
         icon: Grid3x3,
         bgColor: 'bg-teal-600/20',
         textColor: 'text-teal-400',
+      };
+    case 'PIXELART_ICON':
+      return {
+        icon: Sparkles,
+        bgColor: 'bg-indigo-600/20',
+        textColor: 'text-indigo-400',
+      };
+    case 'UI':
+      return {
+        icon: Monitor,
+        bgColor: 'bg-pink-600/20',
+        textColor: 'text-pink-400',
       };
     default:
       return {

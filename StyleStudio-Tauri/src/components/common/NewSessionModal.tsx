@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -192,6 +192,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   픽셀아트 아이콘을 학습하여 게임 UI 요소를 생성합니다
+                </p>
+              </button>
+
+              {/* UI */}
+              <button
+                onClick={() => setSessionType('UI')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'UI'
+                    ? 'bg-pink-50 border-pink-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-pink-300 hover:bg-pink-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Monitor size={20} className={sessionType === 'UI' ? 'text-pink-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'UI' ? 'text-pink-900' : 'text-gray-700'}>UI 디자인</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  UI/UX 디자인 스타일을 학습하여 화면을 생성합니다
                 </p>
               </button>
             </div>

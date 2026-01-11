@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn, Download } from 'lucide-react';
+import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn, Download, Monitor } from 'lucide-react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { join, downloadDir } from '@tauri-apps/api/path';
@@ -102,6 +102,7 @@ export function ImageGeneratorPanel({
       if (sessionType === 'BACKGROUND') return 'bg-green-600 text-white border-green-700 shadow-lg';
       if (sessionType === 'ICON') return 'bg-amber-600 text-white border-amber-700 shadow-lg';
       if (sessionType === 'STYLE') return 'bg-purple-600 text-white border-purple-700 shadow-lg';
+      if (sessionType === 'UI') return 'bg-pink-600 text-white border-pink-700 shadow-lg';
       return 'bg-cyan-600 text-white border-cyan-700 shadow-lg'; // PIXELART_*
     } else {
       // 선택되지 않은 상태
@@ -109,6 +110,7 @@ export function ImageGeneratorPanel({
       if (sessionType === 'BACKGROUND') return 'bg-white text-gray-700 border-green-200 hover:border-green-400';
       if (sessionType === 'ICON') return 'bg-white text-gray-700 border-amber-200 hover:border-amber-400';
       if (sessionType === 'STYLE') return 'bg-white text-gray-700 border-purple-200 hover:border-purple-400';
+      if (sessionType === 'UI') return 'bg-white text-gray-700 border-pink-200 hover:border-pink-400';
       return 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'; // PIXELART_*
     }
   };
@@ -135,6 +137,13 @@ export function ImageGeneratorPanel({
       if (grid === '4x4') return '✨ 16개 아이콘 세트를 생성합니다';
       if (grid === '6x6') return '✨ 36개 아이콘 대형 세트를 생성합니다';
       if (grid === '8x8') return '✨ 64개 아이콘 초대형 세트를 생성합니다';
+    }
+    if (sessionType === 'UI') {
+      if (grid === '1x1') return '✨ 단일 UI 화면 (1024px)';
+      if (grid === '2x2') return '✨ 4가지 UI 화면 바리에이션';
+      if (grid === '4x4') return '✨ 16개 UI 화면 세트';
+      if (grid === '6x6') return '✨ 36개 UI 화면 대형 세트';
+      if (grid === '8x8') return '✨ 64개 UI 화면 초대형 세트';
     }
     if (sessionType === 'STYLE') {
       if (grid === '1x1') return '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)';
@@ -723,7 +732,7 @@ export function ImageGeneratorPanel({
             </div>
 
             {/* 그리드 옵션 지원 타입: 모든 세션 타입 */}
-            {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON') && (
+            {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'UI') && (
               <div className={`p-4 rounded-lg border ${
                 sessionType === 'CHARACTER'
                   ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'
@@ -733,6 +742,8 @@ export function ImageGeneratorPanel({
                   ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200'
                   : sessionType === 'STYLE'
                   ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
+                  : sessionType === 'UI'
+                  ? 'bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200'
                   : 'bg-gradient-to-r from-cyan-50 to-teal-50 border-cyan-200'
               }`}>
                 <label className="block text-sm font-bold text-gray-800 mb-3">
@@ -744,6 +755,8 @@ export function ImageGeneratorPanel({
                     ? '🎨 아이콘 그리드'
                     : sessionType === 'STYLE'
                     ? '✨ 스타일 그리드'
+                    : sessionType === 'UI'
+                    ? '📱 UI 화면 그리드'
                     : '🎮 스프라이트 시트 그리드'}
                 </label>
 
@@ -830,6 +843,20 @@ export function ImageGeneratorPanel({
                   </button>
                 ))}
               </div>
+
+              {/* UI 타입일 때 안내 메시지 표시 */}
+              {sessionType === 'UI' && (
+                <div className="mt-2 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                  <p className="text-xs text-pink-700 flex items-start gap-2">
+                    <Monitor size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>💡 UI 요소 크기 자동 조정:</strong><br />
+                      분석된 플랫폼에 따라 UI 요소 크기가 자동으로 조정됩니다.
+                      Mobile UI는 큰 터치 타겟(44px+), Desktop UI는 밀집 레이아웃으로 생성됩니다.
+                    </span>
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* 크기 선택 */}
