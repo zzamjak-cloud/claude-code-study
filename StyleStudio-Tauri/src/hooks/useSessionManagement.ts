@@ -149,12 +149,27 @@ export function useSessionManagement(): UseSessionManagementReturn {
         importedSession.id = Date.now().toString();
       }
 
+      // 참조 이미지 검증 (Base64 데이터가 있는지 확인)
+      const hasValidImages = importedSession.referenceImages.length > 0 &&
+        importedSession.referenceImages.every(img => img.startsWith('data:'));
+
+      if (importedSession.imageCount > 0 && !hasValidImages) {
+        logger.warn('⚠️ import한 세션의 참조 이미지가 손상되었습니다:', importedSession.name);
+        alert(
+          `세션 "${importedSession.name}"을 불러왔지만, 참조 이미지가 손상되었습니다.\n\n` +
+          `원인: 이전 버전으로 export한 파일이거나, 이미지 데이터가 누락되었습니다.\n\n` +
+          `해결 방법:\n` +
+          `1. 원본 PC에서 최신 버전으로 세션을 다시 export하세요\n` +
+          `2. 참조 이미지를 다시 업로드하고 분석하세요`
+        );
+      }
+
       const updatedSessions = addSessionToList(sessions, importedSession);
       setSessions(updatedSessions);
       await persistSessions(updatedSessions);
 
       logger.info(
-        `✅ 세션 "${importedSession.name}" 불러오기 완료 (참조 이미지: ${importedSession.imageCount}개)`
+        `✅ 세션 "${importedSession.name}" 불러오기 완료 (참조 이미지: ${importedSession.imageCount}개, 유효: ${hasValidImages})`
       );
 
       setCurrentSession(importedSession);

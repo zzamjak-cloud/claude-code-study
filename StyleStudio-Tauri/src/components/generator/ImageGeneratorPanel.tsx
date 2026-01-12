@@ -415,6 +415,13 @@ export function ImageGeneratorPanel({
       return;
     }
 
+    // Base64 data URL 형식 검증
+    if (!generatedImage.startsWith('data:')) {
+      logger.error('❌ 유효하지 않은 이미지 형식:', generatedImage.substring(0, 50));
+      alert('이미지 다운로드에 실패했습니다.\n\n이미지 데이터가 손상되었습니다. 세션을 다시 import하거나 이미지를 새로 생성해주세요.');
+      return;
+    }
+
     try {
       // 기본 저장 경로 결정
       let defaultPath = autoSavePath;
@@ -458,6 +465,10 @@ export function ImageGeneratorPanel({
 
       // Base64를 Uint8Array로 변환
       const base64Data = generatedImage.split(',')[1];
+      if (!base64Data) {
+        throw new Error('Base64 데이터를 추출할 수 없습니다');
+      }
+
       const binaryString = atob(base64Data);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {

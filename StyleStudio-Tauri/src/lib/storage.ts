@@ -183,8 +183,26 @@ export async function exportSessionToFile(session: Session): Promise<void> {
 
     logger.debug('💾 세션을 파일로 저장 중:', filePath);
 
+    // IndexedDB 키를 실제 Base64 이미지로 복원
+    let exportSession = session;
+    if (session.imageKeys && session.imageKeys.length > 0) {
+      logger.debug(`  - IndexedDB에서 ${session.imageKeys.length}개 이미지 복원 중...`);
+      const images = await loadImages(session.imageKeys);
+
+      if (images.length > 0) {
+        exportSession = {
+          ...session,
+          referenceImages: images, // 실제 Base64 데이터로 교체
+          // imageKeys는 유지 (호환성)
+        };
+        logger.debug(`  - ${images.length}개 이미지 복원 완료`);
+      } else {
+        logger.warn('  - ⚠️ IndexedDB에서 이미지를 찾을 수 없습니다. 키만 export됩니다.');
+      }
+    }
+
     // 세션을 JSON 문자열로 변환
-    const jsonContent = JSON.stringify(session, null, 2);
+    const jsonContent = JSON.stringify(exportSession, null, 2);
 
     // 파일에 쓰기
     await writeTextFile(filePath, jsonContent);
