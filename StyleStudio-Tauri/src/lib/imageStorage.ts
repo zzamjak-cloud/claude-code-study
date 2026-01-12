@@ -11,7 +11,7 @@ const DB_VERSION = 1;
 async function getImageDB(): Promise<IDBPDatabase> {
   try {
     return await openDB(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db: IDBPDatabase) {
         // images 스토어가 없으면 생성
         if (!db.objectStoreNames.contains(STORE_NAME)) {
           db.createObjectStore(STORE_NAME);
@@ -105,13 +105,13 @@ export async function deleteSessionImages(sessionId: string): Promise<void> {
 
     // sessionId로 시작하는 모든 키 찾기
     const allKeys = await store.getAllKeys();
-    const sessionKeys = allKeys.filter(key =>
+    const sessionKeys = allKeys.filter((key: IDBValidKey) =>
       typeof key === 'string' && key.startsWith(`${sessionId}-`)
     );
 
     // 모든 세션 이미지 삭제
     await Promise.all(
-      sessionKeys.map(key => store.delete(key))
+      sessionKeys.map((key: IDBValidKey) => store.delete(key))
     );
 
     await tx.done;
@@ -145,7 +145,7 @@ export async function getStorageSize(): Promise<number> {
     const db = await getImageDB();
     const allValues = await db.getAll(STORE_NAME);
 
-    const totalSize = allValues.reduce((sum, dataUrl) => {
+    const totalSize = allValues.reduce((sum: number, dataUrl: any) => {
       return sum + (typeof dataUrl === 'string' ? dataUrl.length : 0);
     }, 0);
 
