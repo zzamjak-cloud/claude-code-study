@@ -6,6 +6,7 @@ import {
   BACKGROUND_ANALYZER_PROMPT,
   PIXELART_BACKGROUND_ANALYZER_PROMPT,
   UI_ANALYZER_PROMPT,
+  LOGO_ANALYZER_PROMPT,
 } from '../../lib/gemini/analysisPrompt';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType } from '../../types/session';
@@ -76,8 +77,12 @@ export function useGeminiAnalyzer() {
       let analysisPrompt: string;
       let promptType: string;
 
-      // UI 타입 체크 (최우선 순위)
-      if (sessionType === 'UI') {
+      // LOGO 타입 체크 (최우선 순위)
+      if (sessionType === 'LOGO') {
+        analysisPrompt = LOGO_ANALYZER_PROMPT;
+        promptType = 'LOGO';
+        logger.debug('📋 프롬프트 선택: LOGO (게임 로고 전용, Typography/Material 중심)');
+      } else if (sessionType === 'UI') {
         analysisPrompt = UI_ANALYZER_PROMPT;
         promptType = 'UI';
         logger.debug('📋 프롬프트 선택: UI (UI 디자인 전용, 캐릭터 제외, Flat UI 생성)');

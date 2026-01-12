@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn, Download, Monitor } from 'lucide-react';
+import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn, Download, Monitor, Award } from 'lucide-react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { join, downloadDir } from '@tauri-apps/api/path';
@@ -111,6 +111,7 @@ export function ImageGeneratorPanel({
       if (sessionType === 'ICON') return 'bg-amber-600 text-white border-amber-700 shadow-lg';
       if (sessionType === 'STYLE') return 'bg-purple-600 text-white border-purple-700 shadow-lg';
       if (sessionType === 'UI') return 'bg-pink-600 text-white border-pink-700 shadow-lg';
+      if (sessionType === 'LOGO') return 'bg-red-600 text-white border-red-700 shadow-lg';
       return 'bg-cyan-600 text-white border-cyan-700 shadow-lg'; // PIXELART_*
     } else {
       // 선택되지 않은 상태
@@ -119,6 +120,7 @@ export function ImageGeneratorPanel({
       if (sessionType === 'ICON') return 'bg-white text-gray-700 border-amber-200 hover:border-amber-400';
       if (sessionType === 'STYLE') return 'bg-white text-gray-700 border-purple-200 hover:border-purple-400';
       if (sessionType === 'UI') return 'bg-white text-gray-700 border-pink-200 hover:border-pink-400';
+      if (sessionType === 'LOGO') return 'bg-white text-gray-700 border-red-200 hover:border-red-400';
       return 'bg-white text-gray-700 border-cyan-200 hover:border-cyan-400'; // PIXELART_*
     }
   };
@@ -152,6 +154,13 @@ export function ImageGeneratorPanel({
       if (grid === '4x4') return '✨ 16개 UI 화면 세트';
       if (grid === '6x6') return '✨ 36개 UI 화면 대형 세트';
       if (grid === '8x8') return '✨ 64개 UI 화면 초대형 세트';
+    }
+    if (sessionType === 'LOGO') {
+      if (grid === '1x1') return '✨ 단일 로고를 생성합니다 (1024px 풀사이즈)';
+      if (grid === '2x2') return '✨ 4가지 로고 재질/색상 바리에이션을 생성합니다';
+      if (grid === '4x4') return '✨ 16가지 다양한 로고 스타일 옵션을 생성합니다 (A/B 테스트용)';
+      if (grid === '6x6') return '✨ 36가지 로고 대형 바리에이션 세트를 생성합니다';
+      if (grid === '8x8') return '✨ 64가지 로고 초대형 바리에이션 세트를 생성합니다';
     }
     if (sessionType === 'STYLE') {
       if (grid === '1x1') return '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)';
@@ -569,6 +578,10 @@ export function ImageGeneratorPanel({
                   ? '픽셀 배경 세션'
                   : sessionType === 'PIXELART_ICON'
                   ? '픽셀 아이콘 세션'
+                  : sessionType === 'UI'
+                  ? 'UI 디자인 세션'
+                  : sessionType === 'LOGO'
+                  ? '로고 세션'
                   : '스타일 세션'}{' '}
                 · Gemini 3 Pro
               </p>
@@ -750,6 +763,30 @@ export function ImageGeneratorPanel({
                     ? `배경 바리에이션을 설명하세요 (예: forest at different times, dungeon levels)\n${pixelArtGrid === '1x1' ? '→ 단일 배경으로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 씬 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16개 배경 바리에이션으로 생성됩니다' : pixelArtGrid === '6x6' ? '→ 36개 배경 대형 세트로 생성됩니다' : pixelArtGrid === '8x8' ? '→ 64개 배경 초대형 세트로 생성됩니다' : '→ 여러 배경 바리에이션으로 생성됩니다'}`
                     : sessionType === 'PIXELART_ICON'
                     ? `픽셀아트 아이콘을 설명하세요 (예: health potion, mana crystal, gold coin)\n${pixelArtGrid === '1x1' ? '→ 단일 아이콘으로 생성됩니다' : pixelArtGrid === '2x2' ? '→ 4가지 아이콘 바리에이션으로 생성됩니다' : pixelArtGrid === '4x4' ? '→ 16개 아이콘 세트로 생성됩니다' : pixelArtGrid === '6x6' ? '→ 36개 아이콘 대형 세트로 생성됩니다' : pixelArtGrid === '8x8' ? '→ 64개 아이콘 초대형 세트로 생성됩니다' : '→ 여러 아이콘으로 생성됩니다'}`
+                    : sessionType === 'UI'
+                    ? `UI 화면 종류를 설명하세요 (예: 로그인 화면, 상점 화면, 인벤토리 화면)\n${
+                      pixelArtGrid === '1x1'
+                        ? '→ 단일 UI 화면으로 생성됩니다'
+                        : pixelArtGrid === '2x2'
+                        ? '→ 4가지 UI 화면 바리에이션으로 생성됩니다'
+                        : pixelArtGrid === '4x4'
+                        ? '→ 16개 UI 화면 세트로 생성됩니다'
+                        : pixelArtGrid === '6x6'
+                        ? '→ 36개 UI 화면 대형 세트로 생성됩니다'
+                        : '→ 64개 UI 화면 초대형 세트로 생성됩니다'
+                    }`
+                    : sessionType === 'LOGO'
+                    ? `로고 타이틀 텍스트와 스타일을 설명하세요 (예: "DRAGON POP" 젤리 재질, 버블 폰트)\n${
+                      pixelArtGrid === '1x1'
+                        ? '→ 단일 로고로 생성됩니다'
+                        : pixelArtGrid === '2x2'
+                        ? '→ 4가지 재질/색상 바리에이션으로 생성됩니다'
+                        : pixelArtGrid === '4x4'
+                        ? '→ 16가지 다양한 로고 옵션으로 생성됩니다'
+                        : pixelArtGrid === '6x6'
+                        ? '→ 36가지 로고 대형 세트로 생성됩니다'
+                        : '→ 64가지 로고 초대형 세트로 생성됩니다'
+                    }`
                     : '예: 밤 풍경, 비오는 날씨 / night scene, rainy weather'
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
@@ -758,6 +795,18 @@ export function ImageGeneratorPanel({
               <p className="text-xs text-gray-500 mt-1">
                 한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.
               </p>
+
+              {/* LOGO 타입일 때 AI 텍스트 한계 안내 메시지 */}
+              {sessionType === 'LOGO' && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    ⚠️ <strong>AI 텍스트 한계 안내:</strong><br />
+                    현재 AI는 텍스트 스펠링이 완벽하지 않습니다.
+                    생성된 로고는 <strong>"디자인 시안"</strong>으로 간주하고,
+                    최종 텍스트는 Photoshop/Illustrator에서 수정하세요.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* 기획 문서 첨부 (UI 세션 전용) */}
@@ -771,7 +820,7 @@ export function ImageGeneratorPanel({
             )}
 
             {/* 그리드 옵션 지원 타입: 모든 세션 타입 */}
-            {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'UI') && (
+            {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'UI' || sessionType === 'LOGO') && (
               <div className={`p-4 rounded-lg border ${
                 sessionType === 'CHARACTER'
                   ? 'bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200'
@@ -783,6 +832,8 @@ export function ImageGeneratorPanel({
                   ? 'bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200'
                   : sessionType === 'UI'
                   ? 'bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200'
+                  : sessionType === 'LOGO'
+                  ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200'
                   : 'bg-gradient-to-r from-cyan-50 to-teal-50 border-cyan-200'
               }`}>
                 <label className="block text-sm font-bold text-gray-800 mb-3">
@@ -796,6 +847,8 @@ export function ImageGeneratorPanel({
                     ? '✨ 스타일 그리드'
                     : sessionType === 'UI'
                     ? '📱 UI 화면 그리드'
+                    : sessionType === 'LOGO'
+                    ? '🏆 로고 그리드'
                     : '🎮 스프라이트 시트 그리드'}
                 </label>
 
@@ -882,6 +935,19 @@ export function ImageGeneratorPanel({
                   </p>
                 </div>
               )}
+
+              {/* LOGO 타입일 때 권장 설정 안내 메시지 */}
+              {sessionType === 'LOGO' && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs text-red-700 flex items-start gap-2">
+                    <Award size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>💡 로고 생성 권장 설정:</strong><br />
+                      비율 1:1 (정사각형), 크기 2K (고해상도), 참조 이미지 3-5개
+                    </span>
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* 크기 선택 */}
@@ -937,6 +1003,10 @@ export function ImageGeneratorPanel({
                   ? '픽셀 배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
                   : sessionType === 'PIXELART_ICON'
                   ? '픽셀 아이콘 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
+                  : sessionType === 'UI'
+                  ? 'UI 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'LOGO'
+                  ? '로고 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
                   : '현재 세션의 이미지를 참조하여 스타일 일관성을 높입니다'}
               </p>
 
@@ -1115,11 +1185,11 @@ export function ImageGeneratorPanel({
                 </div>
               </div>
             )}
-            </div>
           </div>
         </div>
+      </div>
 
-        {/* 오른쪽: 결과 표시 및 히스토리 */}
+      {/* 오른쪽: 결과 표시 및 히스토리 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 결과 표시 영역 */}
           <div className={`flex-1 p-8 ${zoomLevel === 'fit' && generatedImage ? 'overflow-hidden' : 'overflow-y-auto'}`}>

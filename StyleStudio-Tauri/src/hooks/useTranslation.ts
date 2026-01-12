@@ -56,6 +56,37 @@ export function useTranslation() {
         analysis.negative_prompt,
       ];
 
+      // UI 특화 분석 필드 추가 (4개)
+      if (analysis.ui_specific) {
+        allTexts.push(
+          analysis.ui_specific.platform_type,
+          analysis.ui_specific.visual_style,
+          analysis.ui_specific.key_elements,
+          analysis.ui_specific.color_theme
+        );
+      }
+
+      // LOGO 특화 분석 필드 추가 (15개)
+      if (analysis.logo_specific) {
+        allTexts.push(
+          analysis.logo_specific.typography_style,
+          analysis.logo_specific.text_warping,
+          analysis.logo_specific.text_weight,
+          analysis.logo_specific.edge_treatment,
+          analysis.logo_specific.material_type,
+          analysis.logo_specific.rendering_style,
+          analysis.logo_specific.surface_quality,
+          analysis.logo_specific.outline_style,
+          analysis.logo_specific.drop_shadow,
+          analysis.logo_specific.inner_effects,
+          analysis.logo_specific.decorative_elements,
+          analysis.logo_specific.color_vibrancy,
+          analysis.logo_specific.color_count,
+          analysis.logo_specific.gradient_usage,
+          analysis.logo_specific.genre_hint
+        );
+      }
+
       // 한 번의 API 호출로 모든 필드 번역 (영어→한국어)
       onProgress?.({ stage: 'translating', message: '전체 번역 중...', percentage: 0 });
       const translations = await translateBatchToKorean(apiKey, allTexts);
@@ -72,6 +103,8 @@ export function useTranslation() {
       }
       
       onProgress?.({ stage: 'complete', message: '번역 완료!', percentage: 100 });
+
+      let translationIndex = 22; // UI와 LOGO 필드는 22번 인덱스부터 시작
 
       const koreanCache: KoreanAnalysisCache = {
         style: {
@@ -104,6 +137,37 @@ export function useTranslation() {
         negativePrompt: translations[21],
         customPromptEnglish: customPromptEnglish || undefined,
       };
+
+      // UI 특화 분석 번역 결과 추가
+      if (analysis.ui_specific) {
+        koreanCache.uiAnalysis = {
+          platform_type: translations[translationIndex++],
+          visual_style: translations[translationIndex++],
+          key_elements: translations[translationIndex++],
+          color_theme: translations[translationIndex++],
+        };
+      }
+
+      // LOGO 특화 분석 번역 결과 추가
+      if (analysis.logo_specific) {
+        koreanCache.logoAnalysis = {
+          typography_style: translations[translationIndex++],
+          text_warping: translations[translationIndex++],
+          text_weight: translations[translationIndex++],
+          edge_treatment: translations[translationIndex++],
+          material_type: translations[translationIndex++],
+          rendering_style: translations[translationIndex++],
+          surface_quality: translations[translationIndex++],
+          outline_style: translations[translationIndex++],
+          drop_shadow: translations[translationIndex++],
+          inner_effects: translations[translationIndex++],
+          decorative_elements: translations[translationIndex++],
+          color_vibrancy: translations[translationIndex++],
+          color_count: translations[translationIndex++],
+          gradient_usage: translations[translationIndex++],
+          genre_hint: translations[translationIndex++],
+        };
+      }
 
       return koreanCache;
     } catch (error) {
@@ -144,7 +208,15 @@ export function useTranslation() {
     // user_custom_prompt 변경 확인
     const customPromptChanged = oldAnalysis.user_custom_prompt !== analysisResult.user_custom_prompt;
 
-    return styleChanged || characterChanged || compositionChanged || negativeChanged || customPromptChanged;
+    // ui_specific 변경 확인
+    const uiChanged =
+      JSON.stringify(oldAnalysis.ui_specific) !== JSON.stringify(analysisResult.ui_specific);
+
+    // logo_specific 변경 확인
+    const logoChanged =
+      JSON.stringify(oldAnalysis.logo_specific) !== JSON.stringify(analysisResult.logo_specific);
+
+    return styleChanged || characterChanged || compositionChanged || negativeChanged || customPromptChanged || uiChanged || logoChanged;
   };
 
   /**
@@ -171,6 +243,8 @@ export function useTranslation() {
       const styleKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
       const characterKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
       const compositionKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
+      const uiKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
+      const logoKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
       let negativeKoreanText: string | null = null;
 
       // style 변경 시 - 한글 텍스트만 수집
@@ -243,6 +317,53 @@ export function useTranslation() {
         }
       }
 
+      // UI 특화 분석 변경 시 - 한글 텍스트만 수집
+      if (
+        analysisResult.ui_specific &&
+        JSON.stringify(oldAnalysis.ui_specific) !== JSON.stringify(analysisResult.ui_specific)
+      ) {
+        const uiTexts = [
+          { value: analysisResult.ui_specific.platform_type, field: 'platform_type' },
+          { value: analysisResult.ui_specific.visual_style, field: 'visual_style' },
+          { value: analysisResult.ui_specific.key_elements, field: 'key_elements' },
+          { value: analysisResult.ui_specific.color_theme, field: 'color_theme' },
+        ];
+        uiTexts.forEach((item, idx) => {
+          if (containsKorean(item.value)) {
+            uiKoreanTexts.push({ text: item.value, field: item.field, index: idx });
+          }
+        });
+      }
+
+      // LOGO 특화 분석 변경 시 - 한글 텍스트만 수집
+      if (
+        analysisResult.logo_specific &&
+        JSON.stringify(oldAnalysis.logo_specific) !== JSON.stringify(analysisResult.logo_specific)
+      ) {
+        const logoTexts = [
+          { value: analysisResult.logo_specific.typography_style, field: 'typography_style' },
+          { value: analysisResult.logo_specific.text_warping, field: 'text_warping' },
+          { value: analysisResult.logo_specific.text_weight, field: 'text_weight' },
+          { value: analysisResult.logo_specific.edge_treatment, field: 'edge_treatment' },
+          { value: analysisResult.logo_specific.material_type, field: 'material_type' },
+          { value: analysisResult.logo_specific.rendering_style, field: 'rendering_style' },
+          { value: analysisResult.logo_specific.surface_quality, field: 'surface_quality' },
+          { value: analysisResult.logo_specific.outline_style, field: 'outline_style' },
+          { value: analysisResult.logo_specific.drop_shadow, field: 'drop_shadow' },
+          { value: analysisResult.logo_specific.inner_effects, field: 'inner_effects' },
+          { value: analysisResult.logo_specific.decorative_elements, field: 'decorative_elements' },
+          { value: analysisResult.logo_specific.color_vibrancy, field: 'color_vibrancy' },
+          { value: analysisResult.logo_specific.color_count, field: 'color_count' },
+          { value: analysisResult.logo_specific.gradient_usage, field: 'gradient_usage' },
+          { value: analysisResult.logo_specific.genre_hint, field: 'genre_hint' },
+        ];
+        logoTexts.forEach((item, idx) => {
+          if (containsKorean(item.value)) {
+            logoKoreanTexts.push({ text: item.value, field: item.field, index: idx });
+          }
+        });
+      }
+
       // 2단계: 모든 한글 텍스트를 하나로 모아서 배치 번역 (한글→영어만)
       const allKoreanTextsToTranslate: string[] = [];
 
@@ -265,6 +386,14 @@ export function useTranslation() {
       if (customPromptKoreanText) {
         allKoreanTextsToTranslate.push(customPromptKoreanText);
       }
+
+      uiKoreanTexts.forEach((item) => {
+        allKoreanTextsToTranslate.push(item.text);
+      });
+
+      logoKoreanTexts.forEach((item) => {
+        allKoreanTextsToTranslate.push(item.text);
+      });
 
       // 3단계: 배치 번역 실행 (한글→영어만)
       if (allKoreanTextsToTranslate.length > 0) {
@@ -416,6 +545,107 @@ export function useTranslation() {
             negative_prompt: analysisResult.negative_prompt,
           };
           updatedKoreanCache.negativePrompt = analysisResult.negative_prompt;
+        }
+
+        // UI 특화 분석 처리
+        if (uiKoreanTexts.length > 0 && analysisResult.ui_specific) {
+          const uiTexts = [
+            analysisResult.ui_specific.platform_type,
+            analysisResult.ui_specific.visual_style,
+            analysisResult.ui_specific.key_elements,
+            analysisResult.ui_specific.color_theme,
+          ];
+          const finalEnglishTexts = [...uiTexts];
+          const finalKoreanTexts = [...uiTexts];
+
+          uiKoreanTexts.forEach((item) => {
+            finalEnglishTexts[item.index] = translatedEnglish[translationIdx];
+            finalKoreanTexts[item.index] = item.text;
+            translationIdx++;
+          });
+
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            ui_specific: {
+              platform_type: finalEnglishTexts[0],
+              visual_style: finalEnglishTexts[1],
+              key_elements: finalEnglishTexts[2],
+              color_theme: finalEnglishTexts[3],
+            },
+          };
+          updatedKoreanCache.uiAnalysis = {
+            platform_type: finalKoreanTexts[0],
+            visual_style: finalKoreanTexts[1],
+            key_elements: finalKoreanTexts[2],
+            color_theme: finalKoreanTexts[3],
+          };
+        }
+
+        // LOGO 특화 분석 처리
+        if (logoKoreanTexts.length > 0 && analysisResult.logo_specific) {
+          const logoTexts = [
+            analysisResult.logo_specific.typography_style,
+            analysisResult.logo_specific.text_warping,
+            analysisResult.logo_specific.text_weight,
+            analysisResult.logo_specific.edge_treatment,
+            analysisResult.logo_specific.material_type,
+            analysisResult.logo_specific.rendering_style,
+            analysisResult.logo_specific.surface_quality,
+            analysisResult.logo_specific.outline_style,
+            analysisResult.logo_specific.drop_shadow,
+            analysisResult.logo_specific.inner_effects,
+            analysisResult.logo_specific.decorative_elements,
+            analysisResult.logo_specific.color_vibrancy,
+            analysisResult.logo_specific.color_count,
+            analysisResult.logo_specific.gradient_usage,
+            analysisResult.logo_specific.genre_hint,
+          ];
+          const finalEnglishTexts = [...logoTexts];
+          const finalKoreanTexts = [...logoTexts];
+
+          logoKoreanTexts.forEach((item) => {
+            finalEnglishTexts[item.index] = translatedEnglish[translationIdx];
+            finalKoreanTexts[item.index] = item.text;
+            translationIdx++;
+          });
+
+          updatedAnalysis = {
+            ...updatedAnalysis,
+            logo_specific: {
+              typography_style: finalEnglishTexts[0],
+              text_warping: finalEnglishTexts[1],
+              text_weight: finalEnglishTexts[2],
+              edge_treatment: finalEnglishTexts[3],
+              material_type: finalEnglishTexts[4],
+              rendering_style: finalEnglishTexts[5],
+              surface_quality: finalEnglishTexts[6],
+              outline_style: finalEnglishTexts[7],
+              drop_shadow: finalEnglishTexts[8],
+              inner_effects: finalEnglishTexts[9],
+              decorative_elements: finalEnglishTexts[10],
+              color_vibrancy: finalEnglishTexts[11],
+              color_count: finalEnglishTexts[12],
+              gradient_usage: finalEnglishTexts[13],
+              genre_hint: finalEnglishTexts[14],
+            },
+          };
+          updatedKoreanCache.logoAnalysis = {
+            typography_style: finalKoreanTexts[0],
+            text_warping: finalKoreanTexts[1],
+            text_weight: finalKoreanTexts[2],
+            edge_treatment: finalKoreanTexts[3],
+            material_type: finalKoreanTexts[4],
+            rendering_style: finalKoreanTexts[5],
+            surface_quality: finalKoreanTexts[6],
+            outline_style: finalKoreanTexts[7],
+            drop_shadow: finalKoreanTexts[8],
+            inner_effects: finalKoreanTexts[9],
+            decorative_elements: finalKoreanTexts[10],
+            color_vibrancy: finalKoreanTexts[11],
+            color_count: finalKoreanTexts[12],
+            gradient_usage: finalKoreanTexts[13],
+            genre_hint: finalKoreanTexts[14],
+          };
         }
       } else {
         // 한글이 없는 경우 영어 그대로 사용

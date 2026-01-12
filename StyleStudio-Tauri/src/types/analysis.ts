@@ -50,6 +50,25 @@ export interface UISpecificAnalysis {
   color_theme: string;     // 색상 테마 (예: "Deep Navy (#1A1F3A) with Neon Green (#00FF88)")
 }
 
+// 로고 특화 분석 결과 (LOGO 타입일 때만 사용)
+export interface LogoSpecificAnalysis {
+  typography_style: string;      // 폰트 스타일 (예: "Cartoonish Bubble", "Blocky Bold", "Handwritten Script")
+  text_warping: string;          // 텍스트 변형 (예: "Arched upward", "Fish-eye bulging", "Straight no warp")
+  text_weight: string;           // 폰트 두께 (예: "Super Bold", "Chunky Thick", "Medium")
+  edge_treatment: string;        // 모서리 처리 (예: "Rounded smooth", "Angular sharp", "Mixed")
+  material_type: string;         // 재질 타입 (예: "Glossy Plastic/Candy", "Jelly/Gelatinous", "Metallic")
+  rendering_style: string;       // 렌더링 스타일 (예: "2D Flat", "3D Rendered - deep extrude")
+  surface_quality: string;       // 표면 품질 (예: "High-Gloss", "Matte", "Translucent")
+  outline_style: string;         // 외곽선 스타일 (예: "Double thick outline - white + black")
+  drop_shadow: string;           // 그림자 (예: "Soft subtle", "Hard strong", "Long dramatic")
+  inner_effects: string;         // 내부 효과 (예: "Rim lighting on edges", "Inner glow fill")
+  decorative_elements: string;   // 장식 요소 (예: "Sparkles/Stars around", "No decorations")
+  color_vibrancy: string;        // 색상 채도 (예: "High Vibrant Neon", "Medium Saturated")
+  color_count: string;           // 색상 개수 (예: "3 tri-color", "2 duo-tone")
+  gradient_usage: string;        // 그라데이션 사용 (예: "Strong gradient across logo", "No gradient")
+  genre_hint: string;            // 장르 힌트 (예: "Match-3 Puzzle", "RPG/Strategy", "Endless Runner/Action")
+}
+
 // 전체 분석 결과
 export interface ImageAnalysisResult {
   style: StyleAnalysis;
@@ -59,4 +78,5 @@ export interface ImageAnalysisResult {
   user_custom_prompt?: string; // 사용자가 직접 입력한 맞춤형 프롬프트 (분석 강화 시 유지)
   pixelart_specific?: PixelArtSpecificAnalysis; // 픽셀아트 타입일 때만 존재
   ui_specific?: UISpecificAnalysis; // UI 타입일 때만 존재
+  logo_specific?: LogoSpecificAnalysis; // LOGO 타입일 때만 존재
 }

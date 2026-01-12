@@ -769,6 +769,257 @@ FLAT UI only. Lorem Ipsum text. NO mockups.
 
 Output: Single flat UI screen matching reference style.`;
         }
+      } else if (hasReferenceImages && params.sessionType === 'LOGO') {
+        // LOGO 세션: 게임 타이틀 로고 스타일 유지하며 새로운 로고 생성
+
+        if (params.pixelArtGrid && params.pixelArtGrid !== '1x1') {
+          // Grid 모드: 로고 바리에이션 생성
+          const gridInfo = getPixelArtGridInfo(params.pixelArtGrid);
+          const { rows, cols, totalFrames, cellSize } = gridInfo;
+
+          fullPrompt = `🎮 MISSION: Create ${totalFrames} GAME LOGO VARIATIONS in a ${rows}×${cols} grid on 1024x1024 canvas.
+
+━━━ STEP 1: GRID LAYOUT ━━━
+Canvas: 1024×1024px
+Grid: ${rows}×${cols} = ${totalFrames} logos
+Cell Size: ${cellSize}×${cellSize}px
+${generateGridASCII(rows, cols)}
+
+━━━ STEP 2: LOGO REQUEST ━━━
+Request: "${params.prompt || 'game title logo variations'}"
+
+Create ${totalFrames} variations with:
+- Different materials (Glossy Candy, Metallic, Jelly, Stone, Wooden)
+- Different color schemes (Red, Blue, Green, Purple, Gold)
+- Different effects (Glow, Shadow, Outline thickness variations)
+- Consistent typography style across all
+
+━━━ STEP 3: GAME LOGO STYLE REPLICATION 100% ━━━
+
+🔒 TYPOGRAPHY & SHAPE (EXACT MATCH):
+- Font vibe (Cartoonish, Bubble, Blocky, Handwritten, Graffiti)
+- Letter warping (Arched, Fish-eye, Perspective, Wave)
+- Weight consistency (Super Bold, Chunky, Bubble-like)
+- Edge treatment (Rounded for Casual/Cute vs Angular for Action/RPG)
+- Embossing and dimensionality
+- Letter spacing and alignment
+
+🔒 MATERIAL & RENDERING (CRITICAL):
+⚠️ This is the MOST IMPORTANT aspect of game logos!
+- Identify base material from reference:
+  * Glossy Plastic/Candy (shiny highlights, vibrant reflections)
+  * Jelly/Gelatinous (translucent, wobbly appearance, soft highlights)
+  * Wooden (grain texture, natural color variations)
+  * Metallic (chrome/gold/silver reflections, sharp highlights)
+  * Stone (rough texture, matte finish, carved appearance)
+  * Cookie/Food (baked texture, appetizing appearance)
+- Rendering style: 2D Flat vs 3D Rendered (match reference exactly)
+- Surface quality: Matte, Semi-Gloss, High-Gloss, Translucent
+- For VARIATIONS: Apply same style to different materials while keeping typography
+
+🔒 DECORATION & EFFECTS:
+- Outline/Stroke: Thickness (1-5px typical), color (white/dark common), double outlines
+- Drop Shadow: Offset, blur, color, opacity
+- Inner Glow/Highlights: Rim lighting, specular highlights, ambient occlusion
+- Embedded decorations: Icons (shields, stars, crowns), leaves, particles, sparkles
+- Background elements: Simple solid color, subtle gradient, or decorative frame
+
+🔒 COLOR STRATEGY (VIBRANT IS KEY):
+- High saturation colors (typical for casual games)
+- 2-3 primary colors maximum
+- Gradient usage (common in mobile game logos)
+- Color harmony: Complementary, Analogous, or Triadic
+- Special colors for specific genres:
+  * Puzzle Games: Bright, Vibrant, Multi-color
+  * RPG/Strategy: Gold, Silver, Deep Blues, Purples
+  * Action/Endless Runner: High Contrast, Bold, Speed-suggesting colors
+
+━━━ STEP 4: GENRE-SPECIFIC ENHANCEMENT ━━━
+
+Based on the request, apply genre-appropriate keywords:
+
+**Puzzle Games Keywords:**
+Juicy, Glossy, Candy texture, Bubble font, Splash effect, Pop art style,
+Vibrant colors, Playful, Cute, Rounded edges, Soft shadows, Match-3 style
+
+**RPG/Strategy Games Keywords:**
+Metallic, Stone texture, Golden rim, Sharp edges, Shield background,
+Epic, Embossed text, Medieval font, Battle-worn, Legendary, Fantasy style
+
+**Endless Runner/Action Games Keywords:**
+Speed lines, Italic font, Lightning effect, Motion blur, High contrast,
+Dynamic, Energy, Bold, Angular, Aggressive, Athletic font
+
+━━━ STEP 5: TEXT HANDLING (CRITICAL!) ━━━
+
+⚠️ AI LIMITATION ACKNOWLEDGMENT:
+Current AI models struggle with perfect text spelling.
+
+APPROACH:
+1. Focus on the VISUAL STYLE of text rather than perfect spelling
+2. Use "Text saying '${params.prompt || 'GAME'}'" as starting point
+3. Emphasize: "big chunky letters", "embossed 3D text", "glossy letter treatment"
+4. Prioritize: Letter SHAPE, TEXTURE, EFFECTS over perfect readability
+5. Output is a "design concept" - final text can be edited in Photoshop
+
+KEYWORDS TO USE:
+- "game logo"
+- "game title"
+- "vector style" (for clean edges)
+- "3D render" or "blender 3d" (for depth)
+- "vibrant colors"
+- "white background" or "isolated on white" (for easy extraction)
+
+━━━ STEP 6: LAYOUT EXECUTION ━━━
+
+📐 PRECISE POSITIONING:
+- Divide 1024px canvas into ${rows}×${cols} grid
+- Each cell is ${cellSize}×${cellSize}px
+- Center logo in each cell with comfortable padding
+- Logos should be similar size across cells for comparison
+
+🎯 LOGO ORDER:
+Read left-to-right, top-to-bottom:
+Logo 1 at (0,0), Logo 2 at (1,0), ..., Logo ${cols} at (${cols-1},0)
+Logo ${cols+1} at (0,1), ...
+
+🎨 BACKGROUND:
+- Use white background (#FFFFFF) or subtle light gray for easy extraction
+- OR use simple solid colors that complement the logo colors
+- NO complex backgrounds, NO landscapes, NO busy patterns
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECKLIST:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ ${totalFrames} logos total (${rows}×${cols} grid)?
+2. ✅ Each logo clearly visible and distinguishable?
+3. ✅ Typography style EXACTLY matches reference?
+4. ✅ Material/texture variations applied correctly?
+5. ✅ High saturation, vibrant colors used?
+6. ✅ Clean white/solid background for extraction?
+7. ✅ Logos are design concepts (text spelling is secondary)?
+
+CRITICAL: These are GAME LOGOS for mobile apps. Visual impact and material quality are paramount.
+NEVER use realistic photos, landscapes, or character portraits. ONLY stylized game title logos.`;
+
+        } else {
+          // 단일 로고 생성
+          fullPrompt = `🎮 MISSION: Create a SINGLE GAME TITLE LOGO while PERFECTLY REPLICATING the style from reference logos.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1: UNDERSTAND THE LOGO REQUEST (HIGHEST PRIORITY)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+NEW LOGO TO CREATE: "${params.prompt || 'game title logo'}"
+
+🎯 INTERPRET THE REQUEST:
+- Extract game title text (e.g., "DRAGON POP", "CANDY CRUSH")
+- Identify genre hints (puzzle, RPG, action, casual)
+- Understand desired mood (playful, epic, energetic, cute)
+
+⚠️ CRITICAL: The reference logos show the VISUAL STYLE to replicate - focus on HOW they look, not WHAT they say.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2: REPLICATE THE GAME LOGO STYLE 100%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔒 TYPOGRAPHY & SHAPE (EXACT MATCH):
+- Font vibe (Cartoonish, Bubble, Blocky, Handwritten, Graffiti)
+- Letter warping (Arched, Fish-eye, Perspective, Wave)
+- Weight consistency (Super Bold, Chunky, Bubble-like)
+- Edge treatment (Rounded for Casual/Cute vs Angular for Action/RPG)
+- Embossing and dimensionality
+- Letter spacing and alignment
+
+🔒 MATERIAL & RENDERING (MOST CRITICAL!):
+⚠️ This is what makes game logos special!
+- Identify material from reference:
+  * Glossy Plastic/Candy (shiny, vibrant reflections)
+  * Jelly (translucent, soft, wobbly)
+  * Wooden (grain texture, natural)
+  * Metallic (chrome/gold/silver, sharp reflections)
+  * Stone (rough, carved, matte)
+  * Cookie/Food (baked texture, appetizing)
+- Match rendering: 2D Flat vs 3D Rendered
+- Surface quality: Matte / Semi-Gloss / High-Gloss / Translucent
+
+🔒 DECORATION & EFFECTS:
+- Outline/Stroke: Thickness, color (white/dark common), double outlines
+- Drop Shadow: Offset, blur, opacity
+- Inner Glow/Highlights: Rim lighting, specular highlights
+- Decorations: Icons (shields, stars), leaves, particles, sparkles
+- Background: Solid color, gradient, or simple frame
+
+🔒 COLOR STRATEGY (VIBRANT!):
+- High saturation (essential for mobile game logos)
+- 2-3 primary colors maximum
+- Gradient application style
+- Genre-appropriate palette:
+  * Puzzle: Bright multi-color
+  * RPG: Gold/Silver/Deep Blues
+  * Action: High contrast bold colors
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3: GENRE-SPECIFIC KEYWORDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Apply these based on detected/requested genre:
+
+**Puzzle:** Juicy, Glossy, Candy texture, Bubble font, Splash effect, Pop art,
+Vibrant, Playful, Cute, Rounded, Soft shadows, Match-3 style
+
+**RPG/Strategy:** Metallic, Stone texture, Golden rim, Sharp edges, Shield,
+Epic, Embossed, Medieval font, Battle-worn, Legendary, Fantasy
+
+**Action/Runner:** Speed lines, Italic font, Lightning, Motion blur, High contrast,
+Dynamic, Energy, Bold, Angular, Aggressive, Athletic
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4: TEXT HANDLING (IMPORTANT!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️ AI has limitations with perfect text spelling.
+
+APPROACH:
+1. Describe text as "Text saying '${params.prompt || 'GAME'}'"
+2. Focus on VISUAL QUALITIES: "big chunky letters", "embossed 3D text", "glossy finish"
+3. Prioritize: Letter SHAPE, TEXTURE, EFFECTS
+4. This is a "design concept" - text can be refined in Photoshop later
+
+QUALITY KEYWORDS:
+- "game logo", "game title"
+- "vector style" (clean edges)
+- "3D render", "blender 3d" (for depth)
+- "vibrant colors", "high saturation"
+- "white background", "isolated on white" (easy extraction)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5: LOGO-SPECIFIC REQUIREMENTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Clear, bold typography (readable at thumbnail size)
+- Strong visual impact (0.1 second attention grabbing)
+- Material quality is paramount (this is what makes it "pop")
+- Simple clean background (white or solid color)
+- NO photorealistic elements, NO landscapes, NO character portraits
+- ONLY stylized game title logo
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ FINAL CHECK BEFORE GENERATING:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. ✅ Typography style matches reference exactly?
+2. ✅ Material/texture replicates reference quality?
+3. ✅ Colors are vibrant and saturated (mobile game standard)?
+4. ✅ Effects (outline, shadow, glow) match reference?
+5. ✅ Clean background for easy extraction?
+6. ✅ Bold enough to be readable at small size (app icon)?
+7. ✅ This is a DESIGN CONCEPT (text perfection is secondary)?
+
+CRITICAL: This is a MOBILE GAME LOGO. Visual impact, material quality, and vibrancy are everything.
+NEVER make it look like a generic text logo or corporate branding. Make it POP like a candy!`;
+        }
       } else if (hasReferenceImages && params.sessionType === 'PIXELART_CHARACTER') {
         // 픽셀아트 캐릭터: 그리드 스프라이트 시트로 애니메이션 시퀀스 생성
         const gridLayout = params.pixelArtGrid || '4x4';

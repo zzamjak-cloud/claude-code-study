@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, Plus, FileSearch, Trash2, X } from 'lucide-react';
+import { FileText, Plus, FileSearch, Trash2, X, Link } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open } from '@tauri-apps/plugin-dialog';
 import { ReferenceDocument } from '../../types/referenceDocument';
@@ -18,6 +18,8 @@ export function DocumentManager({ documents, apiKey, onAdd, onDelete }: Document
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [viewingDocument, setViewingDocument] = useState<ReferenceDocument | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [urlInput, setUrlInput] = useState('');
 
   // 드래그 앤 드롭 설정
   useEffect(() => {
@@ -36,12 +38,22 @@ export function DocumentManager({ documents, apiKey, onAdd, onDelete }: Document
             setIsDragging(false);
 
             const paths = event.payload.paths || [];
+
+            // 이미지 파일 확장자 목록
+            const imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+
             // 확장자 검증 (지원하는 모든 형식 허용)
             const validFiles: string[] = [];
             const invalidFiles: string[] = [];
 
             for (const path of paths) {
               const ext = path.split('.').pop()?.toLowerCase();
+
+              // 이미지 파일은 무시 (useImageHandling에서 처리)
+              if (ext && imageExtensions.includes(ext)) {
+                continue;
+              }
+
               if (ext && SUPPORTED_FILE_TYPES.includes(ext as any)) {
                 validFiles.push(path);
               } else {
@@ -128,6 +140,76 @@ export function DocumentManager({ documents, apiKey, onAdd, onDelete }: Document
     setIsProcessing(false);
   };
 
+  // URL 처리 함수
+  const processUrl = async (url: string) => {
+    if (!url.trim()) {
+      alert('URL을 입력해주세요.');
+      return;
+    }
+
+    // URL 형식 검증
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      alert('올바른 URL 형식이 아닙니다. http:// 또는 https://로 시작해야 합니다.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setShowUrlInput(false);
+    setUrlInput('');
+
+    try {
+      // URL에서 제목 추출
+      let fileName = url;
+      try {
+        const urlObj = new URL(url);
+        fileName = urlObj.hostname + urlObj.pathname;
+      } catch {
+        fileName = url;
+      }
+
+      // URL 파싱
+      const parsed = await parseFile(url, fileName);
+
+      // 파일 크기 검증
+      const validation = validateFileSize(parsed.text);
+      const finalContent = validation.valid ? parsed.text : validation.truncated || parsed.text;
+
+      // 요약 생성 (AI 사용, 실패 시 간단 요약)
+      let summary = '';
+      try {
+        summary = await generateFileSummary(finalContent, fileName, apiKey);
+      } catch (error) {
+        console.error('요약 생성 실패:', error);
+        summary = finalContent.substring(0, 500) + (finalContent.length > 500 ? '...' : '');
+      }
+
+      // ReferenceDocument 생성
+      const now = Date.now();
+      const randomId = Math.random().toString(36).substring(2, 9);
+      const document: ReferenceDocument = {
+        id: `ref-${now}-${randomId}`,
+        fileName,
+        filePath: url,
+        fileType: parsed.metadata?.fileType || 'webpage',
+        content: finalContent,
+        summary,
+        metadata: {
+          lineCount: finalContent.split('\n').length,
+          characterCount: finalContent.length,
+        },
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      onAdd(document);
+    } catch (error) {
+      console.error(`URL 처리 실패 (${url}):`, error);
+      alert(`URL 처리 실패: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    setIsProcessing(false);
+  };
+
   // 파일 추가 버튼 클릭
   const handleAddFile = async () => {
     try {
@@ -164,14 +246,24 @@ export function DocumentManager({ documents, apiKey, onAdd, onDelete }: Document
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold text-gray-900">기획 문서</h3>
-        <button
-          onClick={handleAddFile}
-          disabled={isProcessing}
-          className="p-2 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          title="파일 추가"
-        >
-          <Plus size={16} className="text-gray-700" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowUrlInput(true)}
+            disabled={isProcessing}
+            className="p-2 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="URL 추가"
+          >
+            <Link size={16} className="text-gray-700" />
+          </button>
+          <button
+            onClick={handleAddFile}
+            disabled={isProcessing}
+            className="p-2 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="파일 추가"
+          >
+            <Plus size={16} className="text-gray-700" />
+          </button>
+        </div>
       </div>
 
       {/* 빈 상태 */}
@@ -179,9 +271,12 @@ export function DocumentManager({ documents, apiKey, onAdd, onDelete }: Document
         <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
           <p className="text-sm text-gray-500">
             기획 문서를 드래그하여 첨부하거나
-            <br />+ 버튼을 클릭하세요
+            <br />🔗 버튼으로 URL, + 버튼으로 파일을 추가하세요
           </p>
-          <p className="text-xs text-gray-400 mt-2">지원 형식: PDF, Excel, CSV, Markdown, Text, Google Sheets</p>
+          <p className="text-xs text-gray-400 mt-2">
+            파일: PDF, Excel, CSV, Markdown, Text<br />
+            URL: Google Sheets, 웹 페이지
+          </p>
         </div>
       )}
 
@@ -341,6 +436,75 @@ export function DocumentManager({ documents, apiKey, onAdd, onDelete }: Document
                   <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono">{viewingDocument.content}</pre>
                 </div>
               </details>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* URL 입력 모달 */}
+      {showUrlInput && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowUrlInput(false);
+              setUrlInput('');
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">URL 추가</h3>
+              <button
+                onClick={() => {
+                  setShowUrlInput(false);
+                  setUrlInput('');
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                URL 입력
+              </label>
+              <input
+                type="text"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    processUrl(urlInput);
+                  }
+                }}
+                placeholder="https://docs.google.com/spreadsheets/..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                Google Spreadsheet, 웹 페이지 등 다양한 URL을 지원합니다.
+              </p>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowUrlInput(false);
+                  setUrlInput('');
+                }}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-medium text-gray-700"
+              >
+                취소
+              </button>
+              <button
+                onClick={() => processUrl(urlInput)}
+                className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 transition-colors font-medium text-white"
+              >
+                추가
+              </button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Save, Palette, User, Mountain, Box, Gamepad2, Grid3x3 } from 'lucide-react';
+import { X, Save, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award } from 'lucide-react';
 import { Session, SessionType } from '../../types/session';
 import { logger } from '../../lib/logger';
 
@@ -79,18 +79,6 @@ export function SaveSessionModal({ isOpen, onClose, onSave, currentSession }: Sa
             </label>
             <div className="grid grid-cols-3 gap-3">
               <button
-                onClick={() => setSessionType('STYLE')}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
-                  sessionType === 'STYLE'
-                    ? 'bg-purple-600 text-white shadow-lg'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Palette size={20} />
-                <span>스타일</span>
-              </button>
-
-              <button
                 onClick={() => setSessionType('CHARACTER')}
                 className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
                   sessionType === 'CHARACTER'
@@ -148,6 +136,54 @@ export function SaveSessionModal({ isOpen, onClose, onSave, currentSession }: Sa
               >
                 <Grid3x3 size={20} />
                 <span>픽셀 배경</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('PIXELART_ICON')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'PIXELART_ICON'
+                    ? 'bg-indigo-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Sparkles size={20} />
+                <span>픽셀 아이콘</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('STYLE')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'STYLE'
+                    ? 'bg-purple-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Palette size={20} />
+                <span>스타일</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('UI')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'UI'
+                    ? 'bg-pink-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Monitor size={20} />
+                <span>UI 디자인</span>
+              </button>
+
+              <button
+                onClick={() => setSessionType('LOGO')}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-semibold transition-all ${
+                  sessionType === 'LOGO'
+                    ? 'bg-red-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Award size={20} />
+                <span>로고</span>
               </button>
             </div>
           </div>

@@ -95,12 +95,23 @@ export function useSessionManagement(): UseSessionManagementReturn {
   };
 
   const handleDeleteSession = async (sessionId: string) => {
+    // 삭제되는 세션의 인덱스 찾기
+    const deletedIndex = sessions.findIndex(s => s.id === sessionId);
     const updatedSessions = removeSessionFromList(sessions, sessionId);
     setSessions(updatedSessions);
 
-    // 현재 세션이 삭제되는 경우 초기화
+    // 현재 세션이 삭제되는 경우, 다른 세션 선택
     if (currentSession?.id === sessionId) {
-      setCurrentSession(null);
+      if (updatedSessions.length === 0) {
+        // 세션이 하나도 없으면 null
+        setCurrentSession(null);
+      } else if (deletedIndex > 0) {
+        // 이전 세션 선택
+        setCurrentSession(updatedSessions[deletedIndex - 1]);
+      } else {
+        // 이전 세션이 없으면 다음 세션 선택 (첫 번째가 삭제되면 새로운 첫 번째)
+        setCurrentSession(updatedSessions[0]);
+      }
     }
 
     try {

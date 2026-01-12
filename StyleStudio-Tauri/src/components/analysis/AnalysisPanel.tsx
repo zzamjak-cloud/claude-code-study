@@ -8,9 +8,10 @@ import { NegativePromptCard } from './NegativePromptCard';
 import { UnifiedPromptCard } from './UnifiedPromptCard';
 import { CustomPromptCard } from './CustomPromptCard';
 import { UICard } from './UICard';
+import { LogoCard } from './LogoCard';
 import { Session } from '../../types/session';
 
-import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis, UISpecificAnalysis } from '../../types/analysis';
+import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis, UISpecificAnalysis, LogoSpecificAnalysis } from '../../types/analysis';
 import { KoreanAnalysisCache } from '../../types/session';
 
 interface AnalysisPanelProps {
@@ -35,6 +36,8 @@ interface AnalysisPanelProps {
   onNegativePromptKoreanUpdate?: (koreanNegativePrompt: string) => void;
   onUIAnalysisUpdate?: (uiAnalysis: UISpecificAnalysis) => void;
   onUIAnalysisKoreanUpdate?: (koreanUIAnalysis: UISpecificAnalysis) => void;
+  onLogoAnalysisUpdate?: (logoAnalysis: LogoSpecificAnalysis) => void;
+  onLogoAnalysisKoreanUpdate?: (koreanLogoAnalysis: LogoSpecificAnalysis) => void;
 }
 
 export function AnalysisPanel({
@@ -59,6 +62,8 @@ export function AnalysisPanel({
   onNegativePromptKoreanUpdate,
   onUIAnalysisUpdate,
   onUIAnalysisKoreanUpdate,
+  onLogoAnalysisUpdate,
+  onLogoAnalysisKoreanUpdate,
 }: AnalysisPanelProps) {
   const [deleteImageConfirm, setDeleteImageConfirm] = useState<number | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -67,6 +72,8 @@ export function AnalysisPanel({
   const isBackgroundType = currentSession?.type === 'BACKGROUND' || currentSession?.type === 'PIXELART_BACKGROUND';
   // UI 타입 체크
   const isUIType = currentSession?.type === 'UI';
+  // LOGO 타입 체크
+  const isLogoType = currentSession?.type === 'LOGO';
 
   if (images.length === 0) {
     return null;
@@ -245,8 +252,18 @@ export function AnalysisPanel({
               />
             )}
 
-            {/* 3. 캐릭터 카드 (배경 및 UI 타입에서는 숨김) */}
-            {!isBackgroundType && !isUIType && (
+            {/* 2.6. 로고 특화 카드 (LOGO 타입에서만) */}
+            {isLogoType && analysisResult.logo_specific && (
+              <LogoCard
+                logoAnalysis={analysisResult.logo_specific}
+                koreanLogoAnalysis={koreanAnalysis?.logoAnalysis}
+                onUpdate={onLogoAnalysisUpdate}
+                onKoreanUpdate={onLogoAnalysisKoreanUpdate}
+              />
+            )}
+
+            {/* 3. 캐릭터 카드 (배경, UI, LOGO 타입에서는 숨김) */}
+            {!isBackgroundType && !isUIType && !isLogoType && (
               <CharacterCard
                 character={analysisResult.character}
                 koreanCharacter={koreanAnalysis?.character}

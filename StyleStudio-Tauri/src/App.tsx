@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Sidebar } from './components/common/Sidebar';
+import { EmptyState } from './components/common/EmptyState';
 import { ImageUpload } from './components/generator/ImageUpload';
 import { AnalysisPanel } from './components/analysis/AnalysisPanel';
 import { ImageGeneratorPanel } from './components/generator/ImageGeneratorPanel';
@@ -114,6 +115,29 @@ function App() {
     autoSaveEnabled: true,
     autoSaveDelay: 1000,
   });
+
+  // 1. 앱 시작 시 첫 번째 세션 자동 선택
+  useEffect(() => {
+    if (sessions.length > 0 && !currentSession) {
+      const firstSession = sessions[0];
+      setCurrentSession(firstSession);
+      logger.info('✅ 첫 번째 세션 자동 선택:', firstSession.name);
+    }
+  }, [sessions, currentSession]); // sessions가 로드되거나 currentSession이 변경될 때 실행
+
+  // 2. currentSession 변경 시 uploadedImages와 analysisResult 복원
+  useEffect(() => {
+    if (currentSession) {
+      setUploadedImages(currentSession.referenceImages);
+      setAnalysisResult(currentSession.analysis);
+      logger.info('✅ 세션 데이터 복원:', currentSession.name);
+    } else {
+      // 세션이 없으면 초기화
+      setUploadedImages([]);
+      setAnalysisResult(null);
+      logger.info('✅ 세션 데이터 초기화');
+    }
+  }, [currentSession]); // currentSession이 변경될 때 실행
 
   const handleCustomPromptChange = (customPrompt: string) => {
     if (analysisResult) {
@@ -557,6 +581,26 @@ function App() {
               onNegativePromptKoreanUpdate={(koreanNegativePrompt) => {
                 updateKoreanCache({ negativePrompt: koreanNegativePrompt });
               }}
+              onUIAnalysisUpdate={(uiAnalysis) => {
+                if (analysisResult) {
+                  const updated = { ...analysisResult, ui_specific: uiAnalysis };
+                  setAnalysisResult(updated);
+                  saveSessionWithoutTranslation(updated);
+                }
+              }}
+              onUIAnalysisKoreanUpdate={(koreanUIAnalysis) => {
+                updateKoreanCache({ uiAnalysis: koreanUIAnalysis });
+              }}
+              onLogoAnalysisUpdate={(logoAnalysis) => {
+                if (analysisResult) {
+                  const updated = { ...analysisResult, logo_specific: logoAnalysis };
+                  setAnalysisResult(updated);
+                  saveSessionWithoutTranslation(updated);
+                }
+              }}
+              onLogoAnalysisKoreanUpdate={(koreanLogoAnalysis) => {
+                updateKoreanCache({ logoAnalysis: koreanLogoAnalysis });
+              }}
             />
           ) : (
             analysisResult && (
@@ -587,6 +631,8 @@ function App() {
               />
             )
           )
+        ) : !currentSession ? (
+          <EmptyState onNewSession={handleReset} />
         ) : (
           <ImageUpload onImageSelect={handleImageSelect} />
         )}

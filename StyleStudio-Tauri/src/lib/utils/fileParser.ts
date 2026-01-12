@@ -236,6 +236,52 @@ export async function parseGoogleSpreadsheet(url: string): Promise<ParsedFileCon
 }
 
 /**
+ * 웹 페이지 HTML 파싱 (일반 URL)
+ */
+export async function parseWebPage(url: string): Promise<ParsedFileContent> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`웹 페이지 다운로드 실패: ${response.status}`);
+    }
+
+    const html = await response.text();
+
+    // HTML 태그 제거 및 텍스트 추출
+    let text = html
+      // script, style 태그와 그 내용 제거
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      // HTML 태그 제거
+      .replace(/<[^>]+>/g, ' ')
+      // HTML 엔티티 디코딩
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      // 연속된 공백 제거
+      .replace(/\s+/g, ' ')
+      // 빈 줄 제거
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .join('\n');
+
+    return {
+      text: text.trim(),
+      metadata: {
+        fileName: url,
+        fileType: 'webpage',
+      },
+    };
+  } catch (error) {
+    throw new Error(`웹 페이지 파싱 실패: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
  * 파일 경로 또는 URL로부터 파일 내용 파싱
  */
 export async function parseFile(filePathOrUrl: string, fileName?: string): Promise<ParsedFileContent> {
@@ -245,6 +291,11 @@ export async function parseFile(filePathOrUrl: string, fileName?: string): Promi
   // Google Spreadsheet URL인 경우
   if (filePathOrUrl.includes('docs.google.com/spreadsheets')) {
     return parseGoogleSpreadsheet(filePathOrUrl);
+  }
+
+  // 일반 웹 페이지 URL인 경우
+  if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
+    return parseWebPage(filePathOrUrl);
   }
 
   // 로컬 파일인 경우

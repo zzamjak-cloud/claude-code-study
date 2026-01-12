@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -11,6 +11,14 @@ interface NewSessionModalProps {
 export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalProps) {
   const [sessionName, setSessionName] = useState('');
   const [sessionType, setSessionType] = useState<SessionType>('STYLE');
+
+  // 모달이 열릴 때마다 초기화
+  useEffect(() => {
+    if (isOpen) {
+      setSessionName('');
+      setSessionType('STYLE');
+    }
+  }, [isOpen]);
 
   const handleCreate = () => {
     if (sessionName.trim()) {
@@ -69,24 +77,6 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
               세션 타입
             </label>
             <div className="grid grid-cols-3 gap-4">
-              {/* STYLE */}
-              <button
-                onClick={() => setSessionType('STYLE')}
-                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
-                  sessionType === 'STYLE'
-                    ? 'bg-purple-50 border-purple-600 shadow-lg'
-                    : 'bg-white border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Palette size={20} className={sessionType === 'STYLE' ? 'text-purple-600' : 'text-gray-600'} />
-                  <span className={sessionType === 'STYLE' ? 'text-purple-900' : 'text-gray-700'}>스타일</span>
-                </div>
-                <p className="text-xs text-left text-gray-600">
-                  특정 화풍이나 아트 스타일을 학습하여 재현합니다
-                </p>
-              </button>
-
               {/* CHARACTER */}
               <button
                 onClick={() => setSessionType('CHARACTER')}
@@ -195,6 +185,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </p>
               </button>
 
+              {/* STYLE */}
+              <button
+                onClick={() => setSessionType('STYLE')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'STYLE'
+                    ? 'bg-purple-50 border-purple-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-purple-300 hover:bg-purple-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Palette size={20} className={sessionType === 'STYLE' ? 'text-purple-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'STYLE' ? 'text-purple-900' : 'text-gray-700'}>스타일</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  특정 화풍이나 아트 스타일을 학습하여 재현합니다
+                </p>
+              </button>
+
               {/* UI */}
               <button
                 onClick={() => setSessionType('UI')}
@@ -210,6 +218,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   UI/UX 디자인 스타일을 학습하여 화면을 생성합니다
+                </p>
+              </button>
+
+              {/* LOGO */}
+              <button
+                onClick={() => setSessionType('LOGO')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'LOGO'
+                    ? 'bg-red-50 border-red-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-red-300 hover:bg-red-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Award size={20} className={sessionType === 'LOGO' ? 'text-red-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'LOGO' ? 'text-red-900' : 'text-gray-700'}>로고</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  게임 타이틀 로고 스타일을 학습하여 브랜드 로고를 생성합니다
                 </p>
               </button>
             </div>
