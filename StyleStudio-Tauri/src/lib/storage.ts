@@ -129,9 +129,17 @@ export async function loadSessions(): Promise<Session[]> {
           logger.debug(`  - 세션 "${session.name}": IndexedDB에서 ${session.imageKeys.length}개 이미지 로드 중...`);
           const images = await loadImages(session.imageKeys);
 
+          if (images.length === 0 && session.imageKeys.length > 0) {
+            logger.error(`  ❌ 세션 "${session.name}": IndexedDB에서 이미지를 찾을 수 없습니다!`);
+            logger.error(`     ImageKeys: ${JSON.stringify(session.imageKeys)}`);
+            logger.error(`     해결 방법: 원본 PC에서 세션을 다시 export하거나, 참조 이미지를 다시 업로드하세요`);
+          } else {
+            logger.debug(`  ✅ 세션 "${session.name}": ${images.length}개 이미지 복원 완료`);
+          }
+
           return {
             ...session,
-            referenceImages: images, // 복원된 이미지
+            referenceImages: images, // 복원된 이미지 (빈 배열일 수 있음)
           };
         }
 
@@ -141,9 +149,17 @@ export async function loadSessions(): Promise<Session[]> {
           logger.debug(`  - 세션 "${session.name}": IndexedDB에서 ${session.referenceImages.length}개 이미지 로드 중...`);
           const images = await loadImages(session.referenceImages);
 
+          if (images.length === 0 && session.referenceImages.length > 0) {
+            logger.error(`  ❌ 세션 "${session.name}": IndexedDB에서 이미지를 찾을 수 없습니다!`);
+            logger.error(`     ImageKeys: ${JSON.stringify(session.referenceImages)}`);
+            logger.error(`     해결 방법: 원본 PC에서 세션을 다시 export하거나, 참조 이미지를 다시 업로드하세요`);
+          } else {
+            logger.debug(`  ✅ 세션 "${session.name}": ${images.length}개 이미지 복원 완료`);
+          }
+
           return {
             ...session,
-            referenceImages: images, // 복원된 이미지
+            referenceImages: images, // 복원된 이미지 (빈 배열일 수 있음)
             imageKeys: session.referenceImages, // 키 정보 보존
           };
         }

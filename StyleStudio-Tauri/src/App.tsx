@@ -63,6 +63,7 @@ function App() {
     showSettings,
     setShowSettings,
     handleSaveApiKey,
+    handleSelectSession,
     handleDeleteSession,
     handleExportSession,
     handleImportSession,
@@ -116,12 +117,36 @@ function App() {
     autoSaveDelay: 1000,
   });
 
-  // 1. 앱 시작 시 첫 번째 세션 자동 선택
+  // 1. 앱 시작 시 첫 번째 세션 자동 선택 및 손상된 세션 확인
   useEffect(() => {
     if (sessions.length > 0 && !currentSession) {
       const firstSession = sessions[0];
       setCurrentSession(firstSession);
       logger.info('✅ 첫 번째 세션 자동 선택:', firstSession.name);
+
+      // 손상된 세션 확인 (참조 이미지가 없는데 imageCount가 있는 경우)
+      const damagedSessions = sessions.filter(
+        (s) => s.imageCount > 0 && s.referenceImages.length === 0
+      );
+
+      if (damagedSessions.length > 0) {
+        logger.warn(`⚠️ 손상된 세션 발견: ${damagedSessions.length}개`);
+        logger.warn('   세션 목록:', damagedSessions.map((s) => s.name).join(', '));
+
+        // 사용자에게 경고 (한 번만 표시)
+        setTimeout(() => {
+          alert(
+            `⚠️ 참조 이미지가 손상된 세션이 ${damagedSessions.length}개 발견되었습니다.\n\n` +
+              `손상된 세션:\n${damagedSessions.map((s) => `- ${s.name}`).join('\n')}\n\n` +
+              `원인:\n` +
+              `- IndexedDB 데이터가 삭제되었거나\n` +
+              `- 다른 PC에서 export한 파일을 import했을 때\n\n` +
+              `해결 방법:\n` +
+              `1. 원본 PC에서 최신 버전으로 세션을 다시 export하세요\n` +
+              `2. 또는 해당 세션의 참조 이미지를 다시 업로드하고 분석하세요`
+          );
+        }, 1000);
+      }
     }
   }, [sessions, currentSession]); // sessions가 로드되거나 currentSession이 변경될 때 실행
 
@@ -131,6 +156,13 @@ function App() {
       setUploadedImages(currentSession.referenceImages);
       setAnalysisResult(currentSession.analysis);
       logger.info('✅ 세션 데이터 복원:', currentSession.name);
+      logger.debug('   - 참조 이미지:', currentSession.referenceImages.length, '개');
+      logger.debug('   - 분석 결과:', currentSession.analysis ? '존재' : '없음');
+
+      // 참조 이미지 검증
+      if (currentSession.referenceImages.length === 0 && currentSession.imageCount > 0) {
+        logger.warn('⚠️ 참조 이미지가 손상되었습니다. ImageKeys:', currentSession.imageKeys);
+      }
     } else {
       // 세션이 없으면 초기화
       setUploadedImages([]);
@@ -331,12 +363,6 @@ function App() {
     }
     setShowSaveSession(true);
   }, [analysisResult, uploadedImages]);
-
-  const handleSelectSession = useCallback((session: Session) => {
-    setCurrentSession(session);
-    setUploadedImages(session.referenceImages);
-    setAnalysisResult(session.analysis);
-  }, [setCurrentSession, setUploadedImages]);
 
   const handleReset = useCallback(() => {
     // 신규 세션 모달 표시
