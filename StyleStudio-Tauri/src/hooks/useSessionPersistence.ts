@@ -55,7 +55,7 @@ export function useSessionPersistence(
    */
   const saveSession = async (sessionName: string, sessionType: SessionType) => {
     if (!props.analysisResult || props.uploadedImages.length === 0) {
-      alert('분석 결과가 없습니다');
+      logger.warn('⚠️ 분석 결과가 없습니다');
       return;
     }
 
@@ -154,8 +154,8 @@ export function useSessionPersistence(
         estimatedSecondsLeft: 0,
       });
 
-      alert(
-        `세션 "${sessionName}"이(가) ${props.currentSession ? '업데이트' : '저장'}되었습니다!\n참조 이미지: ${props.uploadedImages.length}개`
+      logger.info(
+        `✅ 세션 "${sessionName}" ${props.currentSession ? '업데이트' : '저장'} 완료 (참조 이미지: ${props.uploadedImages.length}개)`
       );
 
       props.setCurrentSession(sessionToSave);
@@ -176,7 +176,7 @@ export function useSessionPersistence(
         percentage: 0,
         estimatedSecondsLeft: 0,
       });
-      alert('세션 저장 실패: ' + (error as Error).message);
+      // 에러는 로깅만 하고 진행 상태로 사용자에게 피드백
     }
   };
 

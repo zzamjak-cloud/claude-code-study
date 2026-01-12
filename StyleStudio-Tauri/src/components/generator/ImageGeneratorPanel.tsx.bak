@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Wand2, ArrowLeft, ChevronDown, HelpCircle, X, Folder, FolderOpen, ZoomIn } from 'lucide-react';
+import { Wand2, Image as ImageIcon, ArrowLeft, ChevronDown, ChevronUp, Dices, History, Languages, RotateCcw, Trash2, HelpCircle, X, Pin, Folder, FolderOpen, ZoomIn, Download, Monitor, Award } from 'lucide-react';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { join, downloadDir } from '@tauri-apps/api/path';
@@ -10,15 +10,19 @@ import { ReferenceDocument } from '../../types/referenceDocument';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
 import { useTranslation } from '../../hooks/useTranslation';
+import { Resizer } from '../common/Resizer';
 import { logger } from '../../lib/logger';
+import { DocumentManager } from './DocumentManager';
 import { GeneratorSettings } from './GeneratorSettings';
 import { GeneratorPreview } from './GeneratorPreview';
 import { GeneratorHistory } from './GeneratorHistory';
 import {
-  IMAGE_GENERATION_DEFAULTS,
-  ADVANCED_SETTINGS_DEFAULTS,
-  HISTORY_PANEL,
-} from '../../types/constants';
+  getGridButtonStyle,
+  getGridDescription,
+  getPromptPlaceholder,
+  getGridLabel,
+  getGridSectionStyle,
+} from '../../lib/config/sessionConfig';
 
 interface ImageGeneratorPanelProps {
   apiKey: string;
@@ -90,24 +94,24 @@ export function ImageGeneratorPanel({
   const [state, setState] = useState<GeneratorState>({
     additionalPrompt: '',
     isTranslating: false,
-    aspectRatio: IMAGE_GENERATION_DEFAULTS.ASPECT_RATIO,
-    imageSize: IMAGE_GENERATION_DEFAULTS.IMAGE_SIZE,
-    useReferenceImages: IMAGE_GENERATION_DEFAULTS.USE_REFERENCE_IMAGES,
+    aspectRatio: '1:1',
+    imageSize: '1K',
+    useReferenceImages: true,
     isGenerating: false,
     progressMessage: '',
     generatedImage: null,
-    pixelArtGrid: IMAGE_GENERATION_DEFAULTS.PIXEL_ART_GRID,
+    pixelArtGrid: '1x1',
     zoomLevel: 'fit',
     showZoomMenu: false,
     showPathTooltip: false,
     showAdvanced: false,
     showHelp: false,
     seed: undefined,
-    temperature: ADVANCED_SETTINGS_DEFAULTS.TEMPERATURE,
-    topK: ADVANCED_SETTINGS_DEFAULTS.TOP_K,
-    topP: ADVANCED_SETTINGS_DEFAULTS.TOP_P,
-    referenceStrength: ADVANCED_SETTINGS_DEFAULTS.REFERENCE_STRENGTH,
-    historyHeight: HISTORY_PANEL.DEFAULT_HEIGHT,
+    temperature: 1.0,
+    topK: 40,
+    topP: 0.95,
+    referenceStrength: 1.0,
+    historyHeight: 192,
   });
 
   // 상태 업데이트 헬퍼 함수
@@ -475,6 +479,9 @@ export function ImageGeneratorPanel({
     }
   };
 
+  // 삭제 확인 상태
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+
   // 히스토리에서 설정 복원
   const handleRestoreFromHistory = (e: React.MouseEvent, entry: GenerationHistoryEntry) => {
     e.stopPropagation();
@@ -509,6 +516,23 @@ export function ImageGeneratorPanel({
   };
 
   // 히스토리 삭제 요청
+  const handleDeleteHistory = (e: React.MouseEvent, entryId: string) => {
+    e.stopPropagation();
+    setDeleteConfirm(entryId);
+  };
+
+  // 삭제 확인
+  const confirmDelete = () => {
+    if (deleteConfirm && onHistoryDelete) {
+      onHistoryDelete(deleteConfirm);
+      setDeleteConfirm(null);
+    }
+  };
+
+  // 삭제 취소
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
+  };
 
   // 히스토리 핀 토글
   const handleTogglePin = (e: React.MouseEvent, entryId: string) => {
@@ -708,31 +732,647 @@ export function ImageGeneratorPanel({
           containsKorean={containsKorean}
         />
 
+        {/* LEGACY CODE - TO BE REMOVED */}
+        <div className="w-96 bg-white border-r border-gray-200 flex flex-col" style={{display: 'none'}}>
+          {/* 고정 영역: 생성 버튼 */}
+          <div className="p-6 pb-4 border-b border-gray-200 bg-white">
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all shadow-lg ${
+                isGenerating
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white hover:shadow-xl'
+              }`}
+            >
+              <Wand2 size={20} />
+              <span>{isGenerating ? '생성 중...' : '이미지 생성'}</span>
+            </button>
+          </div>
+
+          {/* 스크롤 가능 영역: 설정들 */}
+          <div className="flex-1 overflow-y-auto p-6 pt-6">
+            <div className="space-y-6">
+              {/* 사용자 맞춤 프롬프트 안내 (자동 적용) */}
+            {analysis.user_custom_prompt && (
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-semibold text-purple-800">
+                    ✅ 사용자 맞춤 프롬프트 (자동 적용됨)
+                  </p>
+                  {containsKorean(analysis.user_custom_prompt) && (
+                    <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 rounded text-xs text-purple-700">
+                      <Languages size={12} />
+                      <span>한→영</span>
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-purple-700 whitespace-pre-wrap break-words">
+                  {analysis.user_custom_prompt}
+                </p>
+              </div>
+            )}
+
+            {/* 추가 프롬프트 입력 (선택사항) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-semibold text-gray-700">
+                  추가 프롬프트 (선택)
+                </label>
+                {containsKorean(additionalPrompt) && (
+                  <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs text-blue-700">
+                    <Languages size={14} />
+                    <span>한→영 자동 변환</span>
+                  </div>
+                )}
+              </div>
+              <textarea
+                value={additionalPrompt}
+                onChange={(e) => setAdditionalPrompt(e.target.value)}
+                placeholder={getPromptPlaceholder(sessionType, pixelArtGrid)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+                rows={3}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                한국어 또는 영어로 입력하세요. 한국어는 자동으로 영어로 변환됩니다.
+              </p>
+
+              {/* LOGO 타입일 때 AI 텍스트 한계 안내 메시지 */}
+              {sessionType === 'LOGO' && (
+                <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    ⚠️ <strong>AI 텍스트 한계 안내:</strong><br />
+                    현재 AI는 텍스트 스펠링이 완벽하지 않습니다.
+                    생성된 로고는 <strong>"디자인 시안"</strong>으로 간주하고,
+                    최종 텍스트는 Photoshop/Illustrator에서 수정하세요.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 기획 문서 첨부 (UI 세션 전용) */}
+            {sessionType === 'UI' && onDocumentAdd && onDocumentDelete && (
+              <DocumentManager
+                documents={referenceDocuments}
+                apiKey={apiKey}
+                onAdd={onDocumentAdd}
+                onDelete={onDocumentDelete}
+              />
+            )}
+
+            {/* 그리드 옵션 지원 타입: 모든 세션 타입 */}
+            {(sessionType === 'CHARACTER' || sessionType === 'BACKGROUND' || sessionType === 'ICON' || sessionType === 'STYLE' || sessionType === 'PIXELART_CHARACTER' || sessionType === 'PIXELART_BACKGROUND' || sessionType === 'PIXELART_ICON' || sessionType === 'UI' || sessionType === 'LOGO') && (
+              <div className={`p-4 rounded-lg border ${getGridSectionStyle(sessionType)}`}>
+                <label className="block text-sm font-bold text-gray-800 mb-3">
+                  {getGridLabel(sessionType)}
+                </label>
+
+                <div className="grid grid-cols-3 gap-2">
+                  {/* 1x1 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('1x1')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(sessionType, pixelArtGrid === '1x1')}`}
+                  >
+                    1×1
+                  </button>
+
+                  {/* 2x2 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('2x2')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(sessionType, pixelArtGrid === '2x2')}`}
+                  >
+                    2×2
+                  </button>
+
+                  {/* 4x4 그리드 (기본값) */}
+                  <button
+                    onClick={() => setPixelArtGrid('4x4')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(sessionType, pixelArtGrid === '4x4')}`}
+                  >
+                    4×4
+                  </button>
+
+                  {/* 6x6 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('6x6')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(sessionType, pixelArtGrid === '6x6')}`}
+                  >
+                    6×6
+                  </button>
+
+                  {/* 8x8 그리드 */}
+                  <button
+                    onClick={() => setPixelArtGrid('8x8')}
+                    className={`p-2 rounded-lg border-2 transition-all font-semibold text-sm ${getGridButtonStyle(sessionType, pixelArtGrid === '8x8')}`}
+                  >
+                    8×8
+                  </button>
+                </div>
+
+                {/* 설명 */}
+                <div className="mt-3 p-3 bg-white/50 rounded-lg">
+                  <p className="text-xs text-gray-700 leading-relaxed">
+                    {getGridDescription(sessionType, pixelArtGrid)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* 비율 선택 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">비율</label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['1:1', '16:9', '9:16', '4:3', '3:4'] as const).map((ratio) => (
+                  <button
+                    key={ratio}
+                    onClick={() => setAspectRatio(ratio)}
+                    className={`px-3 py-2 rounded-lg font-semibold transition-all ${
+                      aspectRatio === ratio
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {ratio}
+                  </button>
+                ))}
+              </div>
+
+              {/* UI 타입일 때 안내 메시지 표시 */}
+              {sessionType === 'UI' && (
+                <div className="mt-2 p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                  <p className="text-xs text-pink-700 flex items-start gap-2">
+                    <Monitor size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>💡 UI 요소 크기 자동 조정:</strong><br />
+                      분석된 플랫폼에 따라 UI 요소 크기가 자동으로 조정됩니다.
+                      Mobile UI는 큰 터치 타겟(44px+), Desktop UI는 밀집 레이아웃으로 생성됩니다.
+                    </span>
+                  </p>
+                </div>
+              )}
+
+              {/* LOGO 타입일 때 권장 설정 안내 메시지 */}
+              {sessionType === 'LOGO' && (
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs text-red-700 flex items-start gap-2">
+                    <Award size={14} className="flex-shrink-0 mt-0.5" />
+                    <span>
+                      <strong>💡 로고 생성 권장 설정:</strong><br />
+                      비율 1:1 (정사각형), 크기 2K (고해상도), 참조 이미지 3-5개
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 크기 선택 */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                이미지 크기
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(['1K', '2K', '4K'] as const).map((size) => (
+                  <button
+                    key={size}
+                    onClick={() => setImageSize(size)}
+                    className={`px-3 py-2 rounded-lg font-semibold transition-all ${
+                      imageSize === size
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 참조 이미지 사용 */}
+            <div>
+              <label
+                className={`flex items-center gap-2 ${
+                  sessionType === 'STYLE' ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={sessionType === 'STYLE' ? useReferenceImages : true}
+                  onChange={(e) => setUseReferenceImages(e.target.checked)}
+                  disabled={sessionType !== 'STYLE'}
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500 disabled:cursor-not-allowed"
+                />
+                <span className="text-sm font-semibold text-gray-700">
+                  참조 이미지 {referenceImages.length}/14
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 mt-1">
+                {sessionType === 'CHARACTER'
+                  ? '캐릭터 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'BACKGROUND'
+                  ? '배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'ICON'
+                  ? '아이콘 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'PIXELART_CHARACTER'
+                  ? '픽셀 캐릭터 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
+                  : sessionType === 'PIXELART_BACKGROUND'
+                  ? '픽셀 배경 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
+                  : sessionType === 'PIXELART_ICON'
+                  ? '픽셀 아이콘 세션에서는 참조 이미지가 필수입니다 (자동 활성화, 생성 후 자동 업스케일링)'
+                  : sessionType === 'UI'
+                  ? 'UI 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : sessionType === 'LOGO'
+                  ? '로고 세션에서는 참조 이미지가 필수입니다 (자동 활성화)'
+                  : '현재 세션의 이미지를 참조하여 스타일 일관성을 높입니다'}
+              </p>
+
+              {/* 참조 이미지가 사용될 때만 썸네일과 영향력 슬라이더 표시 */}
+              {(sessionType !== 'STYLE' || useReferenceImages) && referenceImages.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  {/* 참조 이미지 썸네일 */}
+                  <div className="grid grid-cols-4 gap-2">
+                    {referenceImages.slice(0, 4).map((img, idx) => (
+                      <div key={idx} className="aspect-square bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                        <img
+                          src={img}
+                          alt={`참조 ${idx + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* 참조 영향력 슬라이더 */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      참조 영향력: {(referenceStrength * 100).toFixed(0)}%
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={referenceStrength}
+                      onChange={(e) => setReferenceStrength(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>영감만 (0%)</span>
+                      <span>완벽 복사 (100%)</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {sessionType === 'CHARACTER'
+                        ? '캐릭터 외형 복사 정도를 조절합니다. 높을수록 참조 이미지와 동일하게 유지됩니다.'
+                        : sessionType === 'BACKGROUND'
+                        ? '배경 스타일 복사 정도를 조절합니다. 높을수록 참조 배경의 스타일을 강하게 따릅니다.'
+                        : sessionType === 'ICON'
+                        ? '아이콘 스타일 복사 정도를 조절합니다. 높을수록 참조 아이콘의 스타일을 강하게 따릅니다.'
+                        : sessionType === 'PIXELART_CHARACTER'
+                        ? '픽셀 캐릭터 외형 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 이미지와 동일하게 유지됩니다.'
+                        : sessionType === 'PIXELART_BACKGROUND'
+                        ? '픽셀 배경 스타일 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 배경의 스타일을 강하게 따릅니다.'
+                        : sessionType === 'PIXELART_ICON'
+                        ? '픽셀 아이콘 스타일 복사 정도를 조절합니다. 높을수록 픽셀 단위로 참조 아이콘의 스타일을 강하게 따릅니다.'
+                        : '스타일 복사 정도를 조절합니다. 높을수록 참조 스타일을 강하게 따릅니다.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 고급 설정 */}
+            <div className="border-t border-gray-200 pt-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowHelp(true)}
+                  className="p-3 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                  title="고급 설정 도움말"
+                >
+                  <HelpCircle size={20} />
+                </button>
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex-1 flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <span className="text-sm font-semibold text-gray-700">고급 설정</span>
+                  {showAdvanced ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                </button>
+              </div>
+
+              {showAdvanced && (
+                <div className="mt-4 space-y-4">
+                  {/* Seed 값 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-semibold text-gray-700">
+                        Seed (재현성)
+                      </label>
+                      <button
+                        onClick={() => setSeed(Math.floor(Math.random() * 1000000))}
+                        className="flex items-center gap-1 px-2 py-1 text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 rounded transition-colors"
+                        title="랜덤 Seed 생성"
+                      >
+                        <Dices size={14} />
+                        랜덤
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      value={seed ?? ''}
+                      onChange={(e) => setSeed(e.target.value ? parseInt(e.target.value) : undefined)}
+                      placeholder="비워두면 랜덤 생성"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      동일한 seed 값으로 동일한 결과를 재현할 수 있습니다
+                    </p>
+                  </div>
+
+                  {/* Temperature */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Temperature: {temperature.toFixed(2)}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2"
+                      step="0.1"
+                      value={temperature}
+                      onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500 mt-1">
+                      <span>일관성 (0.0)</span>
+                      <span>창의성 (2.0)</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      낮을수록 일관적이고 예측 가능한 결과, 높을수록 창의적이고 다양한 결과
+                    </p>
+                  </div>
+
+                  {/* Top-K */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Top-K: {topK}
+                    </label>
+                    <input
+                      type="range"
+                      min="1"
+                      max="100"
+                      step="1"
+                      value={topK}
+                      onChange={(e) => setTopK(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      샘플링할 상위 K개의 토큰 수 (낮을수록 보수적, 높을수록 다양함)
+                    </p>
+                  </div>
+
+                  {/* Top-P */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Top-P: {topP.toFixed(2)}
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={topP}
+                      onChange={(e) => setTopP(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      누적 확률 임계값 (낮을수록 보수적, 높을수록 다양함)
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 진행 상태 */}
+            {progressMessage && (
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2">
+                  {isTranslating && <Languages size={16} className="text-blue-600 animate-pulse" />}
+                  <p className="text-sm text-blue-800">{progressMessage}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
 
       {/* 오른쪽: 결과 표시 및 히스토리 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 결과 표시 영역 */}
-          <GeneratorPreview
-            isGenerating={isGenerating}
-            progressMessage={progressMessage}
-            generatedImage={generatedImage}
-            zoomLevel={zoomLevel}
-            onManualSave={handleManualSave}
-          />
+          <div className={`flex-1 p-8 ${zoomLevel === 'fit' && generatedImage ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+            <div className={`flex items-center justify-center ${zoomLevel === 'fit' && generatedImage ? 'h-full' : 'min-h-full'}`}>
+              {isGenerating ? (
+                <div className="flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-4 border-purple-500 border-t-transparent mb-4"></div>
+                  <p className="text-gray-600 font-semibold">{progressMessage}</p>
+                </div>
+              ) : generatedImage ? (
+                <div className={`max-w-5xl w-full ${zoomLevel === 'fit' ? 'h-full flex flex-col' : ''}`}>
+                  {/* 이미지 표시 영역 */}
+                  <div
+                    className={`relative bg-white rounded-xl shadow-2xl ${
+                      zoomLevel === 'fit' ? '' : 'p-6 overflow-auto'
+                    }`}
+                    style={{
+                      ...(zoomLevel === 'fit' ? {
+                        height: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1.5rem',
+                      } : {
+                        maxHeight: '70vh',
+                      }),
+                    }}
+                  >
+                    {/* 다운로드 버튼 (좌측 상단 오버레이) */}
+                    <button
+                      onClick={handleManualSave}
+                      className="absolute top-4 left-4 z-10 p-3 bg-white/90 hover:bg-white border border-gray-200 rounded-lg shadow-lg transition-all hover:shadow-xl group"
+                      title="이미지 저장"
+                    >
+                      <Download size={20} className="text-gray-700 group-hover:text-purple-600 transition-colors" />
+                    </button>
+
+                    {zoomLevel === 'fit' ? (
+                      <img
+                        src={generatedImage}
+                        alt="Generated"
+                        className="rounded-lg"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          width: 'auto',
+                          height: 'auto',
+                          objectFit: 'contain',
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center">
+                        <img
+                          src={generatedImage}
+                          alt="Generated"
+                          className="rounded-lg"
+                          style={{
+                            ...(zoomLevel === 'actual' ? {
+                              width: 'auto',
+                              height: 'auto',
+                            } : {
+                              width: `${zoomLevel}%`,
+                              height: 'auto',
+                            }),
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-gray-400">
+                  <ImageIcon size={64} className="mx-auto mb-4 opacity-30" />
+                  <p className="text-lg font-semibold">이미지를 생성해보세요</p>
+                  <p className="text-sm mt-2">왼쪽 설정을 조정하고 "이미지 생성" 버튼을 클릭하세요</p>
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* 히스토리 섹션 */}
-          <GeneratorHistory
-            generationHistory={generationHistory}
-            historyHeight={historyHeight}
-            onHistoryResize={handleHistoryResize}
-            onRestoreFromHistory={handleRestoreFromHistory}
-            onTogglePin={handleTogglePin}
-            onDeleteHistory={onHistoryDelete}
-          />
+          {generationHistory.length > 0 && (
+            <>
+              {/* Resizer - 히스토리 영역 상단 */}
+              <Resizer onResize={handleHistoryResize} direction="vertical" />
 
+              <div
+                className="border-t border-gray-200 bg-white p-4 overflow-y-auto"
+                style={{ height: `${historyHeight}px` }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <History size={16} className="text-gray-600" />
+                  <h3 className="text-sm font-semibold text-gray-800">생성 히스토리 ({generationHistory.length})</h3>
+                </div>
+              <div className="grid grid-cols-8 gap-2">
+                {generationHistory
+                  .slice()
+                  .sort((a, b) => {
+                    // 핀된 항목을 먼저 표시
+                    if (a.isPinned && !b.isPinned) return -1;
+                    if (!a.isPinned && b.isPinned) return 1;
+                    // 시간순 역순 (최신 먼저)
+                    return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+                  })
+                  .map((entry) => {
+                    // 툴팁 텍스트 생성
+                    const tooltipParts = [
+                      `생성 시간: ${new Date(entry.timestamp).toLocaleString()}`,
+                      `비율: ${entry.settings.aspectRatio}`,
+                      `크기: ${entry.settings.imageSize}`,
+                    ];
+
+                    if (entry.settings.pixelArtGrid) {
+                      tooltipParts.push(`그리드: ${entry.settings.pixelArtGrid}`);
+                    }
+
+                    if (entry.settings.seed !== undefined) {
+                      tooltipParts.push(`Seed: ${entry.settings.seed}`);
+                    }
+
+                    if (entry.referenceDocumentIds && entry.referenceDocumentIds.length > 0) {
+                      tooltipParts.push(`📄 참조 문서: ${entry.referenceDocumentIds.length}개`);
+                    }
+
+                    const tooltipText = tooltipParts.join('\n');
+
+                    return (
+                  <div
+                    key={entry.id}
+                    className="group relative"
+                    title={tooltipText}
+                  >
+                    {/* 핀 아이콘 (좌측 상단) */}
+                    <button
+                      onClick={(e) => handleTogglePin(e, entry.id)}
+                      className={`absolute top-1 left-1 z-10 p-1 rounded transition-all ${
+                        entry.isPinned
+                          ? 'bg-yellow-500 text-white'
+                          : 'bg-black/50 text-white opacity-0 group-hover:opacity-100'
+                      }`}
+                      title={entry.isPinned ? '핀 해제' : '핀 고정'}
+                    >
+                      <Pin size={12} />
+                    </button>
+
+                    <div className={`aspect-square bg-gray-100 rounded-md overflow-hidden border-2 transition-all ${
+                      entry.isPinned ? 'border-yellow-500' : 'border-transparent group-hover:border-purple-500'
+                    }`}>
+                      <img
+                        src={entry.imageBase64}
+                        alt={`Generated ${new Date(entry.timestamp).toLocaleString()}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-70 rounded-md transition-all flex items-center justify-center gap-2">
+                      <button
+                        onClick={(e) => handleRestoreFromHistory(e, entry)}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-green-600 hover:bg-green-700 rounded text-white"
+                        title="복원"
+                      >
+                        <RotateCcw size={16} />
+                      </button>
+                      {onHistoryDelete && (
+                        <button
+                          onClick={(e) => handleDeleteHistory(e, entry.id)}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity p-2 bg-red-600 hover:bg-red-700 rounded text-white"
+                          title="삭제"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
+      {/* 삭제 확인 다이얼로그 */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-xl max-w-sm w-full mx-4">
+            <h3 className="text-lg font-semibold mb-2">히스토리 삭제</h3>
+            <p className="text-gray-600 mb-6">
+              이 생성 히스토리를 삭제하시겠습니까?<br />
+              이 작업은 되돌릴 수 없습니다.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition-colors font-medium"
+              >
+                취소
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 도움말 팝업 */}
       {showHelp && (

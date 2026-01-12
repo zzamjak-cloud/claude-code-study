@@ -22,7 +22,8 @@ export interface Session {
   type: SessionType;
   createdAt: string;
   updatedAt: string;
-  referenceImages: string[]; // Base64 data URL 배열
+  referenceImages: string[]; // Base64 data URL 배열 (레거시) 또는 IndexedDB 키 배열 (신규)
+  imageKeys?: string[]; // IndexedDB 키 배열 (신규 방식, 있으면 우선 사용)
   analysis: ImageAnalysisResult;
   koreanAnalysis?: KoreanAnalysisCache; // 번역된 결과 캐시
   imageCount: number; // 참조 이미지 개수

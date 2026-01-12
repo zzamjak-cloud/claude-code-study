@@ -83,7 +83,7 @@ export function useFieldEditor<T extends Record<string, any>>(
       setEditedValue('');
     } catch (error) {
       logger.error('❌ [useFieldEditor] 저장 오류:', error);
-      alert('저장 중 오류가 발생했습니다. 다시 시도해주세요.');
+      // 에러는 로깅만 하고 편집 모드는 유지 (사용자가 재시도 가능)
     }
   };
 

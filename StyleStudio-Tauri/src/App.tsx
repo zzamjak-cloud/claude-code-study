@@ -139,7 +139,7 @@ function App() {
     }
   }, [currentSession]); // currentSession이 변경될 때 실행
 
-  const handleCustomPromptChange = (customPrompt: string) => {
+  const handleCustomPromptChange = useCallback((customPrompt: string) => {
     if (analysisResult) {
       const updated = {
         ...analysisResult,
@@ -147,7 +147,7 @@ function App() {
       };
       setAnalysisResult(updated);
     }
-  };
+  }, [analysisResult]);
 
   // 실제 분석 수행 함수
   const performAnalysis = async () => {
@@ -320,30 +320,30 @@ function App() {
     setRefineConfirm(false);
   };
 
-  const handleSettingsClick = () => {
+  const handleSettingsClick = useCallback(() => {
     setShowSettings(true);
-  };
+  }, [setShowSettings]);
 
-  const handleSaveSessionClick = () => {
+  const handleSaveSessionClick = useCallback(() => {
     if (!analysisResult || uploadedImages.length === 0) {
       alert('분석 결과가 없습니다');
       return;
     }
     setShowSaveSession(true);
-  };
+  }, [analysisResult, uploadedImages]);
 
-  const handleSelectSession = (session: Session) => {
+  const handleSelectSession = useCallback((session: Session) => {
     setCurrentSession(session);
     setUploadedImages(session.referenceImages);
     setAnalysisResult(session.analysis);
-  };
+  }, [setCurrentSession, setUploadedImages]);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     // 신규 세션 모달 표시
     setShowNewSession(true);
-  };
+  }, []);
 
-  const handleNewSession = (name: string, type: SessionType) => {
+  const handleNewSession = useCallback((name: string, type: SessionType) => {
     // 빈 분석 결과 생성 (임시 세션용)
     const emptyAnalysis: ImageAnalysisResult = {
       style: {
@@ -388,7 +388,7 @@ function App() {
     setUploadedImages([]);
     setAnalysisResult(null);
     setCurrentView('analysis');
-  };
+  }, [sessions, setSessions, setCurrentSession, setUploadedImages]);
 
   const handleGenerateImage = async () => {
     if (!analysisResult) {

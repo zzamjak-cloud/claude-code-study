@@ -3,6 +3,14 @@ import { ImageAnalysisResult } from '../types/analysis';
 import { Session, KoreanAnalysisCache } from '../types/session';
 import { buildUnifiedPrompt } from '../lib/promptBuilder';
 import { logger } from '../lib/logger';
+import {
+  hasStyleChanged,
+  hasCharacterChanged,
+  hasCompositionChanged,
+  hasUIAnalysisChanged,
+  hasLogoAnalysisChanged,
+  hasStringChanged,
+} from '../utils/comparison';
 
 interface TranslationProgress {
   stage: string;
@@ -190,31 +198,26 @@ export function useTranslation() {
 
     const oldAnalysis = currentSession.analysis;
 
-    // style 변경 확인
-    const styleChanged =
-      JSON.stringify(oldAnalysis.style) !== JSON.stringify(analysisResult.style);
+    // style 변경 확인 (얕은 비교)
+    const styleChanged = hasStyleChanged(oldAnalysis.style, analysisResult.style);
 
-    // character 변경 확인
-    const characterChanged =
-      JSON.stringify(oldAnalysis.character) !== JSON.stringify(analysisResult.character);
+    // character 변경 확인 (얕은 비교)
+    const characterChanged = hasCharacterChanged(oldAnalysis.character, analysisResult.character);
 
-    // composition 변경 확인
-    const compositionChanged =
-      JSON.stringify(oldAnalysis.composition) !== JSON.stringify(analysisResult.composition);
+    // composition 변경 확인 (얕은 비교)
+    const compositionChanged = hasCompositionChanged(oldAnalysis.composition, analysisResult.composition);
 
     // negative_prompt 변경 확인
-    const negativeChanged = oldAnalysis.negative_prompt !== analysisResult.negative_prompt;
+    const negativeChanged = hasStringChanged(oldAnalysis.negative_prompt, analysisResult.negative_prompt);
 
     // user_custom_prompt 변경 확인
-    const customPromptChanged = oldAnalysis.user_custom_prompt !== analysisResult.user_custom_prompt;
+    const customPromptChanged = hasStringChanged(oldAnalysis.user_custom_prompt, analysisResult.user_custom_prompt);
 
-    // ui_specific 변경 확인
-    const uiChanged =
-      JSON.stringify(oldAnalysis.ui_specific) !== JSON.stringify(analysisResult.ui_specific);
+    // ui_specific 변경 확인 (얕은 비교)
+    const uiChanged = hasUIAnalysisChanged(oldAnalysis.ui_specific, analysisResult.ui_specific);
 
-    // logo_specific 변경 확인
-    const logoChanged =
-      JSON.stringify(oldAnalysis.logo_specific) !== JSON.stringify(analysisResult.logo_specific);
+    // logo_specific 변경 확인 (얕은 비교)
+    const logoChanged = hasLogoAnalysisChanged(oldAnalysis.logo_specific, analysisResult.logo_specific);
 
     return styleChanged || characterChanged || compositionChanged || negativeChanged || customPromptChanged || uiChanged || logoChanged;
   };
@@ -247,8 +250,8 @@ export function useTranslation() {
       const logoKoreanTexts: Array<{ text: string; field: string; index: number }> = [];
       let negativeKoreanText: string | null = null;
 
-      // style 변경 시 - 한글 텍스트만 수집
-      if (JSON.stringify(oldAnalysis.style) !== JSON.stringify(analysisResult.style)) {
+      // style 변경 시 - 한글 텍스트만 수집 (얕은 비교)
+      if (hasStyleChanged(oldAnalysis.style, analysisResult.style)) {
         const styleTexts = [
           { value: analysisResult.style.art_style, field: 'art_style' },
           { value: analysisResult.style.technique, field: 'technique' },
@@ -263,8 +266,8 @@ export function useTranslation() {
         });
       }
 
-      // character 변경 시 - 한글 텍스트만 수집
-      if (JSON.stringify(oldAnalysis.character) !== JSON.stringify(analysisResult.character)) {
+      // character 변경 시 - 한글 텍스트만 수집 (얕은 비교)
+      if (hasCharacterChanged(oldAnalysis.character, analysisResult.character)) {
         const characterTexts = [
           { value: analysisResult.character.gender, field: 'gender' },
           { value: analysisResult.character.age_group, field: 'age_group' },
@@ -285,10 +288,8 @@ export function useTranslation() {
         });
       }
 
-      // composition 변경 시 - 한글 텍스트만 수집
-      if (
-        JSON.stringify(oldAnalysis.composition) !== JSON.stringify(analysisResult.composition)
-      ) {
+      // composition 변경 시 - 한글 텍스트만 수집 (얕은 비교)
+      if (hasCompositionChanged(oldAnalysis.composition, analysisResult.composition)) {
         const compositionTexts = [
           { value: analysisResult.composition.pose, field: 'pose' },
           { value: analysisResult.composition.angle, field: 'angle' },
@@ -320,7 +321,7 @@ export function useTranslation() {
       // UI 특화 분석 변경 시 - 한글 텍스트만 수집
       if (
         analysisResult.ui_specific &&
-        JSON.stringify(oldAnalysis.ui_specific) !== JSON.stringify(analysisResult.ui_specific)
+        hasUIAnalysisChanged(oldAnalysis.ui_specific, analysisResult.ui_specific)
       ) {
         const uiTexts = [
           { value: analysisResult.ui_specific.platform_type, field: 'platform_type' },
@@ -338,7 +339,7 @@ export function useTranslation() {
       // LOGO 특화 분석 변경 시 - 한글 텍스트만 수집
       if (
         analysisResult.logo_specific &&
-        JSON.stringify(oldAnalysis.logo_specific) !== JSON.stringify(analysisResult.logo_specific)
+        hasLogoAnalysisChanged(oldAnalysis.logo_specific, analysisResult.logo_specific)
       ) {
         const logoTexts = [
           { value: analysisResult.logo_specific.typography_style, field: 'typography_style' },

@@ -3,6 +3,7 @@ import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { Session } from '../types/session';
 import { logger } from './logger';
+import { saveImage, loadImages } from './imageStorage';
 
 // 창 상태 타입
 export interface WindowState {
@@ -54,23 +55,109 @@ export async function clearSettings(): Promise<void> {
   logger.debug('🗑️ 설정 초기화 완료');
 }
 
-// 세션 저장
-export async function saveSessions(sessions: Session[]): Promise<void> {
-  const store = await getStore();
-  await store.set('sessions', sessions);
-  await store.save();
-  logger.debug('✅ 세션 저장 완료:', sessions.length, '개');
+/**
+ * Base64 이미지가 IndexedDB 키인지 확인
+ * (키 형식: "sessionId-index")
+ */
+function isImageKey(str: string): boolean {
+  return !str.startsWith('data:');
 }
 
-// 세션 불러오기
+/**
+ * 세션 저장 (Base64 이미지를 IndexedDB로 마이그레이션)
+ */
+export async function saveSessions(sessions: Session[]): Promise<void> {
+  try {
+    // 각 세션의 이미지를 IndexedDB로 마이그레이션
+    const migratedSessions = await Promise.all(
+      sessions.map(async (session) => {
+        // 이미 imageKeys가 있거나, referenceImages가 모두 키 형식이면 마이그레이션 불필요
+        const hasImageKeys = session.imageKeys && session.imageKeys.length > 0;
+        const allAreKeys = session.referenceImages.every(isImageKey);
+
+        if (hasImageKeys || allAreKeys) {
+          logger.debug(`  - 세션 "${session.name}": 이미 마이그레이션됨`);
+          return session;
+        }
+
+        // Base64 이미지를 IndexedDB로 저장
+        logger.debug(`  - 세션 "${session.name}": ${session.referenceImages.length}개 이미지 마이그레이션 중...`);
+        const imageKeys = await Promise.all(
+          session.referenceImages.map((dataUrl, index) =>
+            saveImage(session.id, index, dataUrl)
+          )
+        );
+
+        // 마이그레이션된 세션 반환
+        return {
+          ...session,
+          imageKeys, // 새로운 imageKeys 추가
+          referenceImages: imageKeys, // referenceImages도 키로 업데이트
+        };
+      })
+    );
+
+    // Store에 저장
+    const store = await getStore();
+    await store.set('sessions', migratedSessions);
+    await store.save();
+    logger.debug('✅ 세션 저장 완료:', migratedSessions.length, '개 (IndexedDB 마이그레이션 포함)');
+  } catch (error) {
+    logger.error('❌ 세션 저장 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 세션 불러오기 (IndexedDB에서 이미지 복원)
+ */
 export async function loadSessions(): Promise<Session[]> {
   try {
     const store = await getStore();
     const sessions = await store.get<Session[]>('sessions');
-    logger.debug('📦 세션 로드:', sessions ? sessions.length : 0, '개');
-    return sessions || [];
+
+    if (!sessions || sessions.length === 0) {
+      logger.debug('📦 세션 로드: 0개');
+      return [];
+    }
+
+    // 각 세션의 이미지를 IndexedDB에서 복원
+    const restoredSessions = await Promise.all(
+      sessions.map(async (session) => {
+        // imageKeys가 있으면 IndexedDB에서 로드
+        if (session.imageKeys && session.imageKeys.length > 0) {
+          logger.debug(`  - 세션 "${session.name}": IndexedDB에서 ${session.imageKeys.length}개 이미지 로드 중...`);
+          const images = await loadImages(session.imageKeys);
+
+          return {
+            ...session,
+            referenceImages: images, // 복원된 이미지
+          };
+        }
+
+        // imageKeys가 없으면 referenceImages가 Base64인지 키인지 확인
+        const allAreKeys = session.referenceImages.every(isImageKey);
+        if (allAreKeys) {
+          logger.debug(`  - 세션 "${session.name}": IndexedDB에서 ${session.referenceImages.length}개 이미지 로드 중...`);
+          const images = await loadImages(session.referenceImages);
+
+          return {
+            ...session,
+            referenceImages: images, // 복원된 이미지
+            imageKeys: session.referenceImages, // 키 정보 보존
+          };
+        }
+
+        // 레거시 Base64 형식 (마이그레이션 필요)
+        logger.debug(`  - 세션 "${session.name}": 레거시 Base64 형식 (마이그레이션 필요)`);
+        return session;
+      })
+    );
+
+    logger.debug('✅ 세션 로드 완료:', restoredSessions.length, '개 (IndexedDB 복원 포함)');
+    return restoredSessions;
   } catch (error) {
-    logger.error('세션 로드 오류:', error);
+    logger.error('❌ 세션 로드 오류:', error);
     return [];
   }
 }

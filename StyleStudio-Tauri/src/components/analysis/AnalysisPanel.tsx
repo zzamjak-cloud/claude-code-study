@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, Save, Plus, Trash2, Wand2, HelpCircle, X } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
+import { fileToBase64 } from '../../utils/fileUtils';
 import { StyleCard } from './StyleCard';
 import { CharacterCard } from './CharacterCard';
 import { CompositionCard } from './CompositionCard';
@@ -144,15 +145,15 @@ export function AnalysisPanel({
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const reader = new FileReader();
-                      reader.onload = (ev) => {
-                        const result = ev.target?.result as string;
-                        onAddImage(result);
-                      };
-                      reader.readAsDataURL(file);
+                      try {
+                        const dataUrl = await fileToBase64(file);
+                        onAddImage(dataUrl);
+                      } catch (error) {
+                        console.error('파일 읽기 실패:', error);
+                      }
                     }
                   }}
                   className="hidden"

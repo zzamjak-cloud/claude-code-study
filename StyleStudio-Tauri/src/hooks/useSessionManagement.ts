@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, startTransition } from 'react';
 import { Session, GenerationHistoryEntry, KoreanAnalysisCache } from '../types/session';
 import { ReferenceDocument } from '../types/referenceDocument';
 import { ImageAnalysisResult } from '../types/analysis';
@@ -82,9 +82,10 @@ export function useSessionManagement(): UseSessionManagementReturn {
     try {
       await saveApiKey(newApiKey);
       setApiKeyState(newApiKey);
+      logger.info('✅ API 키 저장 성공');
     } catch (error) {
-      logger.error('API 키 저장 오류:', error);
-      alert('API 키 저장 실패: ' + (error as Error).message);
+      logger.error('❌ API 키 저장 오류:', error);
+      throw error; // 상위 컴포넌트에서 처리하도록 에러 전파
     }
   };
 
@@ -116,19 +117,21 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
     try {
       await persistSessions(updatedSessions);
+      logger.info('✅ 세션 삭제 성공');
     } catch (error) {
-      logger.error('세션 삭제 오류:', error);
-      alert('세션 삭제 실패: ' + (error as Error).message);
+      logger.error('❌ 세션 삭제 오류:', error);
+      throw error; // 상위 컴포넌트에서 처리하도록 에러 전파
     }
   };
 
   const handleExportSession = async (session: Session) => {
     try {
       await exportSessionToFile(session);
-      alert(`세션 "${session.name}"이(가) 파일로 저장되었습니다!`);
+      logger.info(`✅ 세션 "${session.name}" 파일로 저장 완료`);
+      // 성공 알림은 상위 컴포넌트에서 처리
     } catch (error) {
       logger.error('❌ 세션 내보내기 오류:', error);
-      alert('세션 저장 실패: ' + (error as Error).message);
+      throw error; // 상위 컴포넌트에서 처리하도록 에러 전파
     }
   };
 
@@ -150,14 +153,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
       setSessions(updatedSessions);
       await persistSessions(updatedSessions);
 
-      alert(
-        `세션 "${importedSession.name}"을(를) 불러왔습니다!\n참조 이미지: ${importedSession.imageCount}개`
+      logger.info(
+        `✅ 세션 "${importedSession.name}" 불러오기 완료 (참조 이미지: ${importedSession.imageCount}개)`
       );
 
       setCurrentSession(importedSession);
     } catch (error) {
       logger.error('❌ 세션 가져오기 오류:', error);
-      alert('세션 불러오기 실패: ' + (error as Error).message);
+      throw error; // 상위 컴포넌트에서 처리하도록 에러 전파
     }
   };
 
@@ -175,10 +178,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
       const updatedSession = updateSession(currentSession, {
         generationHistory: [...(currentSession.generationHistory || []), entry],
       });
-
-      setCurrentSession(updatedSession);
       const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-      setSessions(updatedSessions);
+
+      // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+      startTransition(() => {
+        setCurrentSession(updatedSession);
+        setSessions(updatedSessions);
+      });
+
       persistSessions(updatedSessions);
     }
   };
@@ -190,10 +197,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
           entry.id === entryId ? { ...entry, ...updates } : entry
         ),
       });
-
-      setCurrentSession(updatedSession);
       const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-      setSessions(updatedSessions);
+
+      // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+      startTransition(() => {
+        setCurrentSession(updatedSession);
+        setSessions(updatedSessions);
+      });
+
       persistSessions(updatedSessions);
     }
   };
@@ -205,10 +216,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
           (entry) => entry.id !== entryId
         ),
       });
-
-      setCurrentSession(updatedSession);
       const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-      setSessions(updatedSessions);
+
+      // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+      startTransition(() => {
+        setCurrentSession(updatedSession);
+        setSessions(updatedSessions);
+      });
+
       persistSessions(updatedSessions);
     }
   };
@@ -220,10 +235,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
       const updatedSession = updateSession(currentSession, {
         analysis: updatedAnalysis,
       });
-
       const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-      setSessions(updatedSessions);
-      setCurrentSession(updatedSession);
+
+      // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+      startTransition(() => {
+        setSessions(updatedSessions);
+        setCurrentSession(updatedSession);
+      });
+
       await persistSessions(updatedSessions);
     } catch (error) {
       logger.error('❌ [프롬프트 수정] 세션 저장 오류:', error);
@@ -241,10 +260,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
     const updatedSession = updateSession(currentSession, {
       koreanAnalysis: updatedKoreanAnalysis,
     });
-
     const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-    setSessions(updatedSessions);
-    setCurrentSession(updatedSession);
+
+    // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+    startTransition(() => {
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+    });
+
     persistSessions(updatedSessions);
   };
 
@@ -255,10 +278,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
     const updatedSession = updateSession(currentSession, {
       referenceDocuments: updatedDocuments,
     });
-
     const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-    setSessions(updatedSessions);
-    setCurrentSession(updatedSession);
+
+    // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+    startTransition(() => {
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+    });
+
     persistSessions(updatedSessions);
     logger.debug('문서 추가됨:', document.fileName);
   };
@@ -272,10 +299,14 @@ export function useSessionManagement(): UseSessionManagementReturn {
     const updatedSession = updateSession(currentSession, {
       referenceDocuments: updatedDocuments,
     });
-
     const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-    setSessions(updatedSessions);
-    setCurrentSession(updatedSession);
+
+    // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+    startTransition(() => {
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+    });
+
     persistSessions(updatedSessions);
     logger.debug('문서 삭제됨:', documentId);
   };
