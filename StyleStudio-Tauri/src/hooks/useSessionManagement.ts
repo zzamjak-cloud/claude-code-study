@@ -39,6 +39,7 @@ interface UseSessionManagementReturn {
   handleHistoryDelete: (entryId: string) => void;
   handleDocumentAdd: (document: ReferenceDocument) => void;
   handleDocumentDelete: (documentId: string) => void;
+  handleAutoSavePathChange: (path: string) => Promise<void>;
   saveSessionWithoutTranslation: (updatedAnalysis: ImageAnalysisResult) => Promise<void>;
   updateKoreanCache: (updates: Partial<KoreanAnalysisCache>) => void;
 }
@@ -137,42 +138,68 @@ export function useSessionManagement(): UseSessionManagementReturn {
 
   const handleImportSession = async () => {
     try {
-      const importedSession = await importSessionFromFile();
+      const importedSessions = await importSessionFromFile();
 
-      if (!importedSession) {
+      if (!importedSessions || importedSessions.length === 0) {
+        logger.debug('❌ 불러온 세션이 없습니다');
         return;
       }
 
-      // 중복 ID 확인 및 처리
-      const isDuplicate = sessions.some((s) => s.id === importedSession.id);
-      if (isDuplicate) {
-        importedSession.id = Date.now().toString();
+      logger.info(`📂 ${importedSessions.length}개 세션 처리 시작`);
+
+      let updatedSessions = [...sessions];
+      let lastValidSession: Session | null = null;
+      const damagedSessions: string[] = [];
+
+      // 각 세션 처리
+      for (const importedSession of importedSessions) {
+        // 중복 ID 확인 및 처리
+        const isDuplicate = updatedSessions.some((s) => s.id === importedSession.id);
+        if (isDuplicate) {
+          const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+          logger.debug(`   - 중복 ID 감지, 새 ID 생성: ${importedSession.id} → ${newId}`);
+          importedSession.id = newId;
+        }
+
+        // 참조 이미지 검증 (Base64 데이터가 있는지 확인)
+        const hasValidImages = importedSession.referenceImages.length > 0 &&
+          importedSession.referenceImages.every(img => img.startsWith('data:'));
+
+        if (importedSession.imageCount > 0 && !hasValidImages) {
+          logger.warn(`   ⚠️ 세션 "${importedSession.name}"의 참조 이미지가 손상되었습니다`);
+          damagedSessions.push(importedSession.name);
+        }
+
+        // 세션 추가
+        updatedSessions = addSessionToList(updatedSessions, importedSession);
+        lastValidSession = importedSession;
+
+        logger.info(
+          `   ✅ 세션 "${importedSession.name}" 추가 완료 (참조 이미지: ${importedSession.imageCount}개, 유효: ${hasValidImages})`
+        );
       }
 
-      // 참조 이미지 검증 (Base64 데이터가 있는지 확인)
-      const hasValidImages = importedSession.referenceImages.length > 0 &&
-        importedSession.referenceImages.every(img => img.startsWith('data:'));
+      // 세션 저장
+      setSessions(updatedSessions);
+      await persistSessions(updatedSessions);
 
-      if (importedSession.imageCount > 0 && !hasValidImages) {
-        logger.warn('⚠️ import한 세션의 참조 이미지가 손상되었습니다:', importedSession.name);
+      // 손상된 세션 알림
+      if (damagedSessions.length > 0) {
         alert(
-          `세션 "${importedSession.name}"을 불러왔지만, 참조 이미지가 손상되었습니다.\n\n` +
-          `원인: 이전 버전으로 export한 파일이거나, 이미지 데이터가 누락되었습니다.\n\n` +
+          `${damagedSessions.length}개 세션의 참조 이미지가 손상되었습니다:\n\n` +
+          damagedSessions.map(name => `• ${name}`).join('\n') +
+          `\n\n원인: 이전 버전으로 export한 파일이거나, 이미지 데이터가 누락되었습니다.\n\n` +
           `해결 방법:\n` +
           `1. 원본 PC에서 최신 버전으로 세션을 다시 export하세요\n` +
           `2. 참조 이미지를 다시 업로드하고 분석하세요`
         );
       }
 
-      const updatedSessions = addSessionToList(sessions, importedSession);
-      setSessions(updatedSessions);
-      await persistSessions(updatedSessions);
-
-      logger.info(
-        `✅ 세션 "${importedSession.name}" 불러오기 완료 (참조 이미지: ${importedSession.imageCount}개, 유효: ${hasValidImages})`
-      );
-
-      setCurrentSession(importedSession);
+      // 마지막 세션 선택 (강제)
+      if (lastValidSession) {
+        setCurrentSession(lastValidSession);
+        logger.info(`✅ 총 ${importedSessions.length}개 세션 불러오기 완료, 마지막 세션 선택: "${lastValidSession.name}"`);
+      }
     } catch (error) {
       logger.error('❌ 세션 가져오기 오류:', error);
       throw error; // 상위 컴포넌트에서 처리하도록 에러 전파
@@ -326,6 +353,24 @@ export function useSessionManagement(): UseSessionManagementReturn {
     logger.debug('문서 삭제됨:', documentId);
   };
 
+  const handleAutoSavePathChange = async (path: string) => {
+    if (!currentSession) return;
+
+    const updatedSession = updateSession(currentSession, {
+      autoSavePath: path,
+    });
+    const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+
+    // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
+    startTransition(() => {
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+    });
+
+    await persistSessions(updatedSessions);
+    logger.debug('✅ 자동 저장 폴더 변경됨:', path);
+  };
+
   return {
     apiKey,
     setApiKey,
@@ -347,6 +392,7 @@ export function useSessionManagement(): UseSessionManagementReturn {
     handleHistoryDelete,
     handleDocumentAdd,
     handleDocumentDelete,
+    handleAutoSavePathChange,
     saveSessionWithoutTranslation,
     updateKoreanCache,
   };

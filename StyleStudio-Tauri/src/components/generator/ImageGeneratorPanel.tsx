@@ -374,6 +374,11 @@ export function ImageGeneratorPanel({
       const downloadPath = await downloadDir();
       const fallbackPath = await join(downloadPath, 'AI_Gen');
 
+      logger.debug('🔍 [경로 검증 시작]');
+      logger.debug('   - autoSavePath:', autoSavePath || 'undefined');
+      logger.debug('   - fallbackPath:', fallbackPath);
+      logger.debug('   - onAutoSavePathChange 존재:', !!onAutoSavePathChange);
+
       // 저장 경로 결정
       let savePath = autoSavePath;
       let isUserSpecifiedPath = false;
@@ -381,6 +386,9 @@ export function ImageGeneratorPanel({
       // autoSavePath가 기본 경로인지 확인
       if (savePath && savePath !== fallbackPath) {
         isUserSpecifiedPath = true;
+        logger.debug('   - 사용자 지정 경로 감지:', savePath);
+      } else {
+        logger.debug('   - 기본 경로 사용 중');
       }
 
       // 경로 검증
@@ -388,6 +396,7 @@ export function ImageGeneratorPanel({
         let pathExists = false;
         try {
           pathExists = await exists(savePath);
+          logger.debug('   - 경로 존재 확인:', pathExists);
         } catch (error) {
           logger.warn('⚠️ 경로 확인 실패 (권한 문제 가능):', error);
           pathExists = false;
@@ -399,18 +408,24 @@ export function ImageGeneratorPanel({
           logger.info(`   폴백 경로로 변경: ${fallbackPath}`);
           savePath = fallbackPath;
 
-          // 폴백 경로로 변경 알림
+          // 폴백 경로로 변경 알림 (await로 세션 저장 완료 대기)
           if (onAutoSavePathChange) {
-            onAutoSavePathChange(fallbackPath);
+            logger.debug('📞 onAutoSavePathChange 호출 시작...');
+            await onAutoSavePathChange(fallbackPath);
+            logger.debug('✅ 세션의 저장 폴더가 폴백 경로로 변경되었습니다');
+          } else {
+            logger.error('❌ onAutoSavePathChange가 전달되지 않았습니다!');
           }
 
           alert(`지정된 저장 폴더를 찾을 수 없습니다.\n\n기본 폴더로 변경됩니다:\n${fallbackPath}`);
         } else if (!pathExists && !isUserSpecifiedPath) {
           // 기본 경로가 없으면 생성
+          logger.debug('   - 기본 경로가 없어서 폴백으로 변경');
           savePath = fallbackPath;
         }
       } else {
         // autoSavePath가 없으면 기본 경로 사용
+        logger.debug('   - autoSavePath가 없어서 기본 경로 사용');
         savePath = fallbackPath;
       }
 
@@ -433,9 +448,10 @@ export function ImageGeneratorPanel({
           }
         }
 
-        // 기본 경로로 변경 알림
-        if (onAutoSavePathChange && autoSavePath !== fallbackPath) {
-          onAutoSavePathChange(fallbackPath);
+        // 기본 경로로 변경 알림 (초기 상태일 때만)
+        if (onAutoSavePathChange && !autoSavePath) {
+          await onAutoSavePathChange(fallbackPath);
+          logger.debug('✅ 세션의 저장 폴더가 기본 경로로 설정되었습니다');
         }
       }
 
@@ -526,6 +542,15 @@ export function ImageGeneratorPanel({
           logger.info(`   폴백 경로로 변경: ${fallbackPath}`);
           defaultPath = fallbackPath;
 
+          // 폴백 경로로 변경 알림 (await로 세션 저장 완료 대기)
+          if (onAutoSavePathChange) {
+            logger.debug('📞 [handleManualSave] onAutoSavePathChange 호출 시작...');
+            await onAutoSavePathChange(fallbackPath);
+            logger.debug('✅ [handleManualSave] 세션의 저장 폴더가 폴백 경로로 변경되었습니다');
+          } else {
+            logger.error('❌ [handleManualSave] onAutoSavePathChange가 전달되지 않았습니다!');
+          }
+
           alert(`지정된 저장 폴더를 찾을 수 없습니다.\n\n기본 폴더로 변경됩니다:\n${fallbackPath}`);
         } else if (!pathExists && !isUserSpecifiedPath) {
           // 기본 경로가 없으면 생성
@@ -553,6 +578,13 @@ export function ImageGeneratorPanel({
             logger.error('❌ 폴더 생성 실패:', mkdirError);
             throw mkdirError;
           }
+        }
+
+        // 기본 경로로 변경 알림 (초기 상태일 때만)
+        if (onAutoSavePathChange && !autoSavePath) {
+          logger.debug('📞 [handleManualSave] 초기 상태 - onAutoSavePathChange 호출 시작...');
+          await onAutoSavePathChange(fallbackPath);
+          logger.debug('✅ [handleManualSave] 세션의 저장 폴더가 기본 경로로 설정되었습니다');
         }
       }
 

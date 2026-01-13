@@ -230,12 +230,12 @@ export async function exportSessionToFile(session: Session): Promise<void> {
   }
 }
 
-// 파일에서 세션 불러오기 (Import)
-export async function importSessionFromFile(): Promise<Session | null> {
+// 파일에서 세션 불러오기 (Import) - 다중 파일 지원
+export async function importSessionFromFile(): Promise<Session[]> {
   try {
-    // 파일 열기 다이얼로그
+    // 파일 열기 다이얼로그 (다중 선택 가능)
     const selected = await open({
-      multiple: false,
+      multiple: true,
       filters: [
         {
           name: 'StyleStudio Session',
@@ -244,24 +244,40 @@ export async function importSessionFromFile(): Promise<Session | null> {
       ],
     });
 
-    if (!selected || typeof selected !== 'string') {
+    if (!selected) {
       logger.debug('❌ 파일 선택 취소됨');
-      return null;
+      return [];
     }
 
-    logger.debug('📂 세션 파일 불러오기:', selected);
+    // 선택된 파일 경로 배열로 변환
+    const filePaths = Array.isArray(selected) ? selected : [selected];
+    logger.debug(`📂 ${filePaths.length}개 세션 파일 불러오기 시작`);
 
-    // 파일 읽기
-    const fileContent = await readTextFile(selected);
+    // 모든 파일 읽고 파싱
+    const sessions: Session[] = [];
+    for (const filePath of filePaths) {
+      try {
+        logger.debug('   - 파일 읽는 중:', filePath);
 
-    // JSON 파싱
-    const session: Session = JSON.parse(fileContent);
+        // 파일 읽기
+        const fileContent = await readTextFile(filePath);
 
-    logger.debug('✅ 세션 파일 불러오기 완료:', session.name);
-    logger.debug('   - 세션 ID:', session.id);
-    logger.debug('   - 이미지 개수:', session.imageCount);
+        // JSON 파싱
+        const session: Session = JSON.parse(fileContent);
 
-    return session;
+        logger.debug(`   ✅ 세션 "${session.name}" 불러오기 완료`);
+        logger.debug(`      - 세션 ID: ${session.id}`);
+        logger.debug(`      - 이미지 개수: ${session.imageCount}`);
+
+        sessions.push(session);
+      } catch (error) {
+        logger.error(`   ❌ 파일 읽기 실패 (${filePath}):`, error);
+        // 한 파일 실패해도 계속 진행
+      }
+    }
+
+    logger.debug(`✅ 총 ${sessions.length}개 세션 불러오기 완료`);
+    return sessions;
   } catch (error) {
     logger.error('❌ 세션 파일 불러오기 오류:', error);
     throw error;
