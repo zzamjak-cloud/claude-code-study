@@ -365,23 +365,77 @@ export function ImageGeneratorPanel({
   // 자동 저장 함수 (Gemini API가 JPEG로 반환하므로 .jpg로 저장)
   const autoSaveImage = async (imageDataUrl: string) => {
     try {
+      // Data URL 형식 검증
+      if (!imageDataUrl || !imageDataUrl.startsWith('data:')) {
+        throw new Error('유효하지 않은 이미지 데이터 형식입니다');
+      }
+
+      // 폴백 경로 (기본 경로) 미리 계산
+      const downloadPath = await downloadDir();
+      const fallbackPath = await join(downloadPath, 'AI_Gen');
+
       // 저장 경로 결정
       let savePath = autoSavePath;
+      let isUserSpecifiedPath = false;
 
-      // 경로가 없거나 폴더가 존재하지 않으면 기본 경로 사용
-      if (!savePath || !(await exists(savePath))) {
-        const downloadPath = await downloadDir();
-        savePath = await join(downloadPath, 'AI_Gen');
+      // autoSavePath가 기본 경로인지 확인
+      if (savePath && savePath !== fallbackPath) {
+        isUserSpecifiedPath = true;
+      }
 
-        // 기본 폴더가 없으면 생성
-        if (!(await exists(savePath))) {
-          await mkdir(savePath, { recursive: true });
-          logger.debug('📁 기본 폴더 생성됨:', savePath);
+      // 경로 검증
+      if (savePath) {
+        let pathExists = false;
+        try {
+          pathExists = await exists(savePath);
+        } catch (error) {
+          logger.warn('⚠️ 경로 확인 실패 (권한 문제 가능):', error);
+          pathExists = false;
+        }
+
+        // 사용자 지정 경로가 존재하지 않으면 폴백으로 변경
+        if (!pathExists && isUserSpecifiedPath) {
+          logger.warn(`⚠️ 지정된 폴더를 찾을 수 없습니다: ${savePath}`);
+          logger.info(`   폴백 경로로 변경: ${fallbackPath}`);
+          savePath = fallbackPath;
+
+          // 폴백 경로로 변경 알림
+          if (onAutoSavePathChange) {
+            onAutoSavePathChange(fallbackPath);
+          }
+
+          alert(`지정된 저장 폴더를 찾을 수 없습니다.\n\n기본 폴더로 변경됩니다:\n${fallbackPath}`);
+        } else if (!pathExists && !isUserSpecifiedPath) {
+          // 기본 경로가 없으면 생성
+          savePath = fallbackPath;
+        }
+      } else {
+        // autoSavePath가 없으면 기본 경로 사용
+        savePath = fallbackPath;
+      }
+
+      // 기본 폴더가 없으면 생성 (폴백 경로만)
+      if (savePath === fallbackPath) {
+        try {
+          const folderExists = await exists(savePath);
+          if (!folderExists) {
+            await mkdir(savePath, { recursive: true });
+            logger.debug('📁 기본 폴더 생성됨:', savePath);
+          }
+        } catch (error) {
+          // 폴더가 없으면 생성 시도
+          try {
+            await mkdir(savePath, { recursive: true });
+            logger.debug('📁 기본 폴더 생성됨 (exists 실패 후):', savePath);
+          } catch (mkdirError) {
+            logger.error('❌ 폴더 생성 실패:', mkdirError);
+            throw mkdirError;
+          }
         }
 
         // 기본 경로로 변경 알림
-        if (onAutoSavePathChange) {
-          onAutoSavePathChange(savePath);
+        if (onAutoSavePathChange && autoSavePath !== fallbackPath) {
+          onAutoSavePathChange(fallbackPath);
         }
       }
 
@@ -390,9 +444,24 @@ export function ImageGeneratorPanel({
       const fileName = `style-studio-${timestamp}.jpg`;
       const fullPath = await join(savePath, fileName);
 
+      logger.debug('💾 자동 저장 시작:', fullPath);
+      logger.debug('   이미지 데이터 형식:', imageDataUrl.substring(0, 50) + '...');
+
       // Base64를 Uint8Array로 변환 (원본 그대로 저장)
       const base64Data = imageDataUrl.split(',')[1];
-      const binaryString = atob(base64Data);
+      if (!base64Data) {
+        throw new Error('Base64 데이터를 추출할 수 없습니다. Data URL 형식이 잘못되었습니다.');
+      }
+
+      // atob() 함수로 디코딩 시도
+      let binaryString: string;
+      try {
+        binaryString = atob(base64Data);
+      } catch (atobError) {
+        logger.error('❌ Base64 디코딩 실패:', atobError);
+        throw new Error('Base64 디코딩에 실패했습니다. 이미지 데이터가 손상되었을 수 있습니다.');
+      }
+
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
@@ -404,7 +473,12 @@ export function ImageGeneratorPanel({
 
       return fullPath;
     } catch (error) {
-      logger.error('❌ 자동 저장 오류:', error);
+      logger.error('❌ 자동 저장 오류 (상세):', {
+        error,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     }
   };
@@ -423,18 +497,62 @@ export function ImageGeneratorPanel({
     }
 
     try {
+      // 폴백 경로 (기본 경로) 미리 계산
+      const downloadPath = await downloadDir();
+      const fallbackPath = await join(downloadPath, 'AI_Gen');
+
       // 기본 저장 경로 결정
       let defaultPath = autoSavePath;
+      let isUserSpecifiedPath = false;
 
-      // 경로가 없거나 폴더가 존재하지 않으면 기본 경로 사용
-      if (!defaultPath || !(await exists(defaultPath))) {
-        const downloadPath = await downloadDir();
-        defaultPath = await join(downloadPath, 'AI_Gen');
+      // autoSavePath가 기본 경로인지 확인
+      if (defaultPath && defaultPath !== fallbackPath) {
+        isUserSpecifiedPath = true;
+      }
 
-        // 기본 폴더가 없으면 생성
-        if (!(await exists(defaultPath))) {
-          await mkdir(defaultPath, { recursive: true });
-          logger.debug('📁 기본 폴더 생성됨:', defaultPath);
+      // 경로 검증
+      if (defaultPath) {
+        let pathExists = false;
+        try {
+          pathExists = await exists(defaultPath);
+        } catch (error) {
+          logger.warn('⚠️ 경로 확인 실패 (권한 문제 가능):', error);
+          pathExists = false;
+        }
+
+        // 사용자 지정 경로가 존재하지 않으면 폴백으로 변경
+        if (!pathExists && isUserSpecifiedPath) {
+          logger.warn(`⚠️ 지정된 폴더를 찾을 수 없습니다: ${defaultPath}`);
+          logger.info(`   폴백 경로로 변경: ${fallbackPath}`);
+          defaultPath = fallbackPath;
+
+          alert(`지정된 저장 폴더를 찾을 수 없습니다.\n\n기본 폴더로 변경됩니다:\n${fallbackPath}`);
+        } else if (!pathExists && !isUserSpecifiedPath) {
+          // 기본 경로가 없으면 생성
+          defaultPath = fallbackPath;
+        }
+      } else {
+        // autoSavePath가 없으면 기본 경로 사용
+        defaultPath = fallbackPath;
+      }
+
+      // 기본 폴더가 없으면 생성 (폴백 경로만)
+      if (defaultPath === fallbackPath) {
+        try {
+          const folderExists = await exists(defaultPath);
+          if (!folderExists) {
+            await mkdir(defaultPath, { recursive: true });
+            logger.debug('📁 기본 폴더 생성됨:', defaultPath);
+          }
+        } catch (error) {
+          // 폴더가 없으면 생성 시도
+          try {
+            await mkdir(defaultPath, { recursive: true });
+            logger.debug('📁 기본 폴더 생성됨 (exists 실패 후):', defaultPath);
+          } catch (mkdirError) {
+            logger.error('❌ 폴더 생성 실패:', mkdirError);
+            throw mkdirError;
+          }
         }
       }
 
@@ -462,18 +580,32 @@ export function ImageGeneratorPanel({
       }
 
       logger.debug('💾 수동 저장 경로:', selectedPath);
+      logger.debug('   이미지 데이터 형식:', generatedImage.substring(0, 50) + '...');
+      logger.debug('   이미지 데이터 길이:', generatedImage.length);
 
       // Base64를 Uint8Array로 변환
       const base64Data = generatedImage.split(',')[1];
       if (!base64Data) {
-        throw new Error('Base64 데이터를 추출할 수 없습니다');
+        throw new Error('Base64 데이터를 추출할 수 없습니다. Data URL 형식이 잘못되었습니다.');
       }
 
-      const binaryString = atob(base64Data);
+      logger.debug('   Base64 데이터 길이:', base64Data.length);
+
+      // atob() 함수로 디코딩 시도
+      let binaryString: string;
+      try {
+        binaryString = atob(base64Data);
+      } catch (atobError) {
+        logger.error('❌ Base64 디코딩 실패:', atobError);
+        throw new Error('Base64 디코딩에 실패했습니다. 이미지 데이터가 손상되었을 수 있습니다.');
+      }
+
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
+
+      logger.debug('   바이너리 데이터 크기:', bytes.length, 'bytes');
 
       // 파일 저장
       await writeFile(selectedPath, bytes);
@@ -481,8 +613,26 @@ export function ImageGeneratorPanel({
 
       alert(`이미지가 저장되었습니다.\n\n${selectedPath}`);
     } catch (error) {
-      logger.error('❌ 수동 저장 오류:', error);
-      alert('이미지 저장에 실패했습니다: ' + (error as Error).message);
+      // 에러 정보를 더 자세히 로깅
+      logger.error('❌ 수동 저장 오류 (상세):', {
+        error,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorStack: error instanceof Error ? error.stack : undefined,
+      });
+
+      // 사용자에게 표시할 에러 메시지
+      let errorMessage = '알 수 없는 오류가 발생했습니다';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = String((error as any).message);
+      }
+
+      alert('이미지 저장에 실패했습니다.\n\n' + errorMessage);
     }
   };
 

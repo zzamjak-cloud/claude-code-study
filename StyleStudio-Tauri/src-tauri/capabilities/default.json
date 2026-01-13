@@ -22,6 +22,17 @@
     "dialog:allow-save",
     "dialog:allow-message",
     "fs:default",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {
+          "path": "$DOWNLOAD/**"
+        },
+        {
+          "path": "$DOWNLOAD/*"
+        }
+      ]
+    },
     "fs:allow-read-file",
     "fs:allow-read-text-file",
     "fs:allow-write-text-file",
