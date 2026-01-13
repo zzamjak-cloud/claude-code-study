@@ -15,10 +15,29 @@ export function useWindowState() {
         const savedState = await getWindowState()
 
         if (savedState && !savedState.maximized) {
-          // 최대화 상태가 아니었으면 저장된 크기와 위치 복원
-          devLog.log('🪟 저장된 창 상태 복원:', savedState)
-          await appWindow.setPosition(new PhysicalPosition(savedState.x, savedState.y))
-          await appWindow.setSize(new PhysicalSize(savedState.width, savedState.height))
+          // 창 위치/크기 유효성 검사
+          const isValidPosition =
+            savedState.x >= -100 && // 약간의 음수는 허용 (멀티 모니터)
+            savedState.y >= -100 &&
+            savedState.x < 10000 && // 비정상적으로 큰 값 방지
+            savedState.y < 10000
+
+          const isValidSize =
+            savedState.width >= 800 &&
+            savedState.width <= 10000 &&
+            savedState.height >= 600 &&
+            savedState.height <= 10000
+
+          if (isValidPosition && isValidSize) {
+            // 유효한 경우에만 저장된 크기와 위치 복원
+            devLog.log('🪟 저장된 창 상태 복원:', savedState)
+            await appWindow.setPosition(new PhysicalPosition(savedState.x, savedState.y))
+            await appWindow.setSize(new PhysicalSize(savedState.width, savedState.height))
+          } else {
+            // 유효하지 않으면 기본 최대화
+            console.warn('🪟 저장된 창 상태가 유효하지 않음, 기본 최대화 적용:', savedState)
+            await appWindow.maximize()
+          }
         } else if (savedState && savedState.maximized) {
           // 최대화 상태였으면 최대화
           devLog.log('🪟 창 최대화 상태 복원')
@@ -29,7 +48,13 @@ export function useWindowState() {
           await appWindow.maximize()
         }
       } catch (error) {
-        console.error('창 상태 복원 실패:', error)
+        console.error('❌ 창 상태 복원 실패:', error)
+        // 에러 발생 시 기본 최대화
+        try {
+          await appWindow.maximize()
+        } catch (e) {
+          console.error('❌ 창 최대화 실패:', e)
+        }
       }
     }
 

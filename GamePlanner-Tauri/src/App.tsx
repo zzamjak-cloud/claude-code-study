@@ -10,7 +10,6 @@ import { useAppStore } from './store/useAppStore'
 import { useAppInitialization } from './hooks/useAppInitialization'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useMessageHandler } from './hooks/useMessageHandler'
-import { useWindowState } from './hooks/useWindowState'
 import { CHAT_PANEL_WIDTH } from './lib/constants/ui'
 
 function App() {
@@ -21,6 +20,8 @@ function App() {
   const [showVersionTitleInput, setShowVersionTitleInput] = useState(false)
   const [versionTitle, setVersionTitle] = useState('')
   const versionInputRef = useRef<HTMLInputElement>(null) // input ref 추가
+  const [errorDialog, setErrorDialog] = useState<{ title: string; message: string } | null>(null)
+  const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null)
   // sessions 구독 제거 - 렉 방지 (필요할 때만 getState()로 가져옴)
   const { apiKey, currentSessionId, createVersion, setActivePreviewTab } = useAppStore()
 
@@ -28,9 +29,6 @@ function App() {
   useAppInitialization({
     onSettingsRequired: () => setShowSettings(true),
   })
-
-  // 창 크기 및 위치 저장/복원
-  useWindowState()
 
   // 세션 자동 저장 (버전 생성 중에는 차단)
   useAutoSave({ isBlocked: showVersionConfirm || showVersionTitleInput })
@@ -40,7 +38,10 @@ function App() {
 
   const handleSendMessageWrapper = async (message: string) => {
     if (!apiKey) {
-      alert('API Key를 먼저 설정해주세요')
+      setInfoDialog({
+        title: 'API Key 필요',
+        message: 'API Key를 먼저 설정해주세요'
+      })
       setShowSettings(true)
       return
     }
@@ -108,7 +109,10 @@ function App() {
       // saveSessionImmediately는 필요 없음 - 모달이 닫히면 자동 저장이 재개됨
     } catch (error) {
       console.error('버전 생성 실패:', error)
-      alert('버전 생성에 실패했습니다.')
+      setErrorDialog({
+        title: '버전 생성 실패',
+        message: '버전 생성에 실패했습니다.'
+      })
     }
   }
 
@@ -231,6 +235,62 @@ function App() {
                   className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
                 >
                   저장
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 에러 다이얼로그 */}
+        {errorDialog && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setErrorDialog(null)
+              }
+            }}
+          >
+            <div
+              className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold mb-4 text-destructive">❌ {errorDialog.title}</h3>
+              <p className="text-muted-foreground mb-6 whitespace-pre-wrap">{errorDialog.message}</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setErrorDialog(null)}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 정보 다이얼로그 */}
+        {infoDialog && (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setInfoDialog(null)
+              }
+            }}
+          >
+            <div
+              className="bg-background border border-border rounded-lg p-6 shadow-lg max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold mb-4 text-primary">ℹ️ {infoDialog.title}</h3>
+              <p className="text-muted-foreground mb-6 whitespace-pre-wrap">{infoDialog.message}</p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setInfoDialog(null)}
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium"
+                >
+                  확인
                 </button>
               </div>
             </div>

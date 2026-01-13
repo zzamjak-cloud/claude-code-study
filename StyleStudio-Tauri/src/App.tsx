@@ -10,7 +10,6 @@ import { SaveSessionModal } from './components/common/SaveSessionModal';
 import { NewSessionModal } from './components/common/NewSessionModal';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
-import { useWindowState } from './hooks/useWindowState';
 import { ProgressIndicator } from './components/common/ProgressIndicator';
 import { ImageAnalysisResult } from './types/analysis';
 import { Session, SessionType } from './types/session';
@@ -46,13 +45,13 @@ function App() {
     estimatedSecondsLeft: 0,
   });
   const [refineConfirm, setRefineConfirm] = useState(false);
+  const [damagedSessionsWarning, setDamagedSessionsWarning] = useState<string | null>(null);
+  const [errorDialog, setErrorDialog] = useState<{ title: string; message: string } | null>(null);
+  const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null);
 
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage, showLimitWarning, setShowLimitWarning } =
     useImageHandling();
-
-  // 창 크기 및 위치 저장/복원
-  useWindowState();
 
   const {
     apiKey,
@@ -120,6 +119,7 @@ function App() {
 
   // 1. 앱 시작 시 첫 번째 세션 자동 선택 및 손상된 세션 확인
   useEffect(() => {
+    // currentSession이 없을 때만 실행 (무한 루프 방지)
     if (sessions.length > 0 && !currentSession) {
       const firstSession = sessions[0];
       setCurrentSession(firstSession);
@@ -136,8 +136,8 @@ function App() {
 
         // 사용자에게 경고 (한 번만 표시)
         setTimeout(() => {
-          alert(
-            `⚠️ 참조 이미지가 손상된 세션이 ${damagedSessions.length}개 발견되었습니다.\n\n` +
+          setDamagedSessionsWarning(
+            `참조 이미지가 손상된 세션이 ${damagedSessions.length}개 발견되었습니다.\n\n` +
               `손상된 세션:\n${damagedSessions.map((s) => `- ${s.name}`).join('\n')}\n\n` +
               `원인:\n` +
               `- IndexedDB 데이터가 삭제되었거나\n` +
@@ -149,7 +149,7 @@ function App() {
         }, 1000);
       }
     }
-  }, [sessions, currentSession]); // sessions가 로드되거나 currentSession이 변경될 때 실행
+  }, [sessions]); // sessions가 로드될 때만 실행 (currentSession 의존성 제거)
 
   // 2. currentSession 변경 시 uploadedImages와 analysisResult 복원
   useEffect(() => {
@@ -293,7 +293,10 @@ function App() {
         onError: (error) => {
           setIsAnalyzing(false);
           logger.error('❌ 분석 오류:', error);
-          alert('분석 오류: ' + error.message);
+          setErrorDialog({
+            title: '분석 오류',
+            message: error.message
+          });
         },
       },
       currentSession?.type, // sessionType 전달
@@ -303,13 +306,19 @@ function App() {
 
   const handleAnalyze = async () => {
     if (!apiKey) {
-      alert('API 키를 먼저 설정해주세요');
+      setInfoDialog({
+        title: 'API 키 필요',
+        message: 'API 키를 먼저 설정해주세요'
+      });
       setShowSettings(true);
       return;
     }
 
     if (uploadedImages.length === 0) {
-      alert('이미지를 먼저 업로드해주세요');
+      setInfoDialog({
+        title: '이미지 업로드 필요',
+        message: '이미지를 먼저 업로드해주세요'
+      });
       return;
     }
 
@@ -330,7 +339,10 @@ function App() {
       const hasNewImages = uploadedImages.length > currentSession.imageCount;
 
       if (!hasNewImages) {
-        alert('신규 이미지가 없습니다. 이미지를 추가한 후 다시 분석해주세요.');
+        setInfoDialog({
+          title: '신규 이미지 필요',
+          message: '신규 이미지가 없습니다. 이미지를 추가한 후 다시 분석해주세요.'
+        });
         return;
       }
 
@@ -359,7 +371,10 @@ function App() {
 
   const handleSaveSessionClick = useCallback(() => {
     if (!analysisResult || uploadedImages.length === 0) {
-      alert('분석 결과가 없습니다');
+      setInfoDialog({
+        title: '분석 결과 없음',
+        message: '분석 결과가 없습니다'
+      });
       return;
     }
     setShowSaveSession(true);
@@ -419,7 +434,10 @@ function App() {
 
   const handleGenerateImage = async () => {
     if (!analysisResult) {
-      alert('분석 결과가 없습니다');
+      setInfoDialog({
+        title: '분석 결과 없음',
+        message: '분석 결과가 없습니다'
+      });
       return;
     }
 
@@ -520,7 +538,10 @@ function App() {
         percentage: 0,
         estimatedSecondsLeft: 0,
       });
-      alert('번역 또는 저장 중 오류가 발생했습니다.');
+      setErrorDialog({
+        title: '오류 발생',
+        message: '번역 또는 저장 중 오류가 발생했습니다.'
+      });
     }
   };
 
@@ -744,6 +765,90 @@ function App() {
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => setShowLimitWarning(false)}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 손상된 세션 경고 다이얼로그 */}
+      {damagedSessionsWarning && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDamagedSessionsWarning(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-lg w-full p-6 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-yellow-600">⚠️ 세션 손상 경고</h3>
+            <pre className="text-gray-700 mb-6 whitespace-pre-wrap text-sm">{damagedSessionsWarning}</pre>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setDamagedSessionsWarning(null)}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 에러 다이얼로그 */}
+      {errorDialog && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setErrorDialog(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-md w-full p-6 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-red-600">❌ {errorDialog.title}</h3>
+            <p className="text-gray-700 mb-6 whitespace-pre-wrap">{errorDialog.message}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setErrorDialog(null)}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 정보 다이얼로그 */}
+      {infoDialog && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setInfoDialog(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white border border-gray-200 rounded-lg shadow-xl max-w-md w-full p-6 mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4 text-blue-600">ℹ️ {infoDialog.title}</h3>
+            <p className="text-gray-700 mb-6 whitespace-pre-wrap">{infoDialog.message}</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setInfoDialog(null)}
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 transition-colors font-medium text-white"
               >
                 확인
