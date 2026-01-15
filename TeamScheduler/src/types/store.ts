@@ -1,0 +1,15 @@
+// 스토어 통합 타입 정의
+
+import { TeamMember, Workspace } from './team'
+import { Schedule } from './schedule'
+import { SpecialEvent } from './event'
+
+// Auth 사용자 타입
+export interface User {
+  uid: string
+  email: string | null
+  displayName: string | null
+  photoURL: string | null
+}
+
+// 스토어 상태 타입은 각 슬라이스에서 정의
