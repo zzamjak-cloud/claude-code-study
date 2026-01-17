@@ -6,6 +6,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { getHolidaysForYear } from '../../lib/utils/koreanHolidays'
 import { createGlobalEvent } from '../../lib/firebase/firestore'
 import { ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
+import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
 import { startOfDay, endOfDay } from 'date-fns'
 
 // 기본 연도 범위
@@ -14,16 +15,9 @@ const DEFAULT_YEARS = [2026, 2027, 2028]
 // localStorage에서 연도 목록 로드
 const getAvailableYears = (): number[] => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('availableYears')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.sort((a, b) => a - b)
-        }
-      } catch {
-        // 파싱 실패 시 기본값 사용
-      }
+    const saved = storage.get<number[]>(STORAGE_KEYS.AVAILABLE_YEARS, [])
+    if (Array.isArray(saved) && saved.length > 0) {
+      return saved.sort((a, b) => a - b)
     }
   }
   return DEFAULT_YEARS
@@ -32,7 +26,7 @@ const getAvailableYears = (): number[] => {
 // localStorage에 연도 목록 저장
 const saveAvailableYears = (years: number[]) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('availableYears', JSON.stringify(years.sort((a, b) => a - b)))
+    storage.set(STORAGE_KEYS.AVAILABLE_YEARS, years.sort((a, b) => a - b))
   }
 }
 

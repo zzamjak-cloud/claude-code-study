@@ -2,6 +2,7 @@
 
 import { DEFAULT_ZOOM } from '../../lib/constants/grid'
 import { DEFAULT_SCHEDULE_COLOR, DEFAULT_WEEKEND_COLOR } from '../../lib/constants/colors'
+import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
 
 // 월별 가시성 타입 (1~12월)
 export type MonthVisibility = Record<number, boolean>
@@ -65,12 +66,9 @@ export interface ViewSlice {
 // localStorage에서 줌 레벨 로드
 const getInitialZoomLevel = (): number => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('zoomLevel')
-    if (saved) {
-      const parsed = parseFloat(saved)
-      if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 2.0) {
-        return parsed
-      }
+    const saved = storage.getNumber(STORAGE_KEYS.ZOOM_LEVEL, DEFAULT_ZOOM)
+    if (saved >= 0.5 && saved <= 2.0) {
+      return saved
     }
   }
   return DEFAULT_ZOOM
@@ -79,12 +77,9 @@ const getInitialZoomLevel = (): number => {
 // localStorage에서 열너비 배율 로드
 const getInitialColumnWidthScale = (): number => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('columnWidthScale')
-    if (saved) {
-      const parsed = parseFloat(saved)
-      if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 2.0) {
-        return parsed
-      }
+    const saved = storage.getNumber(STORAGE_KEYS.COLUMN_WIDTH_SCALE, 1.0)
+    if (saved >= 0.5 && saved <= 2.0) {
+      return saved
     }
   }
   return 1.0 // 기본값
@@ -93,18 +88,13 @@ const getInitialColumnWidthScale = (): number => {
 // localStorage에서 월 가시성 로드
 const getInitialMonthVisibility = (): MonthVisibility => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('monthVisibility')
+    const saved = storage.get<MonthVisibility | null>(STORAGE_KEYS.MONTH_VISIBILITY, null)
     if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        // 모든 월(1-12)이 있는지 확인
-        const isValid = Object.keys(parsed).length === 12 &&
-          [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].every(m => typeof parsed[m] === 'boolean')
-        if (isValid) {
-          return parsed
-        }
-      } catch (e) {
-        // 파싱 실패 시 기본값 사용
+      // 모든 월(1-12)이 있는지 확인
+      const isValid = Object.keys(saved).length === 12 &&
+        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].every(m => typeof saved[m] === 'boolean')
+      if (isValid) {
+        return saved
       }
     }
   }
@@ -114,7 +104,7 @@ const getInitialMonthVisibility = (): MonthVisibility => {
 // localStorage에서 일정 색상 로드
 const getInitialScheduleColor = (): string => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('selectedScheduleColor')
+    const saved = storage.getString(STORAGE_KEYS.SELECTED_SCHEDULE_COLOR, null)
     if (saved && /^#[0-9A-Fa-f]{6}$/.test(saved)) {
       return saved
     }
@@ -125,7 +115,7 @@ const getInitialScheduleColor = (): string => {
 // localStorage에서 주말 색상 로드
 const getInitialWeekendColor = (): string => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('weekendColor')
+    const saved = storage.getString(STORAGE_KEYS.WEEKEND_COLOR, null)
     if (saved && /^#[0-9A-Fa-f]{6}$/.test(saved)) {
       return saved
     }
@@ -133,17 +123,10 @@ const getInitialWeekendColor = (): string => {
   return DEFAULT_WEEKEND_COLOR
 }
 
-// 월 가시성 저장
-const saveMonthVisibility = (visibility: MonthVisibility) => {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem('monthVisibility', JSON.stringify(visibility))
-  }
-}
-
 // localStorage에서 마지막 선택 프로젝트 로드
 const getInitialLastSelectedProjectId = (): string | null => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('lastSelectedProjectId')
+    return storage.getString(STORAGE_KEYS.LAST_SELECTED_PROJECT_ID, null)
   }
   return null
 }
@@ -151,7 +134,7 @@ const getInitialLastSelectedProjectId = (): string | null => {
 // localStorage에서 선택된 프로젝트 필터 로드
 const getInitialSelectedProjectId = (): string | null => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('selectedProjectId')
+    return storage.getString(STORAGE_KEYS.SELECTED_PROJECT_ID, null)
   }
   return null
 }
@@ -174,19 +157,19 @@ export const createViewSlice = (set: any): ViewSlice => ({
 
   // 줌 레벨 설정 (localStorage에도 저장)
   setZoomLevel: (level) => {
-    localStorage.setItem('zoomLevel', level.toString())
+    storage.setString(STORAGE_KEYS.ZOOM_LEVEL, level.toString())
     set({ zoomLevel: level })
   },
 
   // 열너비 배율 설정 (localStorage에도 저장)
   setColumnWidthScale: (scale) => {
-    localStorage.setItem('columnWidthScale', scale.toString())
+    storage.setString(STORAGE_KEYS.COLUMN_WIDTH_SCALE, scale.toString())
     set({ columnWidthScale: scale })
   },
 
   // 열너비 배율 초기화
   resetColumnWidthScale: () => {
-    localStorage.setItem('columnWidthScale', '1.0')
+    storage.setString(STORAGE_KEYS.COLUMN_WIDTH_SCALE, '1.0')
     set({ columnWidthScale: 1.0 })
   },
 
@@ -204,13 +187,13 @@ export const createViewSlice = (set: any): ViewSlice => ({
 
   // 기본 일정 색상 설정 (localStorage에도 저장)
   setSelectedScheduleColor: (color) => {
-    localStorage.setItem('selectedScheduleColor', color)
+    storage.setString(STORAGE_KEYS.SELECTED_SCHEDULE_COLOR, color)
     set({ selectedScheduleColor: color })
   },
 
   // 주말 색상 설정 (localStorage에도 저장)
   setWeekendColor: (color) => {
-    localStorage.setItem('weekendColor', color)
+    storage.setString(STORAGE_KEYS.WEEKEND_COLOR, color)
     set({ weekendColor: color })
   },
 
@@ -221,7 +204,7 @@ export const createViewSlice = (set: any): ViewSlice => ({
         ...state.monthVisibility,
         [month]: !state.monthVisibility[month],
       }
-      saveMonthVisibility(newVisibility)
+      storage.set(STORAGE_KEYS.MONTH_VISIBILITY, newVisibility)
       return { monthVisibility: newVisibility }
     }),
 
@@ -231,16 +214,16 @@ export const createViewSlice = (set: any): ViewSlice => ({
       1: visible, 2: visible, 3: visible, 4: visible, 5: visible, 6: visible,
       7: visible, 8: visible, 9: visible, 10: visible, 11: visible, 12: visible,
     }
-    saveMonthVisibility(newVisibility)
+    storage.set(STORAGE_KEYS.MONTH_VISIBILITY, newVisibility)
     set({ monthVisibility: newVisibility })
   },
 
   // 선택된 프로젝트 설정 (localStorage에도 저장)
   setSelectedProjectId: (projectId) => {
     if (projectId) {
-      localStorage.setItem('selectedProjectId', projectId)
+      storage.setString(STORAGE_KEYS.SELECTED_PROJECT_ID, projectId)
     } else {
-      localStorage.removeItem('selectedProjectId')
+      storage.remove(STORAGE_KEYS.SELECTED_PROJECT_ID)
     }
     set({ selectedProjectId: projectId })
   },
@@ -248,17 +231,17 @@ export const createViewSlice = (set: any): ViewSlice => ({
   // 마지막 선택 프로젝트 설정 (localStorage에도 저장)
   setLastSelectedProjectId: (projectId) => {
     if (projectId) {
-      localStorage.setItem('lastSelectedProjectId', projectId)
+      storage.setString(STORAGE_KEYS.LAST_SELECTED_PROJECT_ID, projectId)
     } else {
-      localStorage.removeItem('lastSelectedProjectId')
+      storage.remove(STORAGE_KEYS.LAST_SELECTED_PROJECT_ID)
     }
     set({ lastSelectedProjectId: projectId })
   },
 
   // 필터 초기화 (localStorage도 초기화)
   resetFilters: () => {
-    saveMonthVisibility(defaultMonthVisibility)
-    localStorage.setItem('zoomLevel', DEFAULT_ZOOM.toString())
+    storage.set(STORAGE_KEYS.MONTH_VISIBILITY, defaultMonthVisibility)
+    storage.setString(STORAGE_KEYS.ZOOM_LEVEL, DEFAULT_ZOOM.toString())
     set({
       dateRange: { start: null, end: null },
       zoomLevel: DEFAULT_ZOOM,

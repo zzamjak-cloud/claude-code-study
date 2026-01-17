@@ -23,11 +23,11 @@ const HelpModal = lazy(() => import('./components/modals/HelpModal'))
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId } =
+  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear } =
     useAppStore()
 
-  // Firebase 실시간 동기화
-  useFirebaseSync(workspaceId)
+  // Firebase 실시간 동기화 (연도별 페이지네이션 적용)
+  useFirebaseSync(workspaceId, currentYear)
 
   // Undo/Redo 기능 (Ctrl+Z, Ctrl+Shift+Z)
   useUndoRedo()

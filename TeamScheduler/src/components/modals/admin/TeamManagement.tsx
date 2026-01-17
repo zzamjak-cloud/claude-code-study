@@ -6,6 +6,7 @@ import { useAppStore } from '../../../store/useAppStore'
 import { addTeamMember, updateTeamMember, deleteTeamMember } from '../../../lib/firebase/firestore'
 import { ConfirmDialog } from '../../common/ConfirmDialog'
 import { MemberStatus } from '../../../types/team'
+import { storage, STORAGE_KEYS } from '../../../lib/utils/storage'
 
 // 기본 직군 카테고리
 const DEFAULT_JOB_TITLES = ['기획', '기술', '아트', 'QA', '사업', '마케팅', '경영진']
@@ -13,14 +14,7 @@ const DEFAULT_JOB_TITLES = ['기획', '기술', '아트', 'QA', '사업', '마�
 // localStorage에서 커스텀 직군 로드
 const getCustomJobTitles = (): string[] => {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('customJobTitles')
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch {
-        return []
-      }
-    }
+    return storage.get<string[]>(STORAGE_KEYS.CUSTOM_JOB_TITLES, [])
   }
   return []
 }
@@ -28,7 +22,7 @@ const getCustomJobTitles = (): string[] => {
 // 커스텀 직군 저장
 const saveCustomJobTitles = (titles: string[]) => {
   if (typeof window !== 'undefined') {
-    localStorage.setItem('customJobTitles', JSON.stringify(titles))
+    storage.set(STORAGE_KEYS.CUSTOM_JOB_TITLES, titles)
   }
 }
 

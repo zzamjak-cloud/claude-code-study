@@ -13,6 +13,7 @@ import { GlobalEventCard } from './GlobalEventCard'
 import { getVisibleDayIndices, getVisibleScheduleSegments } from '../../lib/utils/dateUtils'
 import { createSchedule as createScheduleFirebase, updateTeamMember, createGlobalEvent, updateGlobalEventSettings } from '../../lib/firebase/firestore'
 import { DEFAULT_SCHEDULE_COLOR, GLOBAL_EVENT_COLOR, ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
+import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
 import { addDays } from 'date-fns'
 
 export function ScheduleGrid() {
@@ -94,8 +95,7 @@ export function ScheduleGrid() {
 
   // 하단 패널 높이 (리사이즈 가능)
   const [bottomPanelHeight, setBottomPanelHeight] = useState(() => {
-    const saved = localStorage.getItem('bottomPanelHeight')
-    return saved ? parseInt(saved, 10) : 160
+    return storage.getNumber(STORAGE_KEYS.BOTTOM_PANEL_HEIGHT, 160)
   })
   const [isResizingPanel, setIsResizingPanel] = useState(false)
   const panelHeightRef = useRef(bottomPanelHeight) // 리사이즈 중 현재 높이 추적용
@@ -156,7 +156,7 @@ export function ScheduleGrid() {
 
     const handleMouseUp = () => {
       setIsResizingPanel(false)
-      localStorage.setItem('bottomPanelHeight', panelHeightRef.current.toString())
+      storage.setString(STORAGE_KEYS.BOTTOM_PANEL_HEIGHT, panelHeightRef.current.toString())
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
     }
@@ -168,19 +168,14 @@ export function ScheduleGrid() {
   // 패널 높이 변경 시 localStorage 저장
   useEffect(() => {
     if (!isResizingPanel) {
-      localStorage.setItem('bottomPanelHeight', bottomPanelHeight.toString())
+      storage.setString(STORAGE_KEYS.BOTTOM_PANEL_HEIGHT, bottomPanelHeight.toString())
     }
   }, [bottomPanelHeight, isResizingPanel])
 
-  // 구성원의 행 수 가져오기 (기본 1)
-  const getRowCount = (memberId: string) => {
-    const member = members.find((m) => m.id === memberId)
-    return member?.rowCount || memberRowCounts[memberId] || 1
-  }
-
   // 행 추가
-  const addRow = async (memberId: string) => {
-    const previousRowCount = getRowCount(memberId)
+  const addRow = useCallback(async (memberId: string) => {
+    const member = members.find((m) => m.id === memberId)
+    const previousRowCount = member?.rowCount || memberRowCounts[memberId] || 1
     const newCount = previousRowCount + 1
     setMemberRowCounts((prev) => ({
       ...prev,
@@ -192,7 +187,6 @@ export function ScheduleGrid() {
       try {
         await updateTeamMember(workspaceId, memberId, { rowCount: newCount })
         // 히스토리 기록
-        const member = members.find((m) => m.id === memberId)
         pushHistory({
           type: 'member_row_change',
           description: `${member?.name || '구성원'} 행 추가`,
@@ -203,11 +197,12 @@ export function ScheduleGrid() {
         console.error('행 추가 실패:', error)
       }
     }
-  }
+  }, [members, memberRowCounts, workspaceId, pushHistory])
 
   // 행 제거
-  const removeRow = async (memberId: string) => {
-    const currentRowCount = getRowCount(memberId)
+  const removeRow = useCallback(async (memberId: string) => {
+    const member = members.find((m) => m.id === memberId)
+    const currentRowCount = member?.rowCount || memberRowCounts[memberId] || 1
     if (currentRowCount <= 1) return // 최소 1행 유지
 
     const lastRowIndex = currentRowCount - 1
@@ -233,7 +228,6 @@ export function ScheduleGrid() {
       try {
         await updateTeamMember(workspaceId, memberId, { rowCount: newCount })
         // 히스토리 기록
-        const member = members.find((m) => m.id === memberId)
         pushHistory({
           type: 'member_row_change',
           description: `${member?.name || '구성원'} 행 제거`,
@@ -244,10 +238,10 @@ export function ScheduleGrid() {
         console.error('행 제거 실패:', error)
       }
     }
-  }
+  }, [members, memberRowCounts, schedules, workspaceId, pushHistory])
 
   // 글로벌 행 추가 (관리자 + 통합 탭에서만)
-  const addGlobalRow = async () => {
+  const addGlobalRow = useCallback(async () => {
     if (!workspaceId || !isAdmin || !isUnifiedTab) return
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
@@ -263,10 +257,10 @@ export function ScheduleGrid() {
     } catch (error) {
       console.error('글로벌 행 추가 실패:', error)
     }
-  }
+  }, [workspaceId, isAdmin, isUnifiedTab, globalEventRowCount, pushHistory])
 
   // 글로벌 행 제거 (관리자 + 통합 탭에서만)
-  const removeGlobalRow = async () => {
+  const removeGlobalRow = useCallback(async () => {
     if (!workspaceId || !isAdmin || !isUnifiedTab) return
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
@@ -282,7 +276,7 @@ export function ScheduleGrid() {
     } catch (error) {
       console.error('글로벌 행 제거 실패:', error)
     }
-  }
+  }, [workspaceId, isAdmin, isUnifiedTab, globalEventRowCount, pushHistory])
 
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId
@@ -407,8 +401,26 @@ export function ScheduleGrid() {
     }
   }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts])
 
+  // 생성 상태 초기화
+  const resetCreation = useCallback(() => {
+    setIsCreating(false)
+    setCreateMemberId(null)
+    setCreateRowIndex(0)
+    setCreateStart(null)
+    setCreateEnd(null)
+    setIsAnnualLeave(false)
+  }, [])
+
+  // 글로벌 이벤트 생성 상태 초기화
+  const resetGlobalCreation = useCallback(() => {
+    setIsCreatingGlobal(false)
+    setCreateGlobalRowIndex(0)
+    setCreateGlobalStart(null)
+    setCreateGlobalEnd(null)
+  }, [])
+
   // 마우스 다운: Ctrl/Alt + 드래그로 일정 생성 시작 (통합 탭에서는 비활성화)
-  const handleMouseDown = (e: React.MouseEvent, memberId: string, rowIndex: number) => {
+  const handleMouseDown = useCallback((e: React.MouseEvent, memberId: string, rowIndex: number) => {
     // 통합 탭에서는 생성 불가
     if (isUnifiedTab) return
 
@@ -432,10 +444,10 @@ export function ScheduleGrid() {
     setIsAnnualLeave(isAlt)  // Alt 키면 연차 카드
 
     e.preventDefault()
-  }
+  }, [isUnifiedTab, cellWidth])
 
   // 마우스 이동: 일정 범위 확장
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isCreating || createStart === null) return
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -443,10 +455,10 @@ export function ScheduleGrid() {
     const dayIndex = Math.max(0, Math.min(YEAR_DAYS - 1, Math.floor(x / cellWidth)))
 
     setCreateEnd(dayIndex)
-  }
+  }, [isCreating, createStart, cellWidth])
 
   // 마우스 업: 일정 생성
-  const handleMouseUp = async () => {
+  const handleMouseUp = useCallback(async () => {
     // 생성 중이 아니면 무시
     if (!isCreating) return
 
@@ -508,28 +520,10 @@ export function ScheduleGrid() {
         console.error('일정 생성 실패:', error)
       }
     }
-  }
-
-  // 생성 상태 초기화
-  const resetCreation = () => {
-    setIsCreating(false)
-    setCreateMemberId(null)
-    setCreateRowIndex(0)
-    setCreateStart(null)
-    setCreateEnd(null)
-    setIsAnnualLeave(false)
-  }
-
-  // 글로벌 이벤트 생성 상태 초기화
-  const resetGlobalCreation = () => {
-    setIsCreatingGlobal(false)
-    setCreateGlobalRowIndex(0)
-    setCreateGlobalStart(null)
-    setCreateGlobalEnd(null)
-  }
+  }, [isCreating, createStart, createEnd, createMemberId, createRowIndex, isAnnualLeave, currentYear, selectedScheduleColor, workspaceId, currentUser, members, pushHistory, resetCreation])
 
   // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (통합 탭 + 관리자만)
-  const handleGlobalMouseDown = (e: React.MouseEvent, rowIndex: number) => {
+  const handleGlobalMouseDown = useCallback((e: React.MouseEvent, rowIndex: number) => {
     // 통합 탭 + 관리자만 생성 가능
     if (!isUnifiedTab || !isAdmin) return
 
@@ -550,10 +544,10 @@ export function ScheduleGrid() {
     setCreateGlobalEnd(dayIndex)
 
     e.preventDefault()
-  }
+  }, [isUnifiedTab, isAdmin, cellWidth])
 
   // 글로벌 행에서 마우스 이동
-  const handleGlobalMouseMove = (e: React.MouseEvent) => {
+  const handleGlobalMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isCreatingGlobal || createGlobalStart === null) return
 
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -561,10 +555,10 @@ export function ScheduleGrid() {
     const dayIndex = Math.max(0, Math.min(YEAR_DAYS - 1, Math.floor(x / cellWidth)))
 
     setCreateGlobalEnd(dayIndex)
-  }
+  }, [isCreatingGlobal, createGlobalStart, cellWidth])
 
   // 글로벌 행에서 마우스 업: 글로벌 이벤트 생성
-  const handleGlobalMouseUp = async () => {
+  const handleGlobalMouseUp = useCallback(async () => {
     if (!isCreatingGlobal) return
 
     if (createGlobalStart === null || createGlobalEnd === null) {
@@ -612,10 +606,10 @@ export function ScheduleGrid() {
         console.error('글로벌 이벤트 생성 실패:', error)
       }
     }
-  }
+  }, [isCreatingGlobal, createGlobalStart, createGlobalEnd, createGlobalRowIndex, currentYear, workspaceId, currentUser, selectedProjectId, pushHistory, resetGlobalCreation])
 
   // 글로벌 이벤트 생성 미리보기 계산
-  const getGlobalCreationPreview = (rowIndex: number) => {
+  const getGlobalCreationPreview = useCallback((rowIndex: number) => {
     if (
       !isCreatingGlobal ||
       createGlobalRowIndex !== rowIndex ||
@@ -632,10 +626,10 @@ export function ScheduleGrid() {
       x: startDay * cellWidth,
       width: (endDay - startDay + 1) * cellWidth,
     }
-  }
+  }, [isCreatingGlobal, createGlobalRowIndex, createGlobalStart, createGlobalEnd, cellWidth])
 
   // 생성 중인 일정 미리보기 계산
-  const getCreationPreview = (memberId: string, rowIndex: number) => {
+  const getCreationPreview = useCallback((memberId: string, rowIndex: number) => {
     if (
       !isCreating ||
       createMemberId !== memberId ||
@@ -653,7 +647,7 @@ export function ScheduleGrid() {
       x: startDay * cellWidth,
       width: (endDay - startDay + 1) * cellWidth,
     }
-  }
+  }, [isCreating, createMemberId, createRowIndex, createStart, createEnd, cellWidth])
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">

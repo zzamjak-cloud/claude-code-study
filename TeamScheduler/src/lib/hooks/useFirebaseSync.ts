@@ -1,345 +1,55 @@
-// Firebase 실시간 동기화 훅
+// Firebase 실시간 동기화 통합 훅
+// 각 컬렉션별 훅을 조합하여 전체 동기화 제공
 
-import { useEffect } from 'react'
-import {
-  collection,
-  query,
-  onSnapshot,
-  orderBy,
-  Timestamp,
-  getDocs,
-  doc,
-} from 'firebase/firestore'
-import { db } from '../firebase/config'
-import { useAppStore } from '../../store/useAppStore'
-import { Schedule } from '../../types/schedule'
-import { TeamMember } from '../../types/team'
-import { SpecialEvent } from '../../types/event'
-import { Announcement } from '../../types/announcement'
-import { GlobalEvent } from '../../types/globalEvent'
-import { Project } from '../../types/project'
+import { useSchedulesSync } from './firebase/useSchedulesSync'
+import { useTeamSync } from './firebase/useTeamSync'
+import { useEventsSync } from './firebase/useEventsSync'
+import { useGlobalEventsSync } from './firebase/useGlobalEventsSync'
+import { useProjectsSync } from './firebase/useProjectsSync'
+import { useAnnouncementsSync } from './firebase/useAnnouncementsSync'
 
 /**
- * Firebase Firestore 실시간 동기화 훅
+ * Firebase Firestore 실시간 동기화 통합 훅
+ *
+ * 각 컬렉션별 동기화 훅을 조합하여 워크스페이스의 모든 데이터를 실시간으로 동기화합니다.
+ *
+ * 포함된 동기화:
+ * - 일정 (schedules) - 연도별 필터링
+ * - 팀원 (teams/members)
+ * - 특이사항 (events) - 연도별 필터링
+ * - 글로벌 이벤트 (globalEvents) - 연도별 필터링
+ * - 프로젝트 (projects)
+ * - 공지사항 (announcements)
+ *
  * @param workspaceId - 워크스페이스 ID
+ * @param currentYear - 현재 연도 (연도별 페이지네이션)
  */
-export const useFirebaseSync = (workspaceId: string | null) => {
-  const { setSchedules, setMembers, setEvents, setAnnouncements, setGlobalEvents, setGlobalEventRowCount, setProjects } = useAppStore()
+export const useFirebaseSync = (workspaceId: string | null, currentYear: number) => {
+  // 일정 동기화 (연도별)
+  useSchedulesSync(workspaceId, currentYear)
 
-  useEffect(() => {
-    console.log('🔄 Firebase 동기화 시작 - workspaceId:', workspaceId)
+  // 팀원 동기화
+  useTeamSync(workspaceId)
 
-    if (!workspaceId) {
-      console.log('⚠️ workspaceId가 없어서 동기화 스킵')
-      return
-    }
+  // 특이사항 동기화 (연도별)
+  useEventsSync(workspaceId, currentYear)
 
-    console.log('📡 Firestore 리스너 설정 중...')
-    console.log('  - db 인스턴스:', db ? '✅ 존재' : '❌ undefined')
-    console.log('  - schedules 경로:', `schedules/${workspaceId}/items`)
-    console.log('  - teams 경로:', `teams/${workspaceId}/members`)
-    console.log('  - events 경로:', `events/${workspaceId}/items`)
+  // 글로벌 이벤트 동기화 (연도별)
+  useGlobalEventsSync(workspaceId, currentYear)
 
-    // 일정 동기화
-    const schedulesQuery = query(
-      collection(db, `schedules/${workspaceId}/items`),
-      orderBy('startDate', 'asc')
-    )
-    console.log('  - schedulesQuery 생성 완료')
+  // 프로젝트 동기화
+  useProjectsSync(workspaceId)
 
-    const unsubscribeSchedules = onSnapshot(
-      schedulesQuery,
-      (snapshot) => {
-        const schedules = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            memberId: data.memberId,
-            title: data.title,
-            comment: data.comment,
-            startDate:
-              data.startDate instanceof Timestamp
-                ? data.startDate.toMillis()
-                : data.startDate,
-            endDate:
-              data.endDate instanceof Timestamp
-                ? data.endDate.toMillis()
-                : data.endDate,
-            color: data.color,
-            textColor: data.textColor,
-            link: data.link,
-            projectId: data.projectId,
-            rowIndex: data.rowIndex || 0,
-            createdBy: data.createdBy,
-            createdAt:
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toMillis()
-                : data.createdAt || Date.now(),
-            updatedAt:
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toMillis()
-                : data.updatedAt || Date.now(),
-          } as Schedule
-        })
+  // 공지사항 동기화
+  useAnnouncementsSync(workspaceId)
+}
 
-        console.log('✅ 일정 동기화:', schedules.length, '개')
-        setSchedules(schedules)
-      },
-      (error) => {
-        console.error('❌ 일정 동기화 실패:', error)
-      }
-    )
-
-    // 팀원 동기화
-    const membersQuery = query(
-      collection(db, `teams/${workspaceId}/members`),
-      orderBy('order', 'asc')
-    )
-
-    const unsubscribeMembers = onSnapshot(
-      membersQuery,
-      (snapshot) => {
-        const members = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            name: data.name,
-            email: data.email || '',
-            profileImage: data.profileImage,
-            jobTitle: data.jobTitle || '',
-            role: data.role || '',
-            isLeader: data.isLeader || false,
-            status: data.status,
-            color: data.color,
-            isHidden: data.isHidden || false,
-            order: data.order || 0,
-            rowCount: data.rowCount || 1,
-            memo: data.memo || '',
-            createdAt:
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toMillis()
-                : data.createdAt || Date.now(),
-            updatedAt:
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toMillis()
-                : data.updatedAt || Date.now(),
-          } as TeamMember
-        })
-
-        console.log('✅ 팀원 동기화:', members.length, '명')
-        setMembers(members)
-      },
-      (error) => {
-        console.error('❌ 팀원 동기화 실패:', error)
-      }
-    )
-
-    // 특이사항 동기화
-    const eventsQuery = query(
-      collection(db, `events/${workspaceId}/items`),
-      orderBy('date', 'asc')
-    )
-
-    const unsubscribeEvents = onSnapshot(
-      eventsQuery,
-      (snapshot) => {
-        const events = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            projectId: data.projectId,
-            title: data.title,
-            date:
-              data.date instanceof Timestamp
-                ? data.date.toMillis()
-                : data.date,
-            type: data.type,
-            color: data.color,
-            createdBy: data.createdBy,
-            createdAt:
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toMillis()
-                : data.createdAt || Date.now(),
-            updatedAt:
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toMillis()
-                : data.updatedAt || Date.now(),
-          } as SpecialEvent
-        })
-
-        console.log('✅ 특이사항 동기화:', events.length, '개')
-        setEvents(events)
-      },
-      (error) => {
-        console.error('❌ 특이사항 동기화 실패:', error)
-      }
-    )
-
-    // 공지사항 동기화 (프로젝트별)
-    const announcementsQuery = query(
-      collection(db, `announcements/${workspaceId}/projects`)
-    )
-
-    const unsubscribeAnnouncement = onSnapshot(
-      announcementsQuery,
-      (snapshot) => {
-        const announcements = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            projectId: data.projectId || doc.id,
-            content: data.content || '',
-            createdBy: data.createdBy || '',
-            createdAt:
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toMillis()
-                : data.createdAt || Date.now(),
-            updatedAt:
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toMillis()
-                : data.updatedAt || Date.now(),
-          } as Announcement
-        })
-        console.log('✅ 공지사항 동기화:', announcements.length, '개')
-        setAnnouncements(announcements)
-      },
-      (error) => {
-        console.error('❌ 공지사항 동기화 실패:', error)
-      }
-    )
-
-    // 글로벌 이벤트 동기화
-    const globalEventsQuery = query(
-      collection(db, `globalEvents/${workspaceId}/items`),
-      orderBy('startDate', 'asc')
-    )
-
-    const unsubscribeGlobalEvents = onSnapshot(
-      globalEventsQuery,
-      (snapshot) => {
-        const globalEvents = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            projectId: data.projectId,
-            title: data.title,
-            comment: data.comment,
-            link: data.link,
-            startDate:
-              data.startDate instanceof Timestamp
-                ? data.startDate.toMillis()
-                : data.startDate,
-            endDate:
-              data.endDate instanceof Timestamp
-                ? data.endDate.toMillis()
-                : data.endDate,
-            color: data.color,
-            textColor: data.textColor,
-            rowIndex: data.rowIndex || 0,
-            createdBy: data.createdBy,
-            createdAt:
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toMillis()
-                : data.createdAt || Date.now(),
-            updatedAt:
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toMillis()
-                : data.updatedAt || Date.now(),
-          } as GlobalEvent
-        })
-
-        console.log('✅ 글로벌 이벤트 동기화:', globalEvents.length, '개')
-        setGlobalEvents(globalEvents)
-      },
-      (error) => {
-        console.error('❌ 글로벌 이벤트 동기화 실패:', error)
-      }
-    )
-
-    // 글로벌 이벤트 설정 동기화 (행 개수)
-    // Firestore 문서 참조는 짝수 세그먼트 필요: globalEventSettings/{workspaceId}
-    const globalEventSettingsRef = doc(db, `globalEventSettings/${workspaceId}`)
-
-    const unsubscribeGlobalEventSettings = onSnapshot(
-      globalEventSettingsRef,
-      (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data()
-          const rowCount = data.rowCount || 1
-          console.log('✅ 글로벌 이벤트 설정 동기화: rowCount =', rowCount)
-          setGlobalEventRowCount(rowCount)
-        } else {
-          console.log('✅ 글로벌 이벤트 설정 없음 - 기본값 사용')
-          setGlobalEventRowCount(1)
-        }
-      },
-      (error) => {
-        console.error('❌ 글로벌 이벤트 설정 동기화 실패:', error)
-      }
-    )
-
-    // 프로젝트 동기화 (order 필드가 없는 기존 문서도 포함하기 위해 createdAt으로 쿼리)
-    const projectsQuery = query(
-      collection(db, `projects/${workspaceId}/items`),
-      orderBy('createdAt', 'asc')
-    )
-
-    const unsubscribeProjects = onSnapshot(
-      projectsQuery,
-      (snapshot) => {
-        const projects = snapshot.docs.map((doc) => {
-          const data = doc.data()
-          return {
-            id: doc.id,
-            name: data.name,
-            color: data.color,
-            type: data.type || 'project',  // 기본값: 프로젝트
-            description: data.description,
-            memberIds: data.memberIds || [],
-            isHidden: data.isHidden || false,
-            order: data.order ?? 0,
-            createdBy: data.createdBy,
-            createdAt:
-              data.createdAt instanceof Timestamp
-                ? data.createdAt.toMillis()
-                : data.createdAt || Date.now(),
-            updatedAt:
-              data.updatedAt instanceof Timestamp
-                ? data.updatedAt.toMillis()
-                : data.updatedAt || Date.now(),
-          } as Project
-        })
-
-        console.log('✅ 프로젝트 동기화:', projects.length, '개')
-        setProjects(projects)
-      },
-      (error) => {
-        console.error('❌ 프로젝트 동기화 실패:', error)
-      }
-    )
-
-    console.log('📡 모든 Firestore 리스너 설정 완료!')
-
-    // 디버깅: 일회성 읽기로 연결 테스트
-    getDocs(membersQuery)
-      .then((snapshot) => {
-        console.log('🔍 테스트 읽기 성공 - 팀원 수:', snapshot.size)
-      })
-      .catch((error) => {
-        console.error('❌ 테스트 읽기 실패:', error)
-      })
-
-    // 클린업
-    return () => {
-      console.log('🧹 Firestore 리스너 정리 중 - workspaceId:', workspaceId)
-      unsubscribeSchedules()
-      unsubscribeMembers()
-      unsubscribeEvents()
-      unsubscribeAnnouncement()
-      unsubscribeGlobalEvents()
-      unsubscribeGlobalEventSettings()
-      unsubscribeProjects()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId]) // Zustand setters는 안정적인 참조이므로 의존성에서 제외
+// 개별 훅들도 내보내기 (필요한 경우 개별 사용 가능)
+export {
+  useSchedulesSync,
+  useTeamSync,
+  useEventsSync,
+  useGlobalEventsSync,
+  useProjectsSync,
+  useAnnouncementsSync,
 }

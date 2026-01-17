@@ -1,11 +1,12 @@
 // 팀원 관리 슬라이스
 
 import { TeamMember } from '../../types/team'
+import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
 
 // localStorage에서 마지막 선택한 구성원 탭 로드
 const getInitialSelectedMemberId = (): string | null => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('selectedMemberId')
+    return storage.getString(STORAGE_KEYS.SELECTED_MEMBER_ID, null)
   }
   return null
 }
@@ -91,9 +92,9 @@ export const createTeamSlice = (set: any): TeamSlice => ({
   // 탭 선택 (localStorage에도 저장)
   selectMember: (memberId) => {
     if (memberId) {
-      localStorage.setItem('selectedMemberId', memberId)
+      storage.setString(STORAGE_KEYS.SELECTED_MEMBER_ID, memberId)
     } else {
-      localStorage.removeItem('selectedMemberId')
+      storage.remove(STORAGE_KEYS.SELECTED_MEMBER_ID)
     }
     set({ selectedMemberId: memberId })
   },
