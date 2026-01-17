@@ -261,3 +261,5 @@ export function ColorPresetModal({ onClose }: ColorPresetModalProps) {
     </div>
   )
 }
+
+export default ColorPresetModal

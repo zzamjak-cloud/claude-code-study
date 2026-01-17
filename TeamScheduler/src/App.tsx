@@ -1,6 +1,6 @@
 // 메인 App 컴포넌트
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { useAuth } from './lib/hooks/useAuth'
 import { useFirebaseSync } from './lib/hooks/useFirebaseSync'
@@ -11,12 +11,14 @@ import { LoadingSpinner } from './components/common/LoadingSpinner'
 import { Header } from './components/layout/Header'
 import { TeamTabs } from './components/layout/TeamTabs'
 import { ScheduleGrid } from './components/schedule/ScheduleGrid'
-import { AdminPanel } from './components/modals/AdminPanel'
-import { ColorPresetModal } from './components/modals/ColorPresetModal'
-import { HelpModal } from './components/modals/HelpModal'
 import { MonthFilter } from './components/layout/MonthFilter'
 import { YearSelector } from './components/layout/YearSelector'
 import { LogIn, Settings, Palette, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus } from 'lucide-react'
+
+// 코드 스플리팅: 모달 컴포넌트 lazy 로드 (초기 번들 크기 감소)
+const AdminPanel = lazy(() => import('./components/modals/AdminPanel'))
+const ColorPresetModal = lazy(() => import('./components/modals/ColorPresetModal'))
+const HelpModal = lazy(() => import('./components/modals/HelpModal'))
 
 function App() {
   // 인증 및 상태 관리
@@ -228,19 +230,25 @@ function App() {
         {/* 그리드 영역 */}
         <ScheduleGrid />
 
-        {/* 관리자 패널 모달 */}
+        {/* 관리자 패널 모달 (lazy loaded) */}
         {showAdminPanel && (
-          <AdminPanel onClose={() => setShowAdminPanel(false)} />
+          <Suspense fallback={<LoadingSpinner size="lg" text="로딩 중..." />}>
+            <AdminPanel onClose={() => setShowAdminPanel(false)} />
+          </Suspense>
         )}
 
-        {/* 컬러 프리셋 모달 */}
+        {/* 컬러 프리셋 모달 (lazy loaded) */}
         {showColorPreset && (
-          <ColorPresetModal onClose={() => setShowColorPreset(false)} />
+          <Suspense fallback={<LoadingSpinner size="lg" text="로딩 중..." />}>
+            <ColorPresetModal onClose={() => setShowColorPreset(false)} />
+          </Suspense>
         )}
 
-        {/* 도움말 모달 */}
+        {/* 도움말 모달 (lazy loaded) */}
         {showHelp && (
-          <HelpModal onClose={() => setShowHelp(false)} />
+          <Suspense fallback={<LoadingSpinner size="lg" text="로딩 중..." />}>
+            <HelpModal onClose={() => setShowHelp(false)} />
+          </Suspense>
         )}
       </div>
     </ErrorBoundary>

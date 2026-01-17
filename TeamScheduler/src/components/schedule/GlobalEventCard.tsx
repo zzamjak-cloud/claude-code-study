@@ -1,6 +1,6 @@
 // 글로벌 이벤트 카드 컴포넌트 (통합 탭에서만 편집 가능)
 
-import { useState, useRef, useEffect } from 'react'
+import { memo } from 'react'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { ExternalLink } from 'lucide-react'
 import { GlobalEvent } from '../../types/globalEvent'
@@ -14,6 +14,12 @@ import {
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { ScheduleEditPopup } from './ScheduleEditPopup'
 import { ContextMenu } from './ContextMenu'
+import {
+  useCardInteractions,
+  getRndConfig,
+  getCardClassName,
+  CARD_MARGIN,
+} from './useCardInteractions'
 
 interface GlobalEventCardProps {
   event: GlobalEvent
@@ -23,136 +29,91 @@ interface GlobalEventCardProps {
   visibleWidth?: number // 월 필터링 시 클리핑된 너비
 }
 
-export function GlobalEventCard({
+// React.memo 비교 함수 - props가 같으면 리렌더링 스킵
+const areGlobalEventCardPropsEqual = (
+  prev: GlobalEventCardProps,
+  next: GlobalEventCardProps
+): boolean => {
+  return (
+    prev.event.id === next.event.id &&
+    prev.event.startDate === next.event.startDate &&
+    prev.event.endDate === next.event.endDate &&
+    prev.event.title === next.event.title &&
+    prev.event.color === next.event.color &&
+    prev.event.textColor === next.event.textColor &&
+    prev.event.comment === next.event.comment &&
+    prev.event.link === next.event.link &&
+    prev.event.rowIndex === next.event.rowIndex &&
+    prev.event.projectId === next.event.projectId &&
+    prev.x === next.x &&
+    prev.isReadOnly === next.isReadOnly &&
+    prev.totalRows === next.totalRows &&
+    prev.visibleWidth === next.visibleWidth
+  )
+}
+
+export const GlobalEventCard = memo(function GlobalEventCard({
   event,
   x,
   isReadOnly = false,
   totalRows = 1,
   visibleWidth,
 }: GlobalEventCardProps) {
-  const { zoomLevel, columnWidthScale, currentYear, workspaceId, globalEvents, pushHistory } = useAppStore()
+  // Zustand 선택적 구독
+  const zoomLevel = useAppStore(state => state.zoomLevel)
+  const columnWidthScale = useAppStore(state => state.columnWidthScale)
+  const currentYear = useAppStore(state => state.currentYear)
+  const workspaceId = useAppStore(state => state.workspaceId)
+  const globalEvents = useAppStore(state => state.globalEvents)
+  const pushHistory = useAppStore(state => state.pushHistory)
+
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
-  const cardRef = useRef<HTMLDivElement>(null)
 
-  // 편집 팝업 상태
-  const [editPopup, setEditPopup] = useState<{ x: number; y: number } | null>(null)
+  // 공통 상호작용 훅 사용
+  const {
+    cardRef,
+    isHovered,
+    isSelected,
+    showTooltip,
+    isDragging,
+    isResizing,
+    showDeleteConfirm,
+    contextMenu,
+    editPopup,
+    setIsDragging,
+    setIsResizing,
+    setShowDeleteConfirm,
+    setContextMenu,
+    setEditPopup,
+    setIsSelected,
+    handleDoubleClick,
+    handleClick,
+    handleContextMenu,
+    handleMouseEnter,
+    handleMouseLeave,
+  } = useCardInteractions({ isReadOnly })
 
-  // 호버/선택 상태
-  const [isHovered, setIsHovered] = useState(false)
-  const [isSelected, setIsSelected] = useState(false)
-
-  // 툴팁 상태
-  const [showTooltip, setShowTooltip] = useState(false)
-
-  // 드래그/리사이즈 상태
-  const [isDragging, setIsDragging] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
-
-  // 삭제 확인 다이얼로그 상태
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-
-  // 컨텍스트 메뉴 상태
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-
-  // 현재 위치/크기 (event 데이터 기반으로 계산, 또는 월 필터링 시 visibleWidth 사용)
+  // 현재 위치/크기 계산
   const calculatedWidth = dateRangeToWidth(
     new Date(event.startDate),
     new Date(event.endDate),
     zoomLevel,
     columnWidthScale
   )
-
-  // 카드 마진 (상하좌우 동일) - 상단에 정의
-  const cardMargin = 3
-  // 월 필터링 적용 시 visibleWidth 사용, 그렇지 않으면 계산된 너비 사용
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
-
-  // Delete 키 이벤트 핸들러
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (isSelected && (e.key === 'Delete' || e.key === 'Backspace') && !editPopup) {
-        e.preventDefault()
-        setShowDeleteConfirm(true)
-      }
-      // Escape 키로 선택 해제
-      if (e.key === 'Escape') {
-        setIsSelected(false)
-        setEditPopup(null)
-      }
-    }
-
-    if (isSelected) {
-      window.addEventListener('keydown', handleKeyDown)
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isSelected, editPopup])
-
-  // 카드 외부 클릭 시 선택 해제
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
-        setIsSelected(false)
-      }
-    }
-
-    if (isSelected) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isSelected])
-
-  // 더블 클릭: 편집 팝업 표시
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    if (isReadOnly) return
-    e.stopPropagation()
-
-    // 카드 위치 계산
-    const rect = cardRef.current?.getBoundingClientRect()
-    if (rect) {
-      setEditPopup({
-        x: rect.left,
-        y: rect.bottom + 8,
-      })
-    }
-  }
-
-  // 클릭: 카드 선택
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!isReadOnly) {
-      setIsSelected(true)
-    }
-  }
-
-  // 우클릭 메뉴
-  const handleContextMenu = (e: React.MouseEvent) => {
-    if (isReadOnly) return
-    e.preventDefault()
-    e.stopPropagation()
-    setContextMenu({ x: e.clientX, y: e.clientY })
-  }
 
   // 색상 변경
   const handleColorChange = async (color: string) => {
     if (!workspaceId) return
 
-    // 낙관적 업데이트
     const { updateGlobalEvent } = useAppStore.getState()
     updateGlobalEvent(event.id, { color })
 
-    // Firebase 업데이트
     try {
       await updateGlobalEventFirebase(workspaceId, event.id, { color })
     } catch (error) {
       console.error('색상 변경 실패:', error)
-      // 실패 시 롤백
       updateGlobalEvent(event.id, { color: event.color })
     }
   }
@@ -170,16 +131,10 @@ export function GlobalEventCard({
     }
   }
 
-  // 편집 팝업 취소
-  const handleEditCancel = () => {
-    setEditPopup(null)
-  }
-
   // 이벤트 삭제
   const handleDelete = async () => {
     if (!workspaceId) return
     try {
-      // 삭제 전 데이터 저장 (Undo용)
       const eventData = {
         projectId: event.projectId,
         title: event.title,
@@ -195,7 +150,6 @@ export function GlobalEventCard({
 
       await deleteGlobalEventFirebase(workspaceId, event.id)
 
-      // 히스토리 기록
       pushHistory({
         type: 'global_event_delete',
         description: '특이사항 삭제',
@@ -231,24 +185,20 @@ export function GlobalEventCard({
     if (isReadOnly) return
     setIsDragging(false)
 
-    // 마진을 제외한 실제 위치로 보정
-    const adjustedX = data.x - cardMargin
+    const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
     const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
     const duration = event.endDate - event.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
-    // Y 위치 기반으로 새 rowIndex 계산
     const currentRowIndex = event.rowIndex || 0
     const rowDelta = Math.round(data.y / cellHeight)
     const newRowIndex = Math.max(0, Math.min(totalRows - 1, currentRowIndex + rowDelta))
 
-    // 위치가 변경되지 않았으면 업데이트하지 않음 (클릭만 한 경우)
     if (newStartDate.getTime() === event.startDate && newRowIndex === currentRowIndex) {
       return
     }
 
-    // 겹침 검사
     if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), newRowIndex)) {
       return
     }
@@ -262,11 +212,9 @@ export function GlobalEventCard({
       updates.rowIndex = newRowIndex
     }
 
-    // 낙관적 업데이트
     const { updateGlobalEvent } = useAppStore.getState()
     updateGlobalEvent(event.id, updates)
 
-    // Firebase 업데이트 (fire and forget)
     if (workspaceId) {
       updateGlobalEventFirebase(workspaceId, event.id, updates).catch((error) => {
         console.error('글로벌 이벤트 업데이트 실패:', error)
@@ -290,9 +238,8 @@ export function GlobalEventCard({
     if (isReadOnly) return
     setIsResizing(false)
 
-    // 마진 보정
-    const newWidth = snapToGrid(parseInt(ref.style.width) + cardMargin * 2, cellWidth)
-    const adjustedPosition = position.x - cardMargin
+    const newWidth = snapToGrid(parseInt(ref.style.width) + CARD_MARGIN * 2, cellWidth)
+    const adjustedPosition = position.x - CARD_MARGIN
     const newX = direction.includes('left')
       ? snapToGrid(adjustedPosition, cellWidth)
       : x
@@ -300,7 +247,6 @@ export function GlobalEventCard({
     const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
     const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
 
-    // 겹침 검사
     if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)) {
       return
     }
@@ -310,11 +256,9 @@ export function GlobalEventCard({
       endDate: newEndDate.getTime(),
     }
 
-    // 낙관적 업데이트
     const { updateGlobalEvent } = useAppStore.getState()
     updateGlobalEvent(event.id, updates)
 
-    // Firebase 업데이트 (fire and forget)
     if (workspaceId) {
       updateGlobalEventFirebase(workspaceId, event.id, updates).catch((error) => {
         console.error('글로벌 이벤트 리사이즈 실패:', error)
@@ -326,52 +270,41 @@ export function GlobalEventCard({
     }
   }
 
+  // Rnd 공통 설정
+  const rndConfig = getRndConfig({
+    cellWidth,
+    cellHeight,
+    isReadOnly,
+    isHovered,
+    isResizing,
+  })
+
+  // 카드 스타일 클래스
+  const cardClassName = getCardClassName({
+    isReadOnly,
+    isSelected,
+    isDragging,
+    isResizing,
+  })
+
   return (
     <>
       <Rnd
         key={`${event.id}-${event.startDate}-${event.endDate}-${event.rowIndex}`}
-        position={{ x: x + cardMargin, y: cardMargin }}
-        size={{ width: currentWidth - cardMargin * 2, height: cellHeight - cardMargin * 2 }}
+        position={{ x: x + CARD_MARGIN, y: CARD_MARGIN }}
+        size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}
         onResizeStop={handleResizeStop}
         disableDragging={isReadOnly}
-        enableResizing={
-          isReadOnly
-            ? false
-            : {
-                left: true,
-                right: true,
-                top: false,
-                bottom: false,
-                topLeft: false,
-                topRight: false,
-                bottomLeft: false,
-                bottomRight: false,
-              }
-        }
-        resizeGrid={[cellWidth, cellHeight]}
-        dragGrid={[cellWidth, cellHeight]}
-        minWidth={cellWidth - cardMargin * 2}
+        {...rndConfig}
         className="!absolute global-event-card"
         style={{ zIndex: isDragging || isResizing || isSelected ? 100 : 10 }}
-        resizeHandleStyles={{
-          left: { width: '6px', left: '0', cursor: 'ew-resize' },
-          right: { width: '6px', right: '0', cursor: 'ew-resize' },
-        }}
-        resizeHandleClasses={{
-          left: `transition-opacity ${isHovered || isResizing ? 'opacity-100' : 'opacity-0'}`,
-          right: `transition-opacity ${isHovered || isResizing ? 'opacity-100' : 'opacity-0'}`,
-        }}
       >
         <div
           ref={cardRef}
-          className={`h-full rounded-md border-2 transition-all select-none relative overflow-hidden
-            ${isReadOnly ? 'cursor-default' : 'cursor-move'}
-            ${isSelected ? 'border-white ring-2 ring-primary' : 'border-transparent hover:border-white/30'}
-            ${isDragging || isResizing ? 'opacity-90 shadow-xl scale-[1.02]' : ''}
-          `}
+          className={cardClassName}
           style={{
             backgroundColor: event.color || '#f59e0b',
             color: event.textColor || '#ffffff',
@@ -379,14 +312,8 @@ export function GlobalEventCard({
           onDoubleClick={handleDoubleClick}
           onClick={handleClick}
           onContextMenu={handleContextMenu}
-          onMouseEnter={() => {
-            setIsHovered(true)
-            setShowTooltip(true)
-          }}
-          onMouseLeave={() => {
-            setIsHovered(false)
-            setShowTooltip(false)
-          }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
         >
           {/* 좌측 리사이즈 핸들 */}
           {!isReadOnly && (
@@ -459,7 +386,6 @@ export function GlobalEventCard({
         const rect = cardRef.current?.getBoundingClientRect()
         if (!rect) return null
 
-        // 툴팁 높이 계산 (제목 + 코멘트 유무에 따라)
         const tooltipHeight = event.comment ? 52 : 28
 
         return (
@@ -490,9 +416,9 @@ export function GlobalEventCard({
           link={event.link || ''}
           position={editPopup}
           onSave={handleEditSave}
-          onCancel={handleEditCancel}
+          onCancel={() => setEditPopup(null)}
         />
       )}
     </>
   )
-}
+}, areGlobalEventCardPropsEqual)

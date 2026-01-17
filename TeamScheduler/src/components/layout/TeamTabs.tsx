@@ -8,7 +8,15 @@ import { TeamMember } from '../../types/team'
 import { HiddenMembersModal } from '../modals/HiddenMembersModal'
 
 export function TeamTabs() {
-  const { members, selectedMemberId, selectMember, reorderMembers, workspaceId, isAdmin, selectedProjectId, projects } = useAppStore()
+  // Zustand 선택적 구독
+  const members = useAppStore(state => state.members)
+  const selectedMemberId = useAppStore(state => state.selectedMemberId)
+  const selectMember = useAppStore(state => state.selectMember)
+  const reorderMembers = useAppStore(state => state.reorderMembers)
+  const workspaceId = useAppStore(state => state.workspaceId)
+  const isAdmin = useAppStore(state => state.isAdmin)
+  const selectedProjectId = useAppStore(state => state.selectedProjectId)
+  const projects = useAppStore(state => state.projects)
 
   // 드래그 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)

@@ -1,6 +1,6 @@
 // 날짜 축 컴포넌트 (월 헤더 + 날짜 행)
 
-import { useMemo } from 'react'
+import { useMemo, memo } from 'react'
 import { addDays, startOfYear, isWeekend } from 'date-fns'
 import { useAppStore } from '../../store/useAppStore'
 import { getCellWidth } from '../../lib/utils/gridUtils'
@@ -19,8 +19,14 @@ interface MonthInfo {
   isLast: boolean
 }
 
-export function DateAxis({ hideFixedColumn = false }: DateAxisProps) {
-  const { zoomLevel, columnWidthScale, currentYear, events, monthVisibility, weekendColor } = useAppStore()
+export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: DateAxisProps) {
+  // Zustand 선택적 구독
+  const zoomLevel = useAppStore(state => state.zoomLevel)
+  const columnWidthScale = useAppStore(state => state.columnWidthScale)
+  const currentYear = useAppStore(state => state.currentYear)
+  const events = useAppStore(state => state.events)
+  const monthVisibility = useAppStore(state => state.monthVisibility)
+  const weekendColor = useAppStore(state => state.weekendColor)
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
 
   const yearStart = startOfYear(new Date(currentYear, 0, 1))
@@ -212,4 +218,4 @@ export function DateAxis({ hideFixedColumn = false }: DateAxisProps) {
       </div>
     </div>
   )
-}
+})

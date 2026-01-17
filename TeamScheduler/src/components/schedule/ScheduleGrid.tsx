@@ -295,8 +295,8 @@ export function ScheduleGrid() {
     return globalEvents.filter((e) => !e.projectId || e.projectId === selectedProjectId)
   }, [globalEvents, selectedProjectId])
 
-  // 글로벌 행 데이터 생성
-  const generateGlobalRows = () => {
+  // 글로벌 행 데이터 생성 (useMemo 최적화)
+  const globalRows = useMemo(() => {
     const rows: Array<{
       rowIndex: number
       events: typeof globalEvents
@@ -316,15 +316,13 @@ export function ScheduleGrid() {
     }
 
     return rows
-  }
+  }, [filteredGlobalEvents, globalEventRowCount])
 
-  const globalRows = generateGlobalRows()
-
-  // 행 데이터 생성
-  const generateRows = () => {
+  // 행 데이터 생성 (useMemo 최적화)
+  const rows = useMemo(() => {
     if (isUnifiedTab) {
       // 통합 탭: 각 구성원별로 카드가 있는 행만 생성 (기본 1행은 항상 표시)
-      const rows: Array<{
+      const rowData: Array<{
         memberId: string
         memberName: string
         memberColor: string
@@ -363,7 +361,7 @@ export function ScheduleGrid() {
         const totalRows = sortedRowIndices.length
 
         sortedRowIndices.forEach((rowIdx, displayIndex) => {
-          rows.push({
+          rowData.push({
             memberId: m.id,
             memberName: m.name,
             memberColor: m.color,
@@ -376,11 +374,12 @@ export function ScheduleGrid() {
         })
       })
 
-      return rows
+      return rowData
     } else {
       // 개별 탭
-      const rowCount = getRowCount(selectedMemberId)
-      const rows: Array<{
+      const member = members.find((m) => m.id === selectedMemberId)
+      const rowCount = member?.rowCount || memberRowCounts[selectedMemberId] || 1
+      const rowData: Array<{
         memberId: string
         memberName: string
         memberColor: string
@@ -391,10 +390,8 @@ export function ScheduleGrid() {
         totalRows: number
       }> = []
 
-      const member = members.find((m) => m.id === selectedMemberId)
-
       for (let i = 0; i < rowCount; i++) {
-        rows.push({
+        rowData.push({
           memberId: selectedMemberId,
           memberName: member?.name || '',
           memberColor: member?.color || DEFAULT_SCHEDULE_COLOR,
@@ -406,11 +403,9 @@ export function ScheduleGrid() {
         })
       }
 
-      return rows
+      return rowData
     }
-  }
-
-  const rows = generateRows()
+  }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts])
 
   // 마우스 다운: Ctrl/Alt + 드래그로 일정 생성 시작 (통합 탭에서는 비활성화)
   const handleMouseDown = (e: React.MouseEvent, memberId: string, rowIndex: number) => {

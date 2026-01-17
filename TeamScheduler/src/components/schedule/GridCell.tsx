@@ -1,5 +1,6 @@
 // 그리드 셀 컴포넌트
 
+import { memo } from 'react'
 import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
 import { addDays, isWeekend, isSameDay, isToday } from 'date-fns'
@@ -9,8 +10,13 @@ interface GridCellProps {
   isFirstDayOfMonth?: boolean // 월 첫 날 여부
 }
 
-export function GridCell({ dayIndex, isFirstDayOfMonth = false }: GridCellProps) {
-  const { zoomLevel, columnWidthScale, currentYear, events, weekendColor } = useAppStore()
+export const GridCell = memo(function GridCell({ dayIndex, isFirstDayOfMonth = false }: GridCellProps) {
+  // Zustand 선택적 구독
+  const zoomLevel = useAppStore(state => state.zoomLevel)
+  const columnWidthScale = useAppStore(state => state.columnWidthScale)
+  const currentYear = useAppStore(state => state.currentYear)
+  const events = useAppStore(state => state.events)
+  const weekendColor = useAppStore(state => state.weekendColor)
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
 
@@ -51,4 +57,4 @@ export function GridCell({ dayIndex, isFirstDayOfMonth = false }: GridCellProps)
       )}
     </div>
   )
-}
+})
