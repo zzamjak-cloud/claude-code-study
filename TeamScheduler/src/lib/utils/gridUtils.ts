@@ -17,20 +17,21 @@ export const calculateScheduleDates = (
   x: number,
   width: number,
   year: number,
-  zoomLevel: number
+  zoomLevel: number,
+  columnWidthScale: number = 1.0
 ): { startDate: Date; endDate: Date } => {
-  const startDate = pixelsToDate(x, year, zoomLevel)
+  const startDate = pixelsToDate(x, year, zoomLevel, columnWidthScale)
   const endX = x + width
-  const endDate = pixelsToDate(endX, year, zoomLevel)
+  const endDate = pixelsToDate(endX, year, zoomLevel, columnWidthScale)
 
   return { startDate, endDate }
 }
 
 /**
- * 셀 너비 계산 (줌 레벨 적용)
+ * 셀 너비 계산 (줌 레벨 + 열너비 배율 적용)
  */
-export const getCellWidth = (zoomLevel: number): number => {
-  return CELL_WIDTH_BASE * zoomLevel
+export const getCellWidth = (zoomLevel: number, columnWidthScale: number = 1.0): number => {
+  return CELL_WIDTH_BASE * zoomLevel * columnWidthScale
 }
 
 /**

@@ -10,8 +10,8 @@ interface GridCellProps {
 }
 
 export function GridCell({ dayIndex, isFirstDayOfMonth = false }: GridCellProps) {
-  const { zoomLevel, currentYear, events, weekendColor } = useAppStore()
-  const cellWidth = getCellWidth(zoomLevel)
+  const { zoomLevel, columnWidthScale, currentYear, events, weekendColor } = useAppStore()
+  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
 
   // 해당 날짜 계산

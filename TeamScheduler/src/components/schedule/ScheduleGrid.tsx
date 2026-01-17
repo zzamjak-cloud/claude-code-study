@@ -31,8 +31,10 @@ export function ScheduleGrid() {
     monthVisibility,
     selectedProjectId,
     projects,
+    columnWidthScale,
+    pushHistory,
   } = useAppStore()
-  const cellWidth = getCellWidth(zoomLevel)
+  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fixedColumnRef = useRef<HTMLDivElement>(null)
@@ -101,8 +103,8 @@ export function ScheduleGrid() {
   // 통합 탭 여부
   const isUnifiedTab = selectedMemberId === null
 
-  // 고정 열 너비 (통합 탭은 75px, 개별 탭은 50px)
-  const fixedColumnWidth = isUnifiedTab ? 75 : 50
+  // 고정 열 너비 (통합 탭, 개별 탭 동일하게 75px)
+  const fixedColumnWidth = 75
 
   // members로부터 rowCount 초기화
   useEffect(() => {
@@ -178,7 +180,8 @@ export function ScheduleGrid() {
 
   // 행 추가
   const addRow = async (memberId: string) => {
-    const newCount = getRowCount(memberId) + 1
+    const previousRowCount = getRowCount(memberId)
+    const newCount = previousRowCount + 1
     setMemberRowCounts((prev) => ({
       ...prev,
       [memberId]: newCount,
@@ -188,6 +191,14 @@ export function ScheduleGrid() {
     if (workspaceId) {
       try {
         await updateTeamMember(workspaceId, memberId, { rowCount: newCount })
+        // 히스토리 기록
+        const member = members.find((m) => m.id === memberId)
+        pushHistory({
+          type: 'member_row_change',
+          description: `${member?.name || '구성원'} 행 추가`,
+          undoData: { memberId, previousRowCount },
+          redoData: { memberId, newRowCount: newCount },
+        })
       } catch (error) {
         console.error('행 추가 실패:', error)
       }
@@ -221,6 +232,14 @@ export function ScheduleGrid() {
     if (workspaceId) {
       try {
         await updateTeamMember(workspaceId, memberId, { rowCount: newCount })
+        // 히스토리 기록
+        const member = members.find((m) => m.id === memberId)
+        pushHistory({
+          type: 'member_row_change',
+          description: `${member?.name || '구성원'} 행 제거`,
+          undoData: { memberId, previousRowCount: currentRowCount },
+          redoData: { memberId, newRowCount: newCount },
+        })
       } catch (error) {
         console.error('행 제거 실패:', error)
       }
@@ -230,9 +249,17 @@ export function ScheduleGrid() {
   // 글로벌 행 추가 (관리자 + 통합 탭에서만)
   const addGlobalRow = async () => {
     if (!workspaceId || !isAdmin || !isUnifiedTab) return
-    const newCount = globalEventRowCount + 1
+    const previousRowCount = globalEventRowCount
+    const newCount = previousRowCount + 1
     try {
       await updateGlobalEventSettings(workspaceId, { rowCount: newCount })
+      // 히스토리 기록
+      pushHistory({
+        type: 'global_row_change',
+        description: '특이사항 행 추가',
+        undoData: { previousRowCount },
+        redoData: { newRowCount: newCount },
+      })
     } catch (error) {
       console.error('글로벌 행 추가 실패:', error)
     }
@@ -241,9 +268,17 @@ export function ScheduleGrid() {
   // 글로벌 행 제거 (관리자 + 통합 탭에서만)
   const removeGlobalRow = async () => {
     if (!workspaceId || !isAdmin || !isUnifiedTab) return
-    const newCount = Math.max(1, globalEventRowCount - 1)
+    const previousRowCount = globalEventRowCount
+    const newCount = Math.max(1, previousRowCount - 1)
     try {
       await updateGlobalEventSettings(workspaceId, { rowCount: newCount })
+      // 히스토리 기록
+      pushHistory({
+        type: 'global_row_change',
+        description: '특이사항 행 제거',
+        undoData: { previousRowCount },
+        redoData: { newRowCount: newCount },
+      })
     } catch (error) {
       console.error('글로벌 행 제거 실패:', error)
     }
@@ -361,7 +396,7 @@ export function ScheduleGrid() {
       for (let i = 0; i < rowCount; i++) {
         rows.push({
           memberId: selectedMemberId,
-          memberName: '',
+          memberName: member?.name || '',
           memberColor: member?.color || DEFAULT_SCHEDULE_COLOR,
           rowIndex: i,
           schedules: filteredSchedules.filter((s) => (s.rowIndex || 0) === i),
@@ -455,7 +490,7 @@ export function ScheduleGrid() {
     // Firebase에 일정 생성 (비동기, 상태 초기화 후 실행)
     if (workspaceId && currentUser) {
       try {
-        await createScheduleFirebase(workspaceId, {
+        const scheduleData = {
           memberId: memberId,
           title: title,
           startDate: startDate.getTime(),
@@ -463,6 +498,16 @@ export function ScheduleGrid() {
           color: color,
           rowIndex: rowIndex,
           createdBy: currentUser.uid,
+        }
+        const scheduleId = await createScheduleFirebase(workspaceId, scheduleData)
+
+        // 히스토리 기록
+        const member = members.find((m) => m.id === memberId)
+        pushHistory({
+          type: 'schedule_create',
+          description: `${member?.name || '구성원'} 일정 생성`,
+          undoData: { scheduleId },
+          redoData: { schedule: scheduleData },
         })
       } catch (error) {
         console.error('일정 생성 실패:', error)
@@ -550,7 +595,7 @@ export function ScheduleGrid() {
 
     if (workspaceId && currentUser && selectedProjectId) {
       try {
-        await createGlobalEvent(workspaceId, {
+        const eventData = {
           projectId: selectedProjectId,
           title: '',
           startDate: startDate.getTime(),
@@ -558,6 +603,15 @@ export function ScheduleGrid() {
           color: GLOBAL_EVENT_COLOR,
           rowIndex: rowIndex,
           createdBy: currentUser.uid,
+        }
+        const eventId = await createGlobalEvent(workspaceId, eventData)
+
+        // 히스토리 기록
+        pushHistory({
+          type: 'global_event_create',
+          description: '특이사항 생성',
+          undoData: { eventId },
+          redoData: { event: eventData },
         })
       } catch (error) {
         console.error('글로벌 이벤트 생성 실패:', error)
@@ -618,9 +672,10 @@ export function ScheduleGrid() {
         style={{ width: `${fixedColumnWidth}px` }}
       >
         {/* 고정 열 헤더 (날짜 축과 동일 - sticky) */}
+        {/* 월 헤더 24px + 날짜 행 20px + 공휴일 행 16px = 60px */}
         <div
           className="sticky top-0 z-20 flex items-center justify-center bg-card border-b border-border text-sm text-muted-foreground"
-          style={{ height: '44px' }}
+          style={{ height: '60px' }}
         />
 
         {/* 글로벌 특이사항 행 - 고정 열 */}
@@ -632,82 +687,107 @@ export function ScheduleGrid() {
             }`}
             style={{ height: `${cellHeight}px` }}
           >
-            {row.isFirstRow && (
+            {row.isFirstRow && globalRows.length === 1 ? (
+              // 행이 1개일 때: 텍스트 + 버튼
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center">
+                  특이사항
+                </span>
+                {isUnifiedTab && isAdmin && (
+                  <button
+                    onClick={addGlobalRow}
+                    className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold"
+                    title="특이사항 행 추가"
+                  >
+                    +
+                  </button>
+                )}
+              </div>
+            ) : row.isFirstRow ? (
+              // 첫 번째 행 (다중 행일 때): 텍스트만
               <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center px-1">
                 특이사항
               </span>
-            )}
+            ) : row.isLastRow && isUnifiedTab && isAdmin ? (
+              // 마지막 행 (다중 행일 때): +/- 버튼
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={addGlobalRow}
+                  className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold px-1"
+                  title="특이사항 행 추가"
+                >
+                  +
+                </button>
+                <button
+                  onClick={removeGlobalRow}
+                  className="text-xs text-amber-700 dark:text-amber-400 hover:text-red-500 transition-colors font-bold px-1"
+                  title="특이사항 행 제거"
+                >
+                  -
+                </button>
+              </div>
+            ) : null}
           </div>
         ))}
-
-        {/* 글로벌 행 추가/제거 버튼 (통합 탭 + 관리자만) */}
-        {isUnifiedTab && isAdmin && globalRows.length > 0 && (
-          <div className="flex items-center justify-center gap-1 py-1 bg-amber-50 dark:bg-amber-900/20 border-b border-border">
-            <button
-              onClick={addGlobalRow}
-              className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-medium px-1"
-              title="특이사항 행 추가"
-            >
-              +
-            </button>
-            {globalEventRowCount > 1 && (
-              <button
-                onClick={removeGlobalRow}
-                className="text-xs text-amber-700 dark:text-amber-400 hover:text-red-500 transition-colors font-medium px-1"
-                title="특이사항 행 제거"
-              >
-                -
-              </button>
-            )}
-          </div>
-        )}
 
         {/* 구성원 행 */}
         {rows.map((row) => (
           <div
             key={`fixed-${row.memberId}-${row.rowIndex}`}
             className={`flex items-center justify-center ${
-              isUnifiedTab
-                ? row.isLastRow
-                  ? 'border-b border-border'
-                  : ''
-                : 'border-b border-border'
+              row.isLastRow ? 'border-b border-border' : ''
             }`}
             style={{ height: `${cellHeight}px` }}
           >
-            {isUnifiedTab && row.isFirstRow && (
+            {!isUnifiedTab && row.isFirstRow && row.totalRows === 1 ? (
+              // 개별 탭, 행이 1개일 때: 이름 + 버튼
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-foreground truncate text-center">
+                  {row.memberName}
+                </span>
+                <button
+                  onClick={() => addRow(row.memberId)}
+                  className="text-xs text-foreground hover:text-primary transition-colors font-bold"
+                  title="행 추가"
+                >
+                  +
+                </button>
+              </div>
+            ) : !isUnifiedTab && row.isFirstRow ? (
+              // 개별 탭, 첫 번째 행 (다중 행일 때): 이름만
               <span className="text-xs font-medium text-foreground truncate text-center px-1">
                 {row.memberName}
               </span>
-            )}
+            ) : !isUnifiedTab && row.isLastRow ? (
+              // 개별 탭, 마지막 행 (다중 행일 때): +/- 버튼
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => addRow(row.memberId)}
+                  className="text-xs text-foreground hover:text-primary transition-colors font-bold px-1"
+                  title="행 추가"
+                >
+                  +
+                </button>
+                <button
+                  onClick={() => removeRow(row.memberId)}
+                  className="text-xs text-foreground hover:text-destructive transition-colors font-bold px-1"
+                  title="행 제거"
+                >
+                  -
+                </button>
+              </div>
+            ) : row.isFirstRow ? (
+              // 통합 탭: 이름만
+              <span className="text-xs font-medium text-foreground truncate text-center px-1">
+                {row.memberName}
+              </span>
+            ) : null}
           </div>
         ))}
 
         {/* 구성원이 없을 때 빈 공간 */}
         {rows.length === 0 && (
           <div style={{ height: '256px' }} />
-        )}
-
-        {/* 행 추가/제거 버튼 영역 (개별 탭) */}
-        {!isUnifiedTab && rows.length > 0 && (
-          <div className="flex items-start gap-2 px-2 py-3 border-t border-border">
-            <button
-              onClick={() => addRow(selectedMemberId)}
-              className="text-sm text-foreground hover:text-primary transition-colors font-medium"
-              title="행 추가"
-            >
-              +
-            </button>
-            {getRowCount(selectedMemberId) > 1 && (
-              <button
-                onClick={() => removeRow(selectedMemberId)}
-                className="text-sm text-foreground hover:text-destructive transition-colors font-medium"
-                title="행 제거"
-              >
-                -
-              </button>
-            )}
-          </div>
         )}
       </div>
 
@@ -808,14 +888,6 @@ export function ScheduleGrid() {
             )
           })}
 
-          {/* 글로벌 행 추가 버튼 영역 (통합 탭 + 관리자만) */}
-          {isUnifiedTab && isAdmin && globalRows.length > 0 && (
-            <div
-              className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-border"
-              style={{ height: '28px' }}
-            />
-          )}
-
           {/* 그리드 행 */}
           {rows.map((row) => {
             const preview = getCreationPreview(row.memberId, row.rowIndex)
@@ -824,11 +896,7 @@ export function ScheduleGrid() {
               <div
                 key={`grid-${row.memberId}-${row.rowIndex}`}
                 className={`relative ${
-                  isUnifiedTab
-                    ? row.isLastRow
-                      ? 'border-b border-border'
-                      : ''
-                    : 'border-b border-border'
+                  row.isLastRow ? 'border-b border-border' : ''
                 }`}
                 style={{ height: `${cellHeight}px` }}
                 onMouseDown={(e) => handleMouseDown(e, row.memberId, row.rowIndex)}

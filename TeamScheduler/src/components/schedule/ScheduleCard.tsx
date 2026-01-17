@@ -35,8 +35,8 @@ export function ScheduleCard({
   visibleWidth,
   onCollisionChange,
 }: ScheduleCardProps) {
-  const { zoomLevel, currentYear, workspaceId, schedules, setDragging, members, projects } = useAppStore()
-  const cellWidth = getCellWidth(zoomLevel)
+  const { zoomLevel, columnWidthScale, currentYear, workspaceId, schedules, setDragging, members, projects, pushHistory } = useAppStore()
+  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -65,7 +65,8 @@ export function ScheduleCard({
   const calculatedWidth = dateRangeToWidth(
     new Date(schedule.startDate),
     new Date(schedule.endDate),
-    zoomLevel
+    zoomLevel,
+    columnWidthScale
   )
   // 월 필터링 적용 시 visibleWidth 사용, 그렇지 않으면 계산된 너비 사용
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
@@ -158,7 +159,32 @@ export function ScheduleCard({
   const handleDelete = async () => {
     if (!workspaceId) return
     try {
+      // 삭제 전 데이터 저장 (Undo용)
+      const scheduleData = {
+        memberId: schedule.memberId,
+        title: schedule.title,
+        comment: schedule.comment,
+        link: schedule.link,
+        startDate: schedule.startDate,
+        endDate: schedule.endDate,
+        color: schedule.color,
+        textColor: schedule.textColor,
+        projectId: schedule.projectId,
+        rowIndex: schedule.rowIndex,
+        createdBy: schedule.createdBy,
+      }
+
       await deleteScheduleFirebase(workspaceId, schedule.id)
+
+      // 히스토리 기록
+      const member = members.find((m) => m.id === schedule.memberId)
+      pushHistory({
+        type: 'schedule_delete',
+        description: `${member?.name || '구성원'} 일정 삭제`,
+        undoData: { schedule: scheduleData },
+        redoData: { scheduleId: schedule.id },
+      })
+
       setShowDeleteConfirm(false)
       setIsSelected(false)
     } catch (error) {
@@ -268,8 +294,8 @@ export function ScheduleCard({
 
   // 겹침 검사 (rowIndex도 고려)
   const checkCollisionAt = (newX: number, newWidth: number, newRowIndex?: number): boolean => {
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel)
+    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
 
     const tempSchedule: Schedule = {
       ...schedule,
@@ -295,8 +321,10 @@ export function ScheduleCard({
     setIsDragging(false)
     setDragging(false)
 
-    const snappedX = snapToGrid(data.x, cellWidth)
-    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel)
+    // 마진을 제외한 실제 위치로 보정
+    const adjustedX = data.x - cardMargin
+    const snappedX = snapToGrid(adjustedX, cellWidth)
+    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
     const duration = schedule.endDate - schedule.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
@@ -304,6 +332,11 @@ export function ScheduleCard({
     const currentRowIndex = schedule.rowIndex || 0
     const rowDelta = Math.round(data.y / cellHeight)
     const newRowIndex = Math.max(0, Math.min(totalRows - 1, currentRowIndex + rowDelta))
+
+    // 위치가 변경되지 않았으면 업데이트하지 않음 (클릭만 한 경우)
+    if (newStartDate.getTime() === schedule.startDate && newRowIndex === currentRowIndex) {
+      return
+    }
 
     // 겹침 검사 (새 rowIndex 포함)
     const colliding = checkCollisionAt(snappedX, currentWidth, newRowIndex)
@@ -353,13 +386,15 @@ export function ScheduleCard({
     if (isReadOnly) return
     setIsResizing(false)
 
-    const newWidth = snapToGrid(parseInt(ref.style.width), cellWidth)
+    // 마진 보정
+    const newWidth = snapToGrid(parseInt(ref.style.width) + cardMargin * 2, cellWidth)
+    const adjustedPosition = position.x - cardMargin
     const newX = direction.includes('left')
-      ? snapToGrid(position.x, cellWidth)
+      ? snapToGrid(adjustedPosition, cellWidth)
       : x
 
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel)
+    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
 
     // 겹침 검사
     const colliding = checkCollisionAt(newX, newWidth)

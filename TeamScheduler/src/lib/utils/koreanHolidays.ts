@@ -65,6 +65,16 @@ const LUNAR_HOLIDAYS: Record<number, KoreanHoliday[]> = {
     { name: '추석', date: '2027-09-15' },
     { name: '추석 연휴', date: '2027-09-16' },
   ],
+  2028: [
+    { name: '설날 연휴', date: '2028-01-25' },
+    { name: '설날', date: '2028-01-26' },
+    { name: '설날 연휴', date: '2028-01-27' },
+    { name: '석가탄신일', date: '2028-05-02' },
+    { name: '추석 연휴', date: '2028-10-02' },
+    { name: '추석', date: '2028-10-03' },
+    { name: '추석 연휴', date: '2028-10-04' },
+    { name: '추석 대체공휴일', date: '2028-10-05', isSubstitute: true },
+  ],
 }
 
 /**

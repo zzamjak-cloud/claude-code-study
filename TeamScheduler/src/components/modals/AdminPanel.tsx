@@ -1440,9 +1440,9 @@ function ProjectManagement() {
                         onClick={(e) => { e.stopPropagation(); toggleProjectHidden(project.id, project.isHidden) }}
                         disabled={isLoading}
                         className="p-1 text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
-                        title={project.isHidden ? '표시' : '숨김'}
+                        title={project.isHidden ? '표시하기' : '숨기기'}
                       >
-                        {project.isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        {project.isHidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); startEditing(project.id, project.name, project.type) }}

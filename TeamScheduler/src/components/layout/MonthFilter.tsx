@@ -11,10 +11,10 @@ const MONTH_NAMES = [
 ]
 
 export function MonthFilter() {
-  const { monthVisibility, toggleMonthVisibility, zoomLevel, currentYear } = useAppStore()
+  const { monthVisibility, toggleMonthVisibility, zoomLevel, columnWidthScale, currentYear } = useAppStore()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const cellWidth = getCellWidth(zoomLevel)
+  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
 
   // 외부 클릭 시 닫기
   useEffect(() => {

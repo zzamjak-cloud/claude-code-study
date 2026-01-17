@@ -6,8 +6,27 @@ import { useAppStore } from '../../store/useAppStore'
 import { updateAnnouncement } from '../../lib/firebase/firestore'
 
 export function Announcement() {
-  const { announcements, isAdmin, workspaceId, currentUser, selectedProjectId } = useAppStore()
+  const { announcements, isAdmin, workspaceId, currentUser, selectedProjectId, projects, members } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
+
+  // 현재 선택된 프로젝트
+  const currentProject = useMemo(() => {
+    if (!selectedProjectId) return null
+    return projects.find(p => p.id === selectedProjectId) || null
+  }, [projects, selectedProjectId])
+
+  // 현재 사용자가 이 프로젝트의 구성원인지 확인
+  const isProjectMember = useMemo(() => {
+    if (!currentProject || !currentUser) return false
+    // 현재 사용자의 이메일과 일치하는 팀원 찾기
+    const userMember = members.find(m => m.email === currentUser.email)
+    if (!userMember) return false
+    // 프로젝트 구성원 목록에 포함되어 있는지 확인
+    return currentProject.memberIds?.includes(userMember.id) || false
+  }, [currentProject, currentUser, members])
+
+  // 편집 가능 여부: 관리자이거나 프로젝트 구성원인 경우
+  const canEdit = isAdmin || isProjectMember
 
   // 현재 선택된 프로젝트의 공지사항
   const currentAnnouncement = useMemo(() => {
@@ -22,10 +41,10 @@ export function Announcement() {
     setEditContent(currentAnnouncement?.content || '')
   }, [currentAnnouncement?.content, selectedProjectId])
 
-  // Debounce 저장 (관리자만)
+  // Debounce 저장 (편집 가능한 사용자만)
   const saveAnnouncement = useCallback(
     async (content: string) => {
-      if (!workspaceId || !currentUser || !isAdmin || !selectedProjectId) return
+      if (!workspaceId || !currentUser || !canEdit || !selectedProjectId) return
 
       setIsSaving(true)
       try {
@@ -36,12 +55,12 @@ export function Announcement() {
         setIsSaving(false)
       }
     },
-    [workspaceId, currentUser, isAdmin, selectedProjectId]
+    [workspaceId, currentUser, canEdit, selectedProjectId]
   )
 
-  // Debounce 처리 (관리자만)
+  // Debounce 처리 (편집 가능한 사용자만)
   useEffect(() => {
-    if (!isAdmin || !selectedProjectId) return
+    if (!canEdit || !selectedProjectId) return
     if (editContent === (currentAnnouncement?.content || '')) return
 
     const timer = setTimeout(() => {
@@ -49,7 +68,7 @@ export function Announcement() {
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [editContent, saveAnnouncement, currentAnnouncement?.content, isAdmin, selectedProjectId])
+  }, [editContent, saveAnnouncement, currentAnnouncement?.content, canEdit, selectedProjectId])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEditContent(e.target.value)
@@ -60,7 +79,9 @@ export function Announcement() {
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-border flex-shrink-0">
         <Megaphone className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-foreground">공지사항</span>
+        <span className="text-sm font-medium text-foreground">
+          {currentProject ? `(${currentProject.name}) 공지사항` : '공지사항'}
+        </span>
         {isSaving && (
           <span className="text-xs text-muted-foreground">저장 중...</span>
         )}
@@ -68,8 +89,8 @@ export function Announcement() {
 
       {/* 내용 */}
       <div className="flex-1 p-3 overflow-hidden">
-        {isAdmin ? (
-          // 관리자: 편집 가능
+        {canEdit ? (
+          // 편집 가능한 사용자: 관리자 또는 프로젝트 구성원
           <div className="h-full flex flex-col">
             <textarea
               value={editContent}

@@ -30,8 +30,8 @@ export function GlobalEventCard({
   totalRows = 1,
   visibleWidth,
 }: GlobalEventCardProps) {
-  const { zoomLevel, currentYear, workspaceId, globalEvents } = useAppStore()
-  const cellWidth = getCellWidth(zoomLevel)
+  const { zoomLevel, columnWidthScale, currentYear, workspaceId, globalEvents, pushHistory } = useAppStore()
+  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -59,8 +59,12 @@ export function GlobalEventCard({
   const calculatedWidth = dateRangeToWidth(
     new Date(event.startDate),
     new Date(event.endDate),
-    zoomLevel
+    zoomLevel,
+    columnWidthScale
   )
+
+  // 카드 마진 (상하좌우 동일) - 상단에 정의
+  const cardMargin = 3
   // 월 필터링 적용 시 visibleWidth 사용, 그렇지 않으면 계산된 너비 사용
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
 
@@ -175,7 +179,30 @@ export function GlobalEventCard({
   const handleDelete = async () => {
     if (!workspaceId) return
     try {
+      // 삭제 전 데이터 저장 (Undo용)
+      const eventData = {
+        projectId: event.projectId,
+        title: event.title,
+        comment: event.comment,
+        link: event.link,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        color: event.color,
+        textColor: event.textColor,
+        rowIndex: event.rowIndex,
+        createdBy: event.createdBy,
+      }
+
       await deleteGlobalEventFirebase(workspaceId, event.id)
+
+      // 히스토리 기록
+      pushHistory({
+        type: 'global_event_delete',
+        description: '특이사항 삭제',
+        undoData: { event: eventData },
+        redoData: { eventId: event.id },
+      })
+
       setShowDeleteConfirm(false)
       setIsSelected(false)
     } catch (error) {
@@ -204,8 +231,10 @@ export function GlobalEventCard({
     if (isReadOnly) return
     setIsDragging(false)
 
-    const snappedX = snapToGrid(data.x, cellWidth)
-    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel)
+    // 마진을 제외한 실제 위치로 보정
+    const adjustedX = data.x - cardMargin
+    const snappedX = snapToGrid(adjustedX, cellWidth)
+    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
     const duration = event.endDate - event.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
@@ -213,6 +242,11 @@ export function GlobalEventCard({
     const currentRowIndex = event.rowIndex || 0
     const rowDelta = Math.round(data.y / cellHeight)
     const newRowIndex = Math.max(0, Math.min(totalRows - 1, currentRowIndex + rowDelta))
+
+    // 위치가 변경되지 않았으면 업데이트하지 않음 (클릭만 한 경우)
+    if (newStartDate.getTime() === event.startDate && newRowIndex === currentRowIndex) {
+      return
+    }
 
     // 겹침 검사
     if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), newRowIndex)) {
@@ -256,13 +290,15 @@ export function GlobalEventCard({
     if (isReadOnly) return
     setIsResizing(false)
 
-    const newWidth = snapToGrid(parseInt(ref.style.width), cellWidth)
+    // 마진 보정
+    const newWidth = snapToGrid(parseInt(ref.style.width) + cardMargin * 2, cellWidth)
+    const adjustedPosition = position.x - cardMargin
     const newX = direction.includes('left')
-      ? snapToGrid(position.x, cellWidth)
+      ? snapToGrid(adjustedPosition, cellWidth)
       : x
 
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel)
+    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
 
     // 겹침 검사
     if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)) {
@@ -289,9 +325,6 @@ export function GlobalEventCard({
       })
     }
   }
-
-  // 카드 마진 (상하좌우 동일)
-  const cardMargin = 3
 
   return (
     <>

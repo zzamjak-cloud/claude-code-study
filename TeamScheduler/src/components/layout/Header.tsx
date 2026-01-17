@@ -5,7 +5,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { signOut } from '../../lib/firebase/auth'
 
 export function Header() {
-  const { currentUser, isAdmin, projects, selectedProjectId, setSelectedProjectId } = useAppStore()
+  const { currentUser, isAdmin, projects, selectedProjectId, setSelectedProjectId, selectMember } = useAppStore()
 
   const handleLogout = async () => {
     try {
@@ -13,6 +13,12 @@ export function Header() {
     } catch (error) {
       console.error('로그아웃 실패:', error)
     }
+  }
+
+  // 프로젝트 변경 핸들러
+  const handleProjectChange = (projectId: string | null) => {
+    setSelectedProjectId(projectId)
+    selectMember(null)  // 통합 탭으로 초기화
   }
 
   return (
@@ -31,7 +37,7 @@ export function Header() {
               <FolderKanban className="w-4 h-4 text-muted-foreground" />
               <select
                 value={selectedProjectId || ''}
-                onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                onChange={(e) => handleProjectChange(e.target.value || null)}
                 className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[150px]"
               >
                 {projects.map((project) => (

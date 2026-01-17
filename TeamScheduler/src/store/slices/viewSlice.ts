@@ -16,6 +16,9 @@ export interface ViewSlice {
   // 줌 레벨 (1.0 = 기본, 0.5 = 축소, 2.0 = 확대)
   zoomLevel: number
 
+  // 열너비 배율 (1.0 = 기본, 0.5 = 축소, 2.0 = 확대)
+  columnWidthScale: number
+
   // 필터링
   dateRange: {
     start: Date | null
@@ -45,6 +48,8 @@ export interface ViewSlice {
 
   // 메서드
   setZoomLevel: (level: number) => void
+  setColumnWidthScale: (scale: number) => void
+  resetColumnWidthScale: () => void
   setDateRange: (start: Date | null, end: Date | null) => void
   setScrollOffset: (offset: number) => void
   setCurrentYear: (year: number) => void
@@ -69,6 +74,20 @@ const getInitialZoomLevel = (): number => {
     }
   }
   return DEFAULT_ZOOM
+}
+
+// localStorage에서 열너비 배율 로드
+const getInitialColumnWidthScale = (): number => {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem('columnWidthScale')
+    if (saved) {
+      const parsed = parseFloat(saved)
+      if (!isNaN(parsed) && parsed >= 0.5 && parsed <= 2.0) {
+        return parsed
+      }
+    }
+  }
+  return 1.0 // 기본값
 }
 
 // localStorage에서 월 가시성 로드
@@ -140,6 +159,7 @@ const getInitialSelectedProjectId = (): string | null => {
 export const createViewSlice = (set: any): ViewSlice => ({
   // 초기 상태
   zoomLevel: getInitialZoomLevel(),
+  columnWidthScale: getInitialColumnWidthScale(),
   dateRange: {
     start: null,
     end: null,
@@ -156,6 +176,18 @@ export const createViewSlice = (set: any): ViewSlice => ({
   setZoomLevel: (level) => {
     localStorage.setItem('zoomLevel', level.toString())
     set({ zoomLevel: level })
+  },
+
+  // 열너비 배율 설정 (localStorage에도 저장)
+  setColumnWidthScale: (scale) => {
+    localStorage.setItem('columnWidthScale', scale.toString())
+    set({ columnWidthScale: scale })
+  },
+
+  // 열너비 배율 초기화
+  resetColumnWidthScale: () => {
+    localStorage.setItem('columnWidthScale', '1.0')
+    set({ columnWidthScale: 1.0 })
   },
 
   // 날짜 범위 설정

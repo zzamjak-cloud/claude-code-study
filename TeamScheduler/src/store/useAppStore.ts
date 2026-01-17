@@ -9,6 +9,7 @@ import { createAuthSlice, AuthSlice } from './slices/authSlice'
 import { createAnnouncementSlice, AnnouncementSlice } from './slices/announcementSlice'
 import { createGlobalEventSlice, GlobalEventSlice } from './slices/globalEventSlice'
 import { createProjectSlice, ProjectSlice } from './slices/projectSlice'
+import { createHistorySlice, HistorySlice } from './slices/historySlice'
 
 // 통합된 App State 타입
 export type AppState = TeamSlice &
@@ -18,7 +19,8 @@ export type AppState = TeamSlice &
   AuthSlice &
   AnnouncementSlice &
   GlobalEventSlice &
-  ProjectSlice
+  ProjectSlice &
+  HistorySlice
 
 // 스토어 생성
 export const useAppStore = create<AppState>()((set, get) => ({
@@ -30,4 +32,5 @@ export const useAppStore = create<AppState>()((set, get) => ({
   ...createAnnouncementSlice(set),
   ...createGlobalEventSlice(set),
   ...createProjectSlice(set),
+  ...createHistorySlice(set, get),
 }))

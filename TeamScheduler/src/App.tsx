@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAppStore } from './store/useAppStore'
 import { useAuth } from './lib/hooks/useAuth'
 import { useFirebaseSync } from './lib/hooks/useFirebaseSync'
+import { useUndoRedo } from './lib/hooks/useUndoRedo'
 import { signInWithGoogle } from './lib/firebase/auth'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { LoadingSpinner } from './components/common/LoadingSpinner'
@@ -14,16 +15,20 @@ import { AdminPanel } from './components/modals/AdminPanel'
 import { ColorPresetModal } from './components/modals/ColorPresetModal'
 import { HelpModal } from './components/modals/HelpModal'
 import { MonthFilter } from './components/layout/MonthFilter'
-import { LogIn, Settings, Palette, HelpCircle, ZoomIn, ZoomOut } from 'lucide-react'
+import { YearSelector } from './components/layout/YearSelector'
+import { LogIn, Settings, Palette, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus } from 'lucide-react'
 
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel, projects, selectedProjectId, setSelectedProjectId } =
+  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId } =
     useAppStore()
 
   // Firebase 실시간 동기화
   useFirebaseSync(workspaceId)
+
+  // Undo/Redo 기능 (Ctrl+Z, Ctrl+Shift+Z)
+  useUndoRedo()
 
   // 관리자 패널 상태
   const [showAdminPanel, setShowAdminPanel] = useState(false)
@@ -123,13 +128,46 @@ function App() {
         {/* 툴바 */}
         <div className="bg-card border-b border-border px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-foreground">2026년</span>
+            {/* 연도 선택 드롭다운 */}
+            <YearSelector />
 
             {/* 월 바로가기 + 필터링 */}
             <MonthFilter />
           </div>
 
           <div className="flex items-center gap-2">
+            {/* 열너비 컨트롤 */}
+            <div className="flex items-center gap-1 bg-muted rounded-md p-1">
+              <Columns3 className="w-4 h-4 text-muted-foreground ml-1" />
+              <button
+                onClick={() => setColumnWidthScale(Math.max(0.5, columnWidthScale - 0.25))}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-50"
+                title="열너비 축소"
+                disabled={columnWidthScale <= 0.5}
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="text-xs font-medium w-10 text-center" title="열너비 배율">
+                {Math.round(columnWidthScale * 100)}%
+              </span>
+              <button
+                onClick={() => setColumnWidthScale(Math.min(2.0, columnWidthScale + 0.25))}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-50"
+                title="열너비 확대"
+                disabled={columnWidthScale >= 2.0}
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+              <button
+                onClick={resetColumnWidthScale}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-50"
+                title="열너비 초기화 (100%)"
+                disabled={columnWidthScale === 1.0}
+              >
+                <RotateCcw className="w-3 h-3" />
+              </button>
+            </div>
+
             {/* 줌 컨트롤 */}
             <div className="flex items-center gap-1 bg-muted rounded-md p-1">
               <button

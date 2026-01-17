@@ -6,18 +6,18 @@ import { CELL_WIDTH_BASE } from '../constants/grid'
 /**
  * 날짜 → 픽셀 X 좌표 변환
  */
-export const dateToPixels = (date: Date, year: number, zoomLevel: number): number => {
+export const dateToPixels = (date: Date, year: number, zoomLevel: number, columnWidthScale: number = 1.0): number => {
   const yearStart = startOfYear(new Date(year, 0, 1))
   const dayOffset = differenceInDays(date, yearStart)
-  return dayOffset * CELL_WIDTH_BASE * zoomLevel
+  return dayOffset * CELL_WIDTH_BASE * zoomLevel * columnWidthScale
 }
 
 /**
  * 픽셀 X 좌표 → 날짜 변환
  */
-export const pixelsToDate = (x: number, year: number, zoomLevel: number): Date => {
+export const pixelsToDate = (x: number, year: number, zoomLevel: number, columnWidthScale: number = 1.0): Date => {
   const yearStart = startOfYear(new Date(year, 0, 1))
-  const dayOffset = Math.floor(x / (CELL_WIDTH_BASE * zoomLevel))
+  const dayOffset = Math.floor(x / (CELL_WIDTH_BASE * zoomLevel * columnWidthScale))
   return addDays(yearStart, dayOffset)
 }
 
@@ -27,10 +27,11 @@ export const pixelsToDate = (x: number, year: number, zoomLevel: number): Date =
 export const dateRangeToWidth = (
   startDate: Date,
   endDate: Date,
-  zoomLevel: number
+  zoomLevel: number,
+  columnWidthScale: number = 1.0
 ): number => {
   const days = differenceInDays(endDate, startDate)
-  return Math.max(days, 1) * CELL_WIDTH_BASE * zoomLevel
+  return Math.max(days, 1) * CELL_WIDTH_BASE * zoomLevel * columnWidthScale
 }
 
 /**

@@ -20,8 +20,8 @@ interface MonthInfo {
 }
 
 export function DateAxis({ hideFixedColumn = false }: DateAxisProps) {
-  const { zoomLevel, currentYear, events, monthVisibility, weekendColor } = useAppStore()
-  const cellWidth = getCellWidth(zoomLevel)
+  const { zoomLevel, columnWidthScale, currentYear, events, monthVisibility, weekendColor } = useAppStore()
+  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
 
   const yearStart = startOfYear(new Date(currentYear, 0, 1))
 
@@ -38,6 +38,23 @@ export function DateAxis({ hideFixedColumn = false }: DateAxisProps) {
         event.type === 'holiday' &&
         new Date(event.date).toDateString() === date.toDateString()
     )
+  }
+
+  // 해당 날짜의 공휴일 텍스트 가져오기 (필터링 및 변환 적용)
+  const getHolidayText = (date: Date): string | null => {
+    const event = events.find(
+      (e) =>
+        e.type === 'holiday' &&
+        new Date(e.date).toDateString() === date.toDateString()
+    )
+    if (!event) return null
+
+    const title = event.title
+    // "설날 연휴", "추석 연휴" 제외
+    if (title.includes('설날') || title.includes('추석')) return null
+    // "대체공휴일" → "대체"로 변환
+    if (title.includes('대체공휴일') || title.includes('대체휴일')) return '대체'
+    return title
   }
 
   // 월별 시작 인덱스와 날짜 수 계산
@@ -156,6 +173,38 @@ export function DateAxis({ hideFixedColumn = false }: DateAxisProps) {
                 }}
               >
                 {dayOfMonth}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 공휴일 텍스트 행 */}
+      <div className="flex" style={{ height: '16px' }}>
+        <div
+          className="flex"
+          style={{ width: `${visibleDayIndices.length * cellWidth}px` }}
+        >
+          {visibleDayIndices.map((dayIndex, visibleIndex) => {
+            const date = addDays(yearStart, dayIndex)
+            const isFirstDay = isFirstVisibleDayOfMonth(dayIndex, visibleIndex)
+            const isSpecialDay = isWeekend(date) || isHoliday(date)
+            const holidayText = getHolidayText(date)
+
+            return (
+              <div
+                key={`holiday-${dayIndex}`}
+                className="flex-shrink-0 flex items-center justify-center text-[9px] text-destructive font-medium border-r border-border overflow-hidden"
+                style={{
+                  width: `${cellWidth}px`,
+                  backgroundColor: isSpecialDay ? weekendColor : undefined,
+                  borderLeft: isFirstDay ? '2px dashed #c5c7cc' : undefined,
+                }}
+                title={holidayText || undefined}
+              >
+                {holidayText && (
+                  <span className="truncate px-0.5">{holidayText}</span>
+                )}
               </div>
             )
           })}
