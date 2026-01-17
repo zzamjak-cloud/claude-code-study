@@ -34,22 +34,22 @@ export const createScheduleSlice = (set: any, get: any): ScheduleSlice => ({
 
   // 일정 추가
   addSchedule: (schedule) =>
-    set((state) => ({
+    set((state: ScheduleSlice) => ({
       schedules: [...state.schedules, schedule],
     })),
 
   // 일정 업데이트
   updateSchedule: (scheduleId, updates) =>
-    set((state) => ({
-      schedules: state.schedules.map((s) =>
+    set((state: ScheduleSlice) => ({
+      schedules: state.schedules.map((s: Schedule) =>
         s.id === scheduleId ? { ...s, ...updates } : s
       ),
     })),
 
   // 일정 삭제
   deleteSchedule: (scheduleId) =>
-    set((state) => ({
-      schedules: state.schedules.filter((s) => s.id !== scheduleId),
+    set((state: ScheduleSlice) => ({
+      schedules: state.schedules.filter((s: Schedule) => s.id !== scheduleId),
       selectedScheduleId:
         state.selectedScheduleId === scheduleId
           ? null
@@ -59,7 +59,7 @@ export const createScheduleSlice = (set: any, get: any): ScheduleSlice => ({
   // 특정 팀원의 일정 가져오기
   getSchedulesByMember: (memberId) => {
     const state = get()
-    return state.schedules.filter((s) => s.memberId === memberId)
+    return state.schedules.filter((s: Schedule) => s.memberId === memberId)
   },
 
   // 모든 일정 가져오기

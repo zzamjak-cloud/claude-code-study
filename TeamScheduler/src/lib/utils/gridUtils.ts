@@ -1,7 +1,7 @@
 // 그리드 유틸리티
 
 import { pixelsToDate } from './dateUtils'
-import { CELL_WIDTH_BASE } from '../constants/grid'
+import { CELL_WIDTH_BASE, CELL_HEIGHT_BASE } from '../constants/grid'
 
 /**
  * 픽셀 좌표를 그리드에 스냅
@@ -31,4 +31,11 @@ export const calculateScheduleDates = (
  */
 export const getCellWidth = (zoomLevel: number): number => {
   return CELL_WIDTH_BASE * zoomLevel
+}
+
+/**
+ * 셀 높이 계산 (줌 레벨 적용)
+ */
+export const getCellHeight = (zoomLevel: number): number => {
+  return CELL_HEIGHT_BASE * zoomLevel
 }

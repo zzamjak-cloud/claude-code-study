@@ -14,5 +14,8 @@ export const COLOR_PRESETS = [
 ]
 
 export const DEFAULT_SCHEDULE_COLOR = '#b1867c'  // 기본 일정 색상 (부드러운 브라운)
-export const WEEKEND_HOLIDAY_COLOR = '#fcc3b6'  // 주말/공휴일 배경색
+export const DEFAULT_WEEKEND_COLOR = '#ffe3de'  // 기본 주말/공휴일 배경색
+export const WEEKEND_HOLIDAY_COLOR = '#ffe3de'  // 주말/공휴일 배경색 (하위 호환)
+export const ANNUAL_LEAVE_COLOR = '#e64c4c'     // 연차/공휴일 카드 색상 (빨강)
 export const COLLISION_COLOR = '#EF4444'         // 겹침 표시 색상 (빨강)
+export const GLOBAL_EVENT_COLOR = '#f59e0b'      // 글로벌 이벤트 색상 (앰버)

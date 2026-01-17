@@ -1,9 +1,5 @@
 // 스토어 통합 타입 정의
 
-import { TeamMember, Workspace } from './team'
-import { Schedule } from './schedule'
-import { SpecialEvent } from './event'
-
 // Auth 사용자 타입
 export interface User {
   uid: string

@@ -10,7 +10,7 @@ import { HiddenMembersModal } from '../modals/HiddenMembersModal'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 
 export function TeamTabs() {
-  const { members, selectedMemberId, selectMember, reorderMembers, workspaceId } = useAppStore()
+  const { members, selectedMemberId, selectMember, reorderMembers, workspaceId, isAdmin } = useAppStore()
 
   // 드래그 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -52,9 +52,12 @@ export function TeamTabs() {
     }
   }, [contextMenu])
 
-  // 우클릭 핸들러
+  // 우클릭 핸들러 (관리자만 사용 가능)
   const handleContextMenu = (e: React.MouseEvent, member: TeamMember) => {
     e.preventDefault()
+    // 관리자가 아니면 컨텍스트 메뉴 표시하지 않음
+    if (!isAdmin) return
+
     setContextMenu({
       x: e.clientX,
       y: e.clientY,

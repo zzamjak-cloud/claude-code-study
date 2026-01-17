@@ -1,41 +1,36 @@
-// 일정 카드 컴포넌트 (Phase 2: 드래그 앤 드롭 + 리사이즈 핸들 + Delete 삭제)
+// 글로벌 이벤트 카드 컴포넌트 (통합 탭에서만 편집 가능)
 
 import { useState, useRef, useEffect } from 'react'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
-import { Schedule } from '../../types/schedule'
+import { ExternalLink } from 'lucide-react'
+import { GlobalEvent } from '../../types/globalEvent'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
 import { getCellWidth, getCellHeight, snapToGrid } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
 import {
-  updateSchedule as updateScheduleFirebase,
-  deleteSchedule as deleteScheduleFirebase,
-  updateTeamMember,
+  updateGlobalEvent as updateGlobalEventFirebase,
+  deleteGlobalEvent as deleteGlobalEventFirebase,
 } from '../../lib/firebase/firestore'
-import { hasCollision } from '../../lib/utils/collisionDetection'
-import { ExternalLink } from 'lucide-react'
 import { ConfirmDialog } from '../common/ConfirmDialog'
-import { ContextMenu } from './ContextMenu'
 import { ScheduleEditPopup } from './ScheduleEditPopup'
+import { ContextMenu } from './ContextMenu'
 
-interface ScheduleCardProps {
-  schedule: Schedule
+interface GlobalEventCardProps {
+  event: GlobalEvent
   x: number
   isReadOnly?: boolean
   totalRows?: number
   visibleWidth?: number // 월 필터링 시 클리핑된 너비
-  onCollisionChange?: (isColliding: boolean) => void
-  onRowChange?: (newRowIndex: number) => void
 }
 
-export function ScheduleCard({
-  schedule,
+export function GlobalEventCard({
+  event,
   x,
   isReadOnly = false,
   totalRows = 1,
   visibleWidth,
-  onCollisionChange,
-}: ScheduleCardProps) {
-  const { zoomLevel, currentYear, workspaceId, schedules, setDragging, members, projects } = useAppStore()
+}: GlobalEventCardProps) {
+  const { zoomLevel, currentYear, workspaceId, globalEvents } = useAppStore()
   const cellWidth = getCellWidth(zoomLevel)
   const cellHeight = getCellHeight(zoomLevel)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -53,7 +48,6 @@ export function ScheduleCard({
   // 드래그/리사이즈 상태
   const [isDragging, setIsDragging] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
-  const [isColliding, setIsColliding] = useState(false)
 
   // 삭제 확인 다이얼로그 상태
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -61,17 +55,14 @@ export function ScheduleCard({
   // 컨텍스트 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
 
-  // 현재 위치/크기 (schedule 데이터 기반으로 계산, 또는 월 필터링 시 visibleWidth 사용)
+  // 현재 위치/크기 (event 데이터 기반으로 계산, 또는 월 필터링 시 visibleWidth 사용)
   const calculatedWidth = dateRangeToWidth(
-    new Date(schedule.startDate),
-    new Date(schedule.endDate),
+    new Date(event.startDate),
+    new Date(event.endDate),
     zoomLevel
   )
   // 월 필터링 적용 시 visibleWidth 사용, 그렇지 않으면 계산된 너비 사용
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
-
-  // 과거 일정 여부 확인 (종료 날짜가 오늘 이전)
-  const isPast = schedule.endDate < Date.now()
 
   // Delete 키 이벤트 핸들러
   useEffect(() => {
@@ -123,7 +114,7 @@ export function ScheduleCard({
     if (rect) {
       setEditPopup({
         x: rect.left,
-        y: rect.bottom + 8, // 카드 아래 8px 간격
+        y: rect.bottom + 8,
       })
     }
   }
@@ -133,36 +124,6 @@ export function ScheduleCard({
     e.stopPropagation()
     if (!isReadOnly) {
       setIsSelected(true)
-    }
-  }
-
-  // 편집 팝업 저장
-  const handleEditSave = async (title: string, comment: string, link: string, projectId?: string) => {
-    setEditPopup(null)
-
-    if (workspaceId) {
-      try {
-        await updateScheduleFirebase(workspaceId, schedule.id, { title, comment, link, projectId })
-      } catch (error) {
-        console.error('일정 수정 실패:', error)
-      }
-    }
-  }
-
-  // 편집 팝업 취소
-  const handleEditCancel = () => {
-    setEditPopup(null)
-  }
-
-  // 일정 삭제
-  const handleDelete = async () => {
-    if (!workspaceId) return
-    try {
-      await deleteScheduleFirebase(workspaceId, schedule.id)
-      setShowDeleteConfirm(false)
-      setIsSelected(false)
-    } catch (error) {
-      console.error('일정 삭제 실패:', error)
     }
   }
 
@@ -179,113 +140,62 @@ export function ScheduleCard({
     if (!workspaceId) return
 
     // 낙관적 업데이트
-    const { updateSchedule } = useAppStore.getState()
-    updateSchedule(schedule.id, { color })
+    const { updateGlobalEvent } = useAppStore.getState()
+    updateGlobalEvent(event.id, { color })
 
     // Firebase 업데이트
     try {
-      await updateScheduleFirebase(workspaceId, schedule.id, { color })
+      await updateGlobalEventFirebase(workspaceId, event.id, { color })
     } catch (error) {
       console.error('색상 변경 실패:', error)
       // 실패 시 롤백
-      updateSchedule(schedule.id, { color: schedule.color })
+      updateGlobalEvent(event.id, { color: event.color })
     }
   }
 
-  // 업무 이관
-  const handleTransfer = async (targetMemberId: string) => {
+  // 편집 팝업 저장
+  const handleEditSave = async (title: string, comment: string, link: string) => {
+    setEditPopup(null)
+
+    if (workspaceId) {
+      try {
+        await updateGlobalEventFirebase(workspaceId, event.id, { title, comment, link })
+      } catch (error) {
+        console.error('글로벌 이벤트 수정 실패:', error)
+      }
+    }
+  }
+
+  // 편집 팝업 취소
+  const handleEditCancel = () => {
+    setEditPopup(null)
+  }
+
+  // 이벤트 삭제
+  const handleDelete = async () => {
     if (!workspaceId) return
-
-    // 대상 팀원 정보
-    const targetMember = members.find((m) => m.id === targetMemberId)
-    if (!targetMember) return
-
-    // 대상 팀원의 일정 목록
-    const targetSchedules = schedules.filter((s) => s.memberId === targetMemberId)
-
-    // 대상 팀원의 행 개수
-    const targetRowCount = targetMember.rowCount || 1
-
-    // 빈 행 찾기 (충돌 없는 rowIndex)
-    let availableRowIndex = -1
-    for (let rowIdx = 0; rowIdx < targetRowCount; rowIdx++) {
-      // 해당 행에 있는 일정들과 충돌 체크
-      const rowSchedules = targetSchedules.filter((s) => (s.rowIndex || 0) === rowIdx)
-      const hasConflict = rowSchedules.some((existingSchedule) => {
-        // 기간이 겹치는지 확인
-        return (
-          schedule.startDate < existingSchedule.endDate &&
-          schedule.endDate > existingSchedule.startDate
-        )
-      })
-
-      if (!hasConflict) {
-        availableRowIndex = rowIdx
-        break
-      }
-    }
-
-    // 빈 행이 없으면 새 행 추가
-    let newRowIndex = availableRowIndex
-    let needsNewRow = false
-    if (availableRowIndex === -1) {
-      newRowIndex = targetRowCount
-      needsNewRow = true
-    }
-
     try {
-      // 1. 행 추가 필요 시 대상 팀원 rowCount 업데이트
-      if (needsNewRow) {
-        await updateTeamMember(workspaceId, targetMemberId, {
-          rowCount: targetRowCount + 1,
-        })
-      }
-
-      // 2. 일정 업데이트 (memberId, rowIndex 변경)
-      const updates = {
-        memberId: targetMemberId,
-        rowIndex: newRowIndex,
-      }
-
-      // 낙관적 업데이트
-      const { updateSchedule } = useAppStore.getState()
-      updateSchedule(schedule.id, updates)
-
-      // Firebase 업데이트
-      await updateScheduleFirebase(workspaceId, schedule.id, updates)
-
-      console.log(`일정 "${schedule.title}" → ${targetMember.name}에게 이관 완료 (행: ${newRowIndex + 1})`)
+      await deleteGlobalEventFirebase(workspaceId, event.id)
+      setShowDeleteConfirm(false)
+      setIsSelected(false)
     } catch (error) {
-      console.error('업무 이관 실패:', error)
-      // 실패 시 롤백
-      const { updateSchedule } = useAppStore.getState()
-      updateSchedule(schedule.id, {
-        memberId: schedule.memberId,
-        rowIndex: schedule.rowIndex,
-      })
+      console.error('글로벌 이벤트 삭제 실패:', error)
     }
   }
 
-  // 겹침 검사 (rowIndex도 고려)
-  const checkCollisionAt = (newX: number, newWidth: number, newRowIndex?: number): boolean => {
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel)
-
-    const tempSchedule: Schedule = {
-      ...schedule,
-      startDate: newStartDate.getTime(),
-      endDate: newEndDate.getTime(),
-      rowIndex: newRowIndex !== undefined ? newRowIndex : schedule.rowIndex,
-    }
-
-    return hasCollision(tempSchedule, schedules)
+  // 겹침 검사
+  const checkCollision = (newStartDate: number, newEndDate: number, newRowIndex: number): boolean => {
+    return globalEvents.some((other) => {
+      if (other.id === event.id) return false
+      if ((other.rowIndex || 0) !== newRowIndex) return false
+      return newStartDate < other.endDate && newEndDate > other.startDate
+    })
   }
 
   // 드래그 시작
   const handleDragStart = () => {
     if (isReadOnly) return
     setIsDragging(true)
-    setDragging(true, schedule)
     setIsSelected(true)
   }
 
@@ -293,50 +203,43 @@ export function ScheduleCard({
   const handleDragStop = (_e: any, data: DraggableData) => {
     if (isReadOnly) return
     setIsDragging(false)
-    setDragging(false)
 
     const snappedX = snapToGrid(data.x, cellWidth)
     const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel)
-    const duration = schedule.endDate - schedule.startDate
+    const duration = event.endDate - event.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
     // Y 위치 기반으로 새 rowIndex 계산
-    const currentRowIndex = schedule.rowIndex || 0
+    const currentRowIndex = event.rowIndex || 0
     const rowDelta = Math.round(data.y / cellHeight)
     const newRowIndex = Math.max(0, Math.min(totalRows - 1, currentRowIndex + rowDelta))
 
-    // 겹침 검사 (새 rowIndex 포함)
-    const colliding = checkCollisionAt(snappedX, currentWidth, newRowIndex)
-    setIsColliding(colliding)
-    onCollisionChange?.(colliding)
-
-    if (colliding) {
+    // 겹침 검사
+    if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), newRowIndex)) {
       return
     }
 
-    const updates: Partial<Schedule> = {
+    const updates: Partial<GlobalEvent> = {
       startDate: newStartDate.getTime(),
       endDate: newEndDate.getTime(),
     }
 
-    // rowIndex가 변경된 경우만 업데이트
     if (newRowIndex !== currentRowIndex) {
       updates.rowIndex = newRowIndex
     }
 
-    // 낙관적 업데이트: Firebase 전에 로컬 상태 먼저 업데이트 (깜빡임 방지)
-    const { updateSchedule } = useAppStore.getState()
-    updateSchedule(schedule.id, updates)
+    // 낙관적 업데이트
+    const { updateGlobalEvent } = useAppStore.getState()
+    updateGlobalEvent(event.id, updates)
 
     // Firebase 업데이트 (fire and forget)
     if (workspaceId) {
-      updateScheduleFirebase(workspaceId, schedule.id, updates).catch((error) => {
-        console.error('일정 업데이트 실패:', error)
-        // 실패 시 롤백
-        updateSchedule(schedule.id, {
-          startDate: schedule.startDate,
-          endDate: schedule.endDate,
-          rowIndex: schedule.rowIndex,
+      updateGlobalEventFirebase(workspaceId, event.id, updates).catch((error) => {
+        console.error('글로벌 이벤트 업데이트 실패:', error)
+        updateGlobalEvent(event.id, {
+          startDate: event.startDate,
+          endDate: event.endDate,
+          rowIndex: event.rowIndex,
         })
       })
     }
@@ -362,11 +265,7 @@ export function ScheduleCard({
     const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel)
 
     // 겹침 검사
-    const colliding = checkCollisionAt(newX, newWidth)
-    setIsColliding(colliding)
-    onCollisionChange?.(colliding)
-
-    if (colliding) {
+    if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)) {
       return
     }
 
@@ -375,18 +274,17 @@ export function ScheduleCard({
       endDate: newEndDate.getTime(),
     }
 
-    // 낙관적 업데이트: Firebase 전에 로컬 상태 먼저 업데이트 (깜빡임 방지)
-    const { updateSchedule } = useAppStore.getState()
-    updateSchedule(schedule.id, updates)
+    // 낙관적 업데이트
+    const { updateGlobalEvent } = useAppStore.getState()
+    updateGlobalEvent(event.id, updates)
 
     // Firebase 업데이트 (fire and forget)
     if (workspaceId) {
-      updateScheduleFirebase(workspaceId, schedule.id, updates).catch((error) => {
-        console.error('일정 리사이즈 실패:', error)
-        // 실패 시 롤백
-        updateSchedule(schedule.id, {
-          startDate: schedule.startDate,
-          endDate: schedule.endDate,
+      updateGlobalEventFirebase(workspaceId, event.id, updates).catch((error) => {
+        console.error('글로벌 이벤트 리사이즈 실패:', error)
+        updateGlobalEvent(event.id, {
+          startDate: event.startDate,
+          endDate: event.endDate,
         })
       })
     }
@@ -398,7 +296,7 @@ export function ScheduleCard({
   return (
     <>
       <Rnd
-        key={`${schedule.id}-${schedule.startDate}-${schedule.endDate}-${schedule.rowIndex}`}
+        key={`${event.id}-${event.startDate}-${event.endDate}-${event.rowIndex}`}
         position={{ x: x + cardMargin, y: cardMargin }}
         size={{ width: currentWidth - cardMargin * 2, height: cellHeight - cardMargin * 2 }}
         onDragStart={handleDragStart}
@@ -423,7 +321,7 @@ export function ScheduleCard({
         resizeGrid={[cellWidth, cellHeight]}
         dragGrid={[cellWidth, cellHeight]}
         minWidth={cellWidth - cardMargin * 2}
-        className="!absolute schedule-card"
+        className="!absolute global-event-card"
         style={{ zIndex: isDragging || isResizing || isSelected ? 100 : 10 }}
         resizeHandleStyles={{
           left: { width: '6px', left: '0', cursor: 'ew-resize' },
@@ -438,14 +336,12 @@ export function ScheduleCard({
           ref={cardRef}
           className={`h-full rounded-md border-2 transition-all select-none relative overflow-hidden
             ${isReadOnly ? 'cursor-default' : 'cursor-move'}
-            ${isColliding ? 'border-red-500 shadow-lg shadow-red-500/30' : ''}
             ${isSelected ? 'border-white ring-2 ring-primary' : 'border-transparent hover:border-white/30'}
             ${isDragging || isResizing ? 'opacity-90 shadow-xl scale-[1.02]' : ''}
-            ${isPast ? 'opacity-60' : ''}
           `}
           style={{
-            backgroundColor: isPast ? '#9ca3af' : schedule.color,
-            color: schedule.textColor || '#ffffff',
+            backgroundColor: event.color || '#f59e0b',
+            color: event.textColor || '#ffffff',
           }}
           onDoubleClick={handleDoubleClick}
           onClick={handleClick}
@@ -471,25 +367,15 @@ export function ScheduleCard({
 
           {/* 콘텐츠 영역 */}
           <div className="flex items-center gap-1 h-full px-1.5">
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <span className="text-sm font-medium truncate leading-tight">
-                {schedule.title || '제목 없음'}
-              </span>
-              {schedule.projectId && (() => {
-                const project = projects.find(p => p.id === schedule.projectId)
-                return project ? (
-                  <span className="text-[10px] opacity-80 truncate leading-tight">
-                    {project.name}
-                  </span>
-                ) : null
-              })()}
-            </div>
-            {schedule.link && (
+            <span className="text-sm font-medium truncate flex-1">
+              {event.title || '제목 없음'}
+            </span>
+            {event.link && (
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (schedule.link) {
-                    window.open(schedule.link, '_blank', 'noopener,noreferrer')
+                  if (event.link) {
+                    window.open(event.link, '_blank', 'noopener,noreferrer')
                   }
                 }}
                 className="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity"
@@ -512,11 +398,22 @@ export function ScheduleCard({
         </div>
       </Rnd>
 
+      {/* 우클릭 컨텍스트 메뉴 */}
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          currentColor={event.color}
+          onColorChange={handleColorChange}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
       {/* 삭제 확인 다이얼로그 */}
       {showDeleteConfirm && (
         <ConfirmDialog
-          title="일정 삭제"
-          message={`"${schedule.title || '제목 없음'}" 일정을 삭제하시겠습니까?`}
+          title="글로벌 이벤트 삭제"
+          message={`"${event.title || '제목 없음'}" 이벤트를 삭제하시겠습니까?`}
           confirmText="삭제"
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
@@ -524,32 +421,13 @@ export function ScheduleCard({
         />
       )}
 
-      {/* 우클릭 컨텍스트 메뉴 */}
-      {contextMenu && (
-        <ContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          currentColor={schedule.color}
-          onColorChange={handleColorChange}
-          onClose={() => setContextMenu(null)}
-          members={members}
-          currentMemberId={schedule.memberId}
-          onTransfer={handleTransfer}
-        />
-      )}
-
-      {/* 호버 툴팁 - 모든 일정 카드에서 동작 */}
-      {showTooltip && (schedule.comment || schedule.title || schedule.projectId) && (() => {
+      {/* 호버 툴팁 */}
+      {showTooltip && (event.comment || event.title) && (() => {
         const rect = cardRef.current?.getBoundingClientRect()
         if (!rect) return null
 
-        // 프로젝트 정보 가져오기
-        const project = schedule.projectId ? projects.find(p => p.id === schedule.projectId) : null
-
-        // 툴팁 높이 계산 (프로젝트 + 제목 + 코멘트 유무에 따라)
-        let tooltipHeight = 28 // 기본 제목 높이
-        if (project) tooltipHeight += 18 // 프로젝트 행 추가
-        if (schedule.comment) tooltipHeight += 20 // 코멘트 행 추가
+        // 툴팁 높이 계산 (제목 + 코멘트 유무에 따라)
+        const tooltipHeight = event.comment ? 52 : 28
 
         return (
           <div
@@ -559,20 +437,12 @@ export function ScheduleCard({
               top: `${rect.top - tooltipHeight - 2}px`,
             }}
           >
-            {/* 프로젝트명 (작게) */}
-            {project && (
-              <div className="text-[10px] text-muted-foreground mb-0.5">
-                {project.name}
-              </div>
-            )}
-            {/* 제목 */}
-            <div className="text-sm font-semibold text-foreground">
-              {schedule.title || '제목 없음'}
+            <div className="text-sm font-semibold text-foreground mb-1">
+              {event.title || '제목 없음'}
             </div>
-            {/* 코멘트 (작게) */}
-            {schedule.comment && (
-              <div className="text-xs text-muted-foreground mt-0.5">
-                {schedule.comment}
+            {event.comment && (
+              <div className="text-xs text-muted-foreground">
+                {event.comment}
               </div>
             )}
           </div>
@@ -582,11 +452,9 @@ export function ScheduleCard({
       {/* 편집 팝업 */}
       {editPopup && (
         <ScheduleEditPopup
-          title={schedule.title}
-          comment={schedule.comment}
-          link={schedule.link}
-          projectId={schedule.projectId}
-          projects={projects}
+          title={event.title}
+          comment={event.comment}
+          link={event.link || ''}
           position={editPopup}
           onSave={handleEditSave}
           onCancel={handleEditCancel}

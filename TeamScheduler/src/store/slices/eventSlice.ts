@@ -23,22 +23,22 @@ export const createEventSlice = (set: any, get: any): EventSlice => ({
 
   // 특이사항 추가
   addEvent: (event) =>
-    set((state) => ({
+    set((state: EventSlice) => ({
       events: [...state.events, event],
     })),
 
   // 특이사항 업데이트
   updateEvent: (eventId, updates) =>
-    set((state) => ({
-      events: state.events.map((e) =>
+    set((state: EventSlice) => ({
+      events: state.events.map((e: SpecialEvent) =>
         e.id === eventId ? { ...e, ...updates } : e
       ),
     })),
 
   // 특이사항 삭제
   deleteEvent: (eventId) =>
-    set((state) => ({
-      events: state.events.filter((e) => e.id !== eventId),
+    set((state: EventSlice) => ({
+      events: state.events.filter((e: SpecialEvent) => e.id !== eventId),
     })),
 
   // 특정 날짜의 특이사항 가져오기
@@ -46,7 +46,7 @@ export const createEventSlice = (set: any, get: any): EventSlice => ({
     const state = get()
     const targetDate = new Date(date).setHours(0, 0, 0, 0)
 
-    return state.events.filter((e) => {
+    return state.events.filter((e: SpecialEvent) => {
       const eventDate = new Date(e.date).setHours(0, 0, 0, 0)
       return eventDate === targetDate
     })

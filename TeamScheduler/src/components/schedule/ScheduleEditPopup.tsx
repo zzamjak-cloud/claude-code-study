@@ -1,14 +1,17 @@
 // 일정 카드 편집 팝업
 
 import { useState, useRef, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, FolderKanban } from 'lucide-react'
+import { Project } from '../../types/project'
 
 interface ScheduleEditPopupProps {
   title: string
   comment?: string
   link?: string
+  projectId?: string
+  projects?: Project[]
   position: { x: number; y: number }
-  onSave: (title: string, comment: string, link: string) => void
+  onSave: (title: string, comment: string, link: string, projectId?: string) => void
   onCancel: () => void
 }
 
@@ -16,6 +19,8 @@ export function ScheduleEditPopup({
   title,
   comment = '',
   link = '',
+  projectId = '',
+  projects = [],
   position,
   onSave,
   onCancel,
@@ -23,6 +28,7 @@ export function ScheduleEditPopup({
   const [titleValue, setTitleValue] = useState(title)
   const [commentValue, setCommentValue] = useState(comment)
   const [linkValue, setLinkValue] = useState(link)
+  const [projectIdValue, setProjectIdValue] = useState(projectId)
 
   const titleRef = useRef<HTMLInputElement>(null)
   const commentRef = useRef<HTMLInputElement>(null)
@@ -49,7 +55,7 @@ export function ScheduleEditPopup({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [titleValue, commentValue, linkValue])
+  }, [titleValue, commentValue, linkValue, projectIdValue])
 
   // Enter 키로 저장, Escape 키로 취소
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -73,7 +79,7 @@ export function ScheduleEditPopup({
   }
 
   const handleSave = () => {
-    onSave(titleValue, commentValue, linkValue)
+    onSave(titleValue, commentValue, linkValue, projectIdValue || undefined)
   }
 
   return (
@@ -95,6 +101,28 @@ export function ScheduleEditPopup({
           <X className="w-4 h-4" />
         </button>
       </div>
+
+      {/* 프로젝트 */}
+      {projects.length > 0 && (
+        <div className="mb-2">
+          <label className="block text-xs text-muted-foreground mb-1">
+            <FolderKanban className="w-3 h-3 inline mr-1" />
+            프로젝트
+          </label>
+          <select
+            value={projectIdValue}
+            onChange={(e) => setProjectIdValue(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          >
+            <option value="">프로젝트 선택 안함</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* 일정 제목 */}
       <div className="mb-2">

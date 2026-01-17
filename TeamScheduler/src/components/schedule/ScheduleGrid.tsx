@@ -1,15 +1,18 @@
 // 일정 그리드 컴포넌트 (Phase 2: 드래그 앤 드롭 + Ctrl+드래그 일정 생성)
 
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useAppStore } from '../../store/useAppStore'
-import { YEAR_DAYS, CELL_HEIGHT } from '../../lib/constants/grid'
-import { getCellWidth } from '../../lib/utils/gridUtils'
+import { YEAR_DAYS } from '../../lib/constants/grid'
+import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { DateAxis } from './DateAxis'
 import { GridCell } from './GridCell'
 import { ScheduleCard } from './ScheduleCard'
-import { dateToPixels } from '../../lib/utils/dateUtils'
-import { createSchedule as createScheduleFirebase, updateTeamMember } from '../../lib/firebase/firestore'
-import { DEFAULT_SCHEDULE_COLOR } from '../../lib/constants/colors'
+import { MemberMemo } from './MemberMemo'
+import { Announcement } from '../layout/Announcement'
+import { GlobalEventCard } from './GlobalEventCard'
+import { getVisibleDayIndices, getVisibleScheduleSegments } from '../../lib/utils/dateUtils'
+import { createSchedule as createScheduleFirebase, updateTeamMember, createGlobalEvent, updateGlobalEventSettings } from '../../lib/firebase/firestore'
+import { DEFAULT_SCHEDULE_COLOR, GLOBAL_EVENT_COLOR, ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
 import { addDays } from 'date-fns'
 
 export function ScheduleGrid() {
@@ -22,10 +25,51 @@ export function ScheduleGrid() {
     workspaceId,
     currentUser,
     selectedScheduleColor, // 사용자가 선택한 기본 색상
+    isAdmin,
+    globalEvents,
+    globalEventRowCount,
+    monthVisibility,
   } = useAppStore()
   const cellWidth = getCellWidth(zoomLevel)
+  const cellHeight = getCellHeight(zoomLevel)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fixedColumnRef = useRef<HTMLDivElement>(null)
+
+  // 표시할 날짜 인덱스 (숨겨진 월 제외)
+  const visibleDayIndices = useMemo(
+    () => getVisibleDayIndices(currentYear, monthVisibility),
+    [currentYear, monthVisibility]
+  )
+
+  // 표시할 날짜 수
+  const visibleDayCount = visibleDayIndices.length
+
+  // 원본 인덱스 → 표시 인덱스 변환 맵
+  const dayIndexToVisibleIndex = useMemo(() => {
+    const map: Record<number, number> = {}
+    visibleDayIndices.forEach((originalIndex, visibleIndex) => {
+      map[originalIndex] = visibleIndex
+    })
+    return map
+  }, [visibleDayIndices])
+
+  // 월 첫 날 인덱스 Set (월 구분선 표시용)
+  const firstDayOfMonthIndices = useMemo(() => {
+    const yearStart = new Date(currentYear, 0, 1)
+    const set = new Set<number>()
+    let prevMonth = -1
+
+    visibleDayIndices.forEach((dayIndex) => {
+      const date = addDays(yearStart, dayIndex)
+      const month = date.getMonth()
+      if (month !== prevMonth) {
+        set.add(dayIndex)
+        prevMonth = month
+      }
+    })
+
+    return set
+  }, [visibleDayIndices, currentYear])
 
   // 일정 생성 상태 (Ctrl + 드래그)
   const [isCreating, setIsCreating] = useState(false)
@@ -35,8 +79,22 @@ export function ScheduleGrid() {
   const [createEnd, setCreateEnd] = useState<number | null>(null)
   const [isAnnualLeave, setIsAnnualLeave] = useState(false)  // Alt 키로 연차 카드 생성
 
+  // 글로벌 이벤트 생성 상태
+  const [isCreatingGlobal, setIsCreatingGlobal] = useState(false)
+  const [createGlobalRowIndex, setCreateGlobalRowIndex] = useState<number>(0)
+  const [createGlobalStart, setCreateGlobalStart] = useState<number | null>(null)
+  const [createGlobalEnd, setCreateGlobalEnd] = useState<number | null>(null)
+
   // 팀원별 행 수 관리
   const [memberRowCounts, setMemberRowCounts] = useState<Record<string, number>>({})
+
+  // 하단 패널 높이 (리사이즈 가능)
+  const [bottomPanelHeight, setBottomPanelHeight] = useState(() => {
+    const saved = localStorage.getItem('bottomPanelHeight')
+    return saved ? parseInt(saved, 10) : 160
+  })
+  const [isResizingPanel, setIsResizingPanel] = useState(false)
+  const panelHeightRef = useRef(bottomPanelHeight) // 리사이즈 중 현재 높이 추적용
 
   // 통합 탭 여부
   const isUnifiedTab = selectedMemberId === null
@@ -78,6 +136,38 @@ export function ScheduleGrid() {
     }
   }, [handleScroll])
 
+  // 하단 패널 리사이즈 핸들러
+  const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setIsResizingPanel(true)
+    const startY = e.clientY
+    const startHeight = panelHeightRef.current
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaY = startY - moveEvent.clientY
+      const newHeight = Math.min(400, Math.max(100, startHeight + deltaY))
+      panelHeightRef.current = newHeight
+      setBottomPanelHeight(newHeight)
+    }
+
+    const handleMouseUp = () => {
+      setIsResizingPanel(false)
+      localStorage.setItem('bottomPanelHeight', panelHeightRef.current.toString())
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [])
+
+  // 패널 높이 변경 시 localStorage 저장
+  useEffect(() => {
+    if (!isResizingPanel) {
+      localStorage.setItem('bottomPanelHeight', bottomPanelHeight.toString())
+    }
+  }, [bottomPanelHeight, isResizingPanel])
+
   // 팀원의 행 수 가져오기 (기본 1)
   const getRowCount = (memberId: string) => {
     const member = members.find((m) => m.id === memberId)
@@ -104,7 +194,22 @@ export function ScheduleGrid() {
 
   // 행 제거
   const removeRow = async (memberId: string) => {
-    const newCount = Math.max(1, getRowCount(memberId) - 1)
+    const currentRowCount = getRowCount(memberId)
+    if (currentRowCount <= 1) return // 최소 1행 유지
+
+    const lastRowIndex = currentRowCount - 1
+
+    // 마지막 행에 카드가 있는지 확인
+    const hasCardsInLastRow = schedules.some(
+      (s) => s.memberId === memberId && (s.rowIndex || 0) === lastRowIndex
+    )
+
+    if (hasCardsInLastRow) {
+      alert('카드가 등록된 행은 삭제할 수 없습니다.')
+      return
+    }
+
+    const newCount = currentRowCount - 1
     setMemberRowCounts((prev) => ({
       ...prev,
       [memberId]: newCount,
@@ -120,15 +225,62 @@ export function ScheduleGrid() {
     }
   }
 
+  // 글로벌 행 추가 (관리자 + 통합 탭에서만)
+  const addGlobalRow = async () => {
+    if (!workspaceId || !isAdmin || !isUnifiedTab) return
+    const newCount = globalEventRowCount + 1
+    try {
+      await updateGlobalEventSettings(workspaceId, { rowCount: newCount })
+    } catch (error) {
+      console.error('글로벌 행 추가 실패:', error)
+    }
+  }
+
+  // 글로벌 행 제거 (관리자 + 통합 탭에서만)
+  const removeGlobalRow = async () => {
+    if (!workspaceId || !isAdmin || !isUnifiedTab) return
+    const newCount = Math.max(1, globalEventRowCount - 1)
+    try {
+      await updateGlobalEventSettings(workspaceId, { rowCount: newCount })
+    } catch (error) {
+      console.error('글로벌 행 제거 실패:', error)
+    }
+  }
+
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId
     ? schedules.filter((s) => s.memberId === selectedMemberId)
     : schedules
 
+  // 글로벌 행 데이터 생성
+  const generateGlobalRows = () => {
+    const rows: Array<{
+      rowIndex: number
+      events: typeof globalEvents
+      isFirstRow: boolean
+      isLastRow: boolean
+      totalRows: number
+    }> = []
+
+    for (let i = 0; i < globalEventRowCount; i++) {
+      rows.push({
+        rowIndex: i,
+        events: globalEvents.filter((e) => (e.rowIndex || 0) === i),
+        isFirstRow: i === 0,
+        isLastRow: i === globalEventRowCount - 1,
+        totalRows: globalEventRowCount,
+      })
+    }
+
+    return rows
+  }
+
+  const globalRows = generateGlobalRows()
+
   // 행 데이터 생성
   const generateRows = () => {
     if (isUnifiedTab) {
-      // 통합 탭: 각 팀원별로 행 생성 (편집 불가)
+      // 통합 탭: 각 팀원별로 카드가 있는 행만 생성 (기본 1행은 항상 표시)
       const rows: Array<{
         memberId: string
         memberName: string
@@ -143,25 +295,33 @@ export function ScheduleGrid() {
       // 숨긴 팀원 제외
       const visibleMembers = members.filter((m) => !m.isHidden)
       visibleMembers.forEach((m) => {
-        // 해당 팀원의 행 개수 (rowCount 또는 일정 기반)
         const memberSchedules = schedules.filter((s) => s.memberId === m.id)
-        const maxRowIndex = memberSchedules.length > 0
-          ? Math.max(...memberSchedules.map((s) => s.rowIndex || 0))
-          : 0
-        const rowCount = Math.max(getRowCount(m.id), maxRowIndex + 1)
 
-        for (let i = 0; i < rowCount; i++) {
+        // 카드가 있는 행 인덱스 수집
+        const rowsWithCards = new Set<number>()
+        memberSchedules.forEach((s) => {
+          rowsWithCards.add(s.rowIndex || 0)
+        })
+
+        // 기본 0행은 항상 포함
+        rowsWithCards.add(0)
+
+        // 정렬된 행 인덱스 배열
+        const sortedRowIndices = Array.from(rowsWithCards).sort((a, b) => a - b)
+        const totalRows = sortedRowIndices.length
+
+        sortedRowIndices.forEach((rowIdx, displayIndex) => {
           rows.push({
             memberId: m.id,
             memberName: m.name,
             memberColor: m.color,
-            rowIndex: i,
-            schedules: memberSchedules.filter((s) => (s.rowIndex || 0) === i),
-            isFirstRow: i === 0,
-            isLastRow: i === rowCount - 1,
-            totalRows: rowCount,
+            rowIndex: rowIdx,
+            schedules: memberSchedules.filter((s) => (s.rowIndex || 0) === rowIdx),
+            isFirstRow: displayIndex === 0,
+            isLastRow: displayIndex === totalRows - 1,
+            totalRows: totalRows,
           })
-        }
+        })
       })
 
       return rows
@@ -269,7 +429,7 @@ export function ScheduleGrid() {
     const isLeave = isAnnualLeave
 
     // 연차 카드 여부에 따라 색상과 제목 설정
-    const color = isLeave ? '#e64c4c' : (selectedScheduleColor || DEFAULT_SCHEDULE_COLOR)
+    const color = isLeave ? ANNUAL_LEAVE_COLOR : (selectedScheduleColor || DEFAULT_SCHEDULE_COLOR)
     const title = isLeave ? '연차' : ''
 
     // 즉시 상태 초기화 (점선 미리보기 즉시 제거)
@@ -303,6 +463,110 @@ export function ScheduleGrid() {
     setIsAnnualLeave(false)
   }
 
+  // 글로벌 이벤트 생성 상태 초기화
+  const resetGlobalCreation = () => {
+    setIsCreatingGlobal(false)
+    setCreateGlobalRowIndex(0)
+    setCreateGlobalStart(null)
+    setCreateGlobalEnd(null)
+  }
+
+  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (통합 탭 + 관리자만)
+  const handleGlobalMouseDown = (e: React.MouseEvent, rowIndex: number) => {
+    // 통합 탭 + 관리자만 생성 가능
+    if (!isUnifiedTab || !isAdmin) return
+
+    // Ctrl 키가 눌려있지 않으면 무시
+    const isCtrl = e.ctrlKey || e.metaKey
+    if (!isCtrl) return
+
+    // 이미 존재하는 카드 위에서 시작하면 무시
+    if ((e.target as HTMLElement).closest('.global-event-card')) return
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const dayIndex = Math.floor(x / cellWidth)
+
+    setIsCreatingGlobal(true)
+    setCreateGlobalRowIndex(rowIndex)
+    setCreateGlobalStart(dayIndex)
+    setCreateGlobalEnd(dayIndex)
+
+    e.preventDefault()
+  }
+
+  // 글로벌 행에서 마우스 이동
+  const handleGlobalMouseMove = (e: React.MouseEvent) => {
+    if (!isCreatingGlobal || createGlobalStart === null) return
+
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const dayIndex = Math.max(0, Math.min(YEAR_DAYS - 1, Math.floor(x / cellWidth)))
+
+    setCreateGlobalEnd(dayIndex)
+  }
+
+  // 글로벌 행에서 마우스 업: 글로벌 이벤트 생성
+  const handleGlobalMouseUp = async () => {
+    if (!isCreatingGlobal) return
+
+    if (createGlobalStart === null || createGlobalEnd === null) {
+      resetGlobalCreation()
+      return
+    }
+
+    const startDay = Math.min(createGlobalStart, createGlobalEnd)
+    const endDay = Math.max(createGlobalStart, createGlobalEnd)
+
+    if (endDay - startDay < 0) {
+      resetGlobalCreation()
+      return
+    }
+
+    const yearStart = new Date(currentYear, 0, 1)
+    const startDate = addDays(yearStart, startDay)
+    const endDate = addDays(yearStart, endDay + 1)
+
+    const rowIndex = createGlobalRowIndex
+
+    resetGlobalCreation()
+
+    if (workspaceId && currentUser) {
+      try {
+        await createGlobalEvent(workspaceId, {
+          title: '',
+          startDate: startDate.getTime(),
+          endDate: endDate.getTime(),
+          color: GLOBAL_EVENT_COLOR,
+          rowIndex: rowIndex,
+          createdBy: currentUser.uid,
+        })
+      } catch (error) {
+        console.error('글로벌 이벤트 생성 실패:', error)
+      }
+    }
+  }
+
+  // 글로벌 이벤트 생성 미리보기 계산
+  const getGlobalCreationPreview = (rowIndex: number) => {
+    if (
+      !isCreatingGlobal ||
+      createGlobalRowIndex !== rowIndex ||
+      createGlobalStart === null ||
+      createGlobalEnd === null
+    ) {
+      return null
+    }
+
+    const startDay = Math.min(createGlobalStart, createGlobalEnd)
+    const endDay = Math.max(createGlobalStart, createGlobalEnd)
+
+    return {
+      x: startDay * cellWidth,
+      width: (endDay - startDay + 1) * cellWidth,
+    }
+  }
+
   // 생성 중인 일정 미리보기 계산
   const getCreationPreview = (memberId: string, rowIndex: number) => {
     if (
@@ -325,20 +589,60 @@ export function ScheduleGrid() {
   }
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* 상단: 그리드 영역 */}
+      <div className="flex-1 flex overflow-hidden">
+
       {/* 고정 열 (팀원 이름 또는 빈 영역) */}
       <div
         ref={fixedColumnRef}
-        className="flex-shrink-0 overflow-hidden bg-card border-r border-border"
+        className="flex-shrink-0 overflow-y-auto overflow-x-hidden bg-card border-r border-border scrollbar-none"
         style={{ width: `${fixedColumnWidth}px` }}
       >
-        {/* 고정 열 헤더 (날짜 축 높이와 동일) */}
+        {/* 고정 열 헤더 (날짜 축과 동일 - sticky) */}
         <div
-          className="flex items-center justify-center bg-card border-b border-border text-sm text-muted-foreground"
+          className="sticky top-0 z-20 flex items-center justify-center bg-card border-b border-border text-sm text-muted-foreground"
           style={{ height: '44px' }}
-        >
-          {isUnifiedTab ? '팀원' : ''}
-        </div>
+        />
+
+        {/* 글로벌 특이사항 행 - 고정 열 */}
+        {globalRows.map((row) => (
+          <div
+            key={`fixed-global-${row.rowIndex}`}
+            className={`flex items-center justify-center bg-amber-50 dark:bg-amber-900/20 ${
+              row.isLastRow ? 'border-b-2 border-amber-400' : ''
+            }`}
+            style={{ height: `${cellHeight}px` }}
+          >
+            {row.isFirstRow && (
+              <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center px-1">
+                특이사항
+              </span>
+            )}
+          </div>
+        ))}
+
+        {/* 글로벌 행 추가/제거 버튼 (통합 탭 + 관리자만) */}
+        {isUnifiedTab && isAdmin && globalRows.length > 0 && (
+          <div className="flex items-center justify-center gap-1 py-1 bg-amber-50 dark:bg-amber-900/20 border-b border-border">
+            <button
+              onClick={addGlobalRow}
+              className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-medium px-1"
+              title="특이사항 행 추가"
+            >
+              +
+            </button>
+            {globalEventRowCount > 1 && (
+              <button
+                onClick={removeGlobalRow}
+                className="text-xs text-amber-700 dark:text-amber-400 hover:text-red-500 transition-colors font-medium px-1"
+                title="특이사항 행 제거"
+              >
+                -
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 팀원 행 */}
         {rows.map((row) => (
@@ -351,7 +655,7 @@ export function ScheduleGrid() {
                   : ''
                 : 'border-b border-border'
             }`}
-            style={{ height: `${CELL_HEIGHT}px` }}
+            style={{ height: `${cellHeight}px` }}
           >
             {isUnifiedTab && row.isFirstRow && (
               <span className="text-xs font-medium text-foreground truncate text-center px-1">
@@ -394,11 +698,105 @@ export function ScheduleGrid() {
         ref={scrollContainerRef}
         className="flex-1 overflow-auto scrollbar-thin"
       >
-        <div style={{ width: `${YEAR_DAYS * cellWidth}px` }}>
+        <div style={{ width: `${visibleDayCount * cellWidth}px` }}>
           {/* 날짜 축 - sticky로 상단 고정 */}
           <div className="sticky top-0 z-30 bg-card border-b border-border">
             <DateAxis hideFixedColumn />
           </div>
+
+          {/* 글로벌 특이사항 행 - 그리드 */}
+          {globalRows.map((row) => {
+            const globalPreview = getGlobalCreationPreview(row.rowIndex)
+            // 통합 탭 + 관리자만 편집 가능
+            const isGlobalReadOnly = !isUnifiedTab || !isAdmin
+
+            return (
+              <div
+                key={`grid-global-${row.rowIndex}`}
+                className="relative bg-amber-50/50 dark:bg-amber-900/10"
+                style={{ height: `${cellHeight}px` }}
+                onMouseDown={(e) => handleGlobalMouseDown(e, row.rowIndex)}
+                onMouseMove={handleGlobalMouseMove}
+                onMouseUp={handleGlobalMouseUp}
+                onMouseLeave={() => {
+                  if (isCreatingGlobal) resetGlobalCreation()
+                }}
+              >
+                {/* 그리드 셀 배경 */}
+                <div className="flex absolute inset-0">
+                  {visibleDayIndices.map((dayIndex) => (
+                    <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
+                  ))}
+                </div>
+
+                {/* 특이사항 하단 노란 구분선 (z-index로 셀 배경 위에 표시) */}
+                {row.isLastRow && (
+                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400 z-20" />
+                )}
+
+                {/* 생성 중인 글로벌 이벤트 미리보기 */}
+                {globalPreview && (
+                  <div
+                    className="absolute top-1 rounded-md border-2 border-dashed border-amber-500 bg-amber-500/20 pointer-events-none z-30"
+                    style={{
+                      left: `${globalPreview.x}px`,
+                      width: `${globalPreview.width}px`,
+                      height: `${cellHeight - 8}px`,
+                    }}
+                  />
+                )}
+
+                {/* 글로벌 이벤트 카드 */}
+                {row.events.map((event) => {
+                  // 이벤트가 표시될 세그먼트 계산
+                  const segments = getVisibleScheduleSegments(
+                    new Date(event.startDate),
+                    new Date(event.endDate),
+                    currentYear,
+                    monthVisibility
+                  )
+                  // 세그먼트가 없으면 (모든 날짜가 숨겨진 월에 있으면) 렌더링 안 함
+                  if (segments.length === 0) return null
+
+                  // 첫 번째 표시 가능한 세그먼트 사용
+                  const firstSegment = segments[0]
+                  const visibleStartIndex = dayIndexToVisibleIndex[firstSegment.startDayIndex]
+                  if (visibleStartIndex === undefined) return null
+
+                  const eventX = visibleStartIndex * cellWidth
+
+                  // 표시할 날짜 수 계산 (모든 표시 가능한 세그먼트의 합)
+                  let totalVisibleDays = 0
+                  for (const seg of segments) {
+                    for (let d = seg.startDayIndex; d < seg.endDayIndex; d++) {
+                      if (dayIndexToVisibleIndex[d] !== undefined) {
+                        totalVisibleDays++
+                      }
+                    }
+                  }
+
+                  return (
+                    <GlobalEventCard
+                      key={event.id}
+                      event={event}
+                      x={eventX}
+                      isReadOnly={isGlobalReadOnly}
+                      totalRows={row.totalRows}
+                      visibleWidth={totalVisibleDays * cellWidth}
+                    />
+                  )
+                })}
+              </div>
+            )
+          })}
+
+          {/* 글로벌 행 추가 버튼 영역 (통합 탭 + 관리자만) */}
+          {isUnifiedTab && isAdmin && globalRows.length > 0 && (
+            <div
+              className="flex items-center justify-center bg-amber-50/50 dark:bg-amber-900/10 border-b border-border"
+              style={{ height: '28px' }}
+            />
+          )}
 
           {/* 그리드 행 */}
           {rows.map((row) => {
@@ -414,7 +812,7 @@ export function ScheduleGrid() {
                       : ''
                     : 'border-b border-border'
                 }`}
-                style={{ height: `${CELL_HEIGHT}px` }}
+                style={{ height: `${cellHeight}px` }}
                 onMouseDown={(e) => handleMouseDown(e, row.memberId, row.rowIndex)}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
@@ -424,8 +822,8 @@ export function ScheduleGrid() {
               >
                 {/* 그리드 셀 배경 */}
                 <div className="flex absolute inset-0">
-                  {Array.from({ length: YEAR_DAYS }).map((_, dayIndex) => (
-                    <GridCell key={dayIndex} dayIndex={dayIndex} />
+                  {visibleDayIndices.map((dayIndex) => (
+                    <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
                   ))}
                 </div>
 
@@ -436,18 +834,40 @@ export function ScheduleGrid() {
                     style={{
                       left: `${preview.x}px`,
                       width: `${preview.width}px`,
-                      height: `${CELL_HEIGHT - 8}px`,
+                      height: `${cellHeight - 8}px`,
                     }}
                   />
                 )}
 
                 {/* 일정 카드 */}
                 {row.schedules.map((schedule) => {
-                  const x = dateToPixels(
+                  // 일정이 표시될 세그먼트 계산
+                  const segments = getVisibleScheduleSegments(
                     new Date(schedule.startDate),
+                    new Date(schedule.endDate),
                     currentYear,
-                    zoomLevel
+                    monthVisibility
                   )
+                  // 세그먼트가 없으면 (모든 날짜가 숨겨진 월에 있으면) 렌더링 안 함
+                  if (segments.length === 0) return null
+
+                  // 첫 번째 표시 가능한 세그먼트 사용
+                  const firstSegment = segments[0]
+                  const visibleStartIndex = dayIndexToVisibleIndex[firstSegment.startDayIndex]
+                  if (visibleStartIndex === undefined) return null
+
+                  const x = visibleStartIndex * cellWidth
+
+                  // 표시할 날짜 수 계산 (모든 표시 가능한 세그먼트의 합)
+                  let totalVisibleDays = 0
+                  for (const seg of segments) {
+                    for (let d = seg.startDayIndex; d < seg.endDayIndex; d++) {
+                      if (dayIndexToVisibleIndex[d] !== undefined) {
+                        totalVisibleDays++
+                      }
+                    }
+                  }
+
                   return (
                     <ScheduleCard
                       key={schedule.id}
@@ -455,7 +875,8 @@ export function ScheduleGrid() {
                       x={x}
                       isReadOnly={isUnifiedTab}
                       totalRows={row.totalRows}
-                      onRowChange={isUnifiedTab ? undefined : async (newRowIndex) => {
+                      visibleWidth={totalVisibleDays * cellWidth}
+                      onRowChange={isUnifiedTab ? undefined : async (_newRowIndex) => {
                         // 행 변경 로직은 ScheduleCard에서 처리
                       }}
                     />
@@ -472,20 +893,36 @@ export function ScheduleGrid() {
             </div>
           )}
 
-          {/* 안내 메시지 영역 */}
-          <div className="p-4 text-center text-sm text-muted-foreground border-t border-border">
-            {!isUnifiedTab ? (
-              <>
-                <kbd className="px-2 py-1 bg-muted rounded text-xs">Ctrl</kbd> + 드래그로 새 일정 생성 |{' '}
-                <kbd className="px-2 py-1 bg-muted rounded text-xs">Alt</kbd> + 드래그로 연차 등록 |{' '}
-                <kbd className="px-2 py-1 bg-muted rounded text-xs">Delete</kbd> 키로 선택한 일정 삭제
-              </>
-            ) : (
-              '통합 탭에서는 일정을 조회만 할 수 있습니다. 편집하려면 팀원 탭을 선택하세요.'
-            )}
-          </div>
         </div>
       </div>
+      </div>
+
+      {/* 하단: 고정 패널 - 공지사항 | 메모 (개별 탭에서만 표시) */}
+      {!isUnifiedTab && selectedMemberId && (
+        <div className="flex-shrink-0 flex flex-col border-t border-border bg-card">
+          {/* 리사이즈 핸들 */}
+          <div
+            onMouseDown={handlePanelResizeStart}
+            className={`h-1.5 cursor-ns-resize hover:bg-primary/30 transition-colors flex items-center justify-center group ${
+              isResizingPanel ? 'bg-primary/30' : 'bg-transparent'
+            }`}
+          >
+            <div className="w-12 h-1 bg-border group-hover:bg-primary/50 rounded-full" />
+          </div>
+
+          {/* 패널 내용 */}
+          <div className="flex" style={{ height: `${bottomPanelHeight}px` }}>
+            {/* 공지사항 */}
+            <div className="flex-1 border-r border-border">
+              <Announcement />
+            </div>
+            {/* 메모 */}
+            <div className="flex-1">
+              <MemberMemo memberId={selectedMemberId} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

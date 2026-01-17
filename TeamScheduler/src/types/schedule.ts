@@ -10,6 +10,7 @@ export interface Schedule {
   color: string
   textColor?: string
   link?: string
+  projectId?: string // 프로젝트 ID
   rowIndex: number   // 행 인덱스 (같은 날짜에 여러 일정)
   createdBy: string
   createdAt: number

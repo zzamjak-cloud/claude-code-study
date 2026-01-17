@@ -10,6 +10,7 @@ export interface TeamMember {
   isHidden: boolean
   order: number
   rowCount?: number  // 팀원별 행 개수
+  memo?: string  // 팀원별 메모 (향후 일정 후보 메모용)
   createdAt: number
   updatedAt: number
 }

@@ -1,18 +1,18 @@
 // 그리드 셀 컴포넌트
 
-import { CELL_HEIGHT } from '../../lib/constants/grid'
-import { getCellWidth } from '../../lib/utils/gridUtils'
+import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
-import { WEEKEND_HOLIDAY_COLOR } from '../../lib/constants/colors'
 import { addDays, isWeekend, isSameDay, isToday } from 'date-fns'
 
 interface GridCellProps {
   dayIndex: number
+  isFirstDayOfMonth?: boolean // 월 첫 날 여부
 }
 
-export function GridCell({ dayIndex }: GridCellProps) {
-  const { zoomLevel, currentYear, events } = useAppStore()
+export function GridCell({ dayIndex, isFirstDayOfMonth = false }: GridCellProps) {
+  const { zoomLevel, currentYear, events, weekendColor } = useAppStore()
   const cellWidth = getCellWidth(zoomLevel)
+  const cellHeight = getCellHeight(zoomLevel)
 
   // 해당 날짜 계산
   const yearStart = new Date(currentYear, 0, 1)
@@ -36,8 +36,10 @@ export function GridCell({ dayIndex }: GridCellProps) {
       className="border-r border-border transition-colors flex-shrink-0 relative"
       style={{
         width: `${cellWidth}px`,
-        height: `${CELL_HEIGHT}px`,
-        backgroundColor: isSpecialDay ? WEEKEND_HOLIDAY_COLOR : undefined,
+        height: `${cellHeight}px`,
+        backgroundColor: isSpecialDay ? weekendColor : undefined,
+        // 월 구분선 (DateAxis와 정확히 일치하는 스타일)
+        borderLeft: isFirstDayOfMonth ? '2px dashed #c5c7cc' : undefined,
       }}
     >
       {/* 오늘 날짜 세로 라인 */}

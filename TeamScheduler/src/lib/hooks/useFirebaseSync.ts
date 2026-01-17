@@ -8,19 +8,23 @@ import {
   orderBy,
   Timestamp,
   getDocs,
+  doc,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { useAppStore } from '../../store/useAppStore'
 import { Schedule } from '../../types/schedule'
 import { TeamMember } from '../../types/team'
 import { SpecialEvent } from '../../types/event'
+import { Announcement } from '../../types/announcement'
+import { GlobalEvent } from '../../types/globalEvent'
+import { Project } from '../../types/project'
 
 /**
  * Firebase Firestore 실시간 동기화 훅
  * @param workspaceId - 워크스페이스 ID
  */
 export const useFirebaseSync = (workspaceId: string | null) => {
-  const { setSchedules, setMembers, setEvents } = useAppStore()
+  const { setSchedules, setMembers, setEvents, setAnnouncement, setGlobalEvents, setGlobalEventRowCount, setProjects } = useAppStore()
 
   useEffect(() => {
     console.log('🔄 Firebase 동기화 시작 - workspaceId:', workspaceId)
@@ -64,6 +68,7 @@ export const useFirebaseSync = (workspaceId: string | null) => {
             color: data.color,
             textColor: data.textColor,
             link: data.link,
+            projectId: data.projectId,
             rowIndex: data.rowIndex || 0,
             createdBy: data.createdBy,
             createdAt:
@@ -106,6 +111,7 @@ export const useFirebaseSync = (workspaceId: string | null) => {
             isHidden: data.isHidden || false,
             order: data.order || 0,
             rowCount: data.rowCount || 1,
+            memo: data.memo || '',
             createdAt:
               data.createdAt instanceof Timestamp
                 ? data.createdAt.toMillis()
@@ -165,6 +171,145 @@ export const useFirebaseSync = (workspaceId: string | null) => {
       }
     )
 
+    // 공지사항 동기화 (단일 문서)
+    const announcementRef = doc(db, `announcements/${workspaceId}`)
+
+    const unsubscribeAnnouncement = onSnapshot(
+      announcementRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data()
+          const announcement: Announcement = {
+            id: snapshot.id,
+            content: data.content || '',
+            createdBy: data.createdBy || '',
+            createdAt:
+              data.createdAt instanceof Timestamp
+                ? data.createdAt.toMillis()
+                : data.createdAt || Date.now(),
+            updatedAt:
+              data.updatedAt instanceof Timestamp
+                ? data.updatedAt.toMillis()
+                : data.updatedAt || Date.now(),
+          }
+          console.log('✅ 공지사항 동기화:', announcement.content ? '내용 있음' : '내용 없음')
+          setAnnouncement(announcement)
+        } else {
+          console.log('✅ 공지사항 없음')
+          setAnnouncement(null)
+        }
+      },
+      (error) => {
+        console.error('❌ 공지사항 동기화 실패:', error)
+      }
+    )
+
+    // 글로벌 이벤트 동기화
+    const globalEventsQuery = query(
+      collection(db, `globalEvents/${workspaceId}/items`),
+      orderBy('startDate', 'asc')
+    )
+
+    const unsubscribeGlobalEvents = onSnapshot(
+      globalEventsQuery,
+      (snapshot) => {
+        const globalEvents = snapshot.docs.map((doc) => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            title: data.title,
+            comment: data.comment,
+            link: data.link,
+            startDate:
+              data.startDate instanceof Timestamp
+                ? data.startDate.toMillis()
+                : data.startDate,
+            endDate:
+              data.endDate instanceof Timestamp
+                ? data.endDate.toMillis()
+                : data.endDate,
+            color: data.color,
+            textColor: data.textColor,
+            rowIndex: data.rowIndex || 0,
+            createdBy: data.createdBy,
+            createdAt:
+              data.createdAt instanceof Timestamp
+                ? data.createdAt.toMillis()
+                : data.createdAt || Date.now(),
+            updatedAt:
+              data.updatedAt instanceof Timestamp
+                ? data.updatedAt.toMillis()
+                : data.updatedAt || Date.now(),
+          } as GlobalEvent
+        })
+
+        console.log('✅ 글로벌 이벤트 동기화:', globalEvents.length, '개')
+        setGlobalEvents(globalEvents)
+      },
+      (error) => {
+        console.error('❌ 글로벌 이벤트 동기화 실패:', error)
+      }
+    )
+
+    // 글로벌 이벤트 설정 동기화 (행 개수)
+    // Firestore 문서 참조는 짝수 세그먼트 필요: globalEventSettings/{workspaceId}
+    const globalEventSettingsRef = doc(db, `globalEventSettings/${workspaceId}`)
+
+    const unsubscribeGlobalEventSettings = onSnapshot(
+      globalEventSettingsRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.data()
+          const rowCount = data.rowCount || 1
+          console.log('✅ 글로벌 이벤트 설정 동기화: rowCount =', rowCount)
+          setGlobalEventRowCount(rowCount)
+        } else {
+          console.log('✅ 글로벌 이벤트 설정 없음 - 기본값 사용')
+          setGlobalEventRowCount(1)
+        }
+      },
+      (error) => {
+        console.error('❌ 글로벌 이벤트 설정 동기화 실패:', error)
+      }
+    )
+
+    // 프로젝트 동기화 (order 필드가 없는 기존 문서도 포함하기 위해 createdAt으로 쿼리)
+    const projectsQuery = query(
+      collection(db, `projects/${workspaceId}/items`),
+      orderBy('createdAt', 'asc')
+    )
+
+    const unsubscribeProjects = onSnapshot(
+      projectsQuery,
+      (snapshot) => {
+        const projects = snapshot.docs.map((doc) => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            name: data.name,
+            color: data.color,
+            description: data.description,
+            order: data.order ?? 0,
+            createdBy: data.createdBy,
+            createdAt:
+              data.createdAt instanceof Timestamp
+                ? data.createdAt.toMillis()
+                : data.createdAt || Date.now(),
+            updatedAt:
+              data.updatedAt instanceof Timestamp
+                ? data.updatedAt.toMillis()
+                : data.updatedAt || Date.now(),
+          } as Project
+        })
+
+        console.log('✅ 프로젝트 동기화:', projects.length, '개')
+        setProjects(projects)
+      },
+      (error) => {
+        console.error('❌ 프로젝트 동기화 실패:', error)
+      }
+    )
+
     console.log('📡 모든 Firestore 리스너 설정 완료!')
 
     // 디버깅: 일회성 읽기로 연결 테스트
@@ -182,6 +327,11 @@ export const useFirebaseSync = (workspaceId: string | null) => {
       unsubscribeSchedules()
       unsubscribeMembers()
       unsubscribeEvents()
+      unsubscribeAnnouncement()
+      unsubscribeGlobalEvents()
+      unsubscribeGlobalEventSettings()
+      unsubscribeProjects()
     }
-  }, [workspaceId, setSchedules, setMembers, setEvents])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId]) // Zustand setters는 안정적인 참조이므로 의존성에서 제외
 }

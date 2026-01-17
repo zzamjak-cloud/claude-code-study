@@ -12,12 +12,14 @@ import { TeamTabs } from './components/layout/TeamTabs'
 import { ScheduleGrid } from './components/schedule/ScheduleGrid'
 import { AdminPanel } from './components/modals/AdminPanel'
 import { ColorPresetModal } from './components/modals/ColorPresetModal'
-import { LogIn, Settings, Palette } from 'lucide-react'
+import { HelpModal } from './components/modals/HelpModal'
+import { MonthFilter } from './components/layout/MonthFilter'
+import { LogIn, Settings, Palette, HelpCircle, ZoomIn, ZoomOut } from 'lucide-react'
 
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin } =
+  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel } =
     useAppStore()
 
   // Firebase 실시간 동기화
@@ -28,6 +30,9 @@ function App() {
 
   // 컬러 프리셋 모달 상태
   const [showColorPreset, setShowColorPreset] = useState(false)
+
+  // 도움말 모달 상태
+  const [showHelp, setShowHelp] = useState(false)
 
   // 임시: 워크스페이스 자동 설정 (실제로는 워크스페이스 선택 화면 필요)
   useEffect(() => {
@@ -101,57 +106,64 @@ function App() {
           <div className="flex items-center gap-4">
             <span className="text-sm font-medium text-foreground">2026년</span>
 
-            {/* 월 바로가기 */}
-            <select
-              className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground hover:bg-muted transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary"
-              onChange={(e) => {
-                const month = parseInt(e.target.value)
-                if (month >= 1 && month <= 12) {
-                  // 해당 월의 첫날로 스크롤 (대략적인 픽셀 계산)
-                  const daysBeforeMonth = new Date(2026, month - 1, 1).getTime() - new Date(2026, 0, 1).getTime()
-                  const dayOffset = Math.floor(daysBeforeMonth / (1000 * 60 * 60 * 24))
-                  const scrollX = dayOffset * 50 // 기본 셀 너비 50px
-
-                  // 그리드 영역 찾아서 스크롤
-                  const gridElement = document.querySelector('.flex-1.overflow-auto')
-                  if (gridElement) {
-                    gridElement.scrollLeft = scrollX
-                  }
-                }
-                // 선택 초기화
-                e.target.value = ''
-              }}
-              value=""
-            >
-              <option value="" disabled>월 바로가기</option>
-              {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
-                <option key={month} value={month}>
-                  {month}월
-                </option>
-              ))}
-            </select>
+            {/* 월 바로가기 + 필터링 */}
+            <MonthFilter />
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 컬러 프리셋 버튼 */}
+            {/* 줌 컨트롤 */}
+            <div className="flex items-center gap-1 bg-muted rounded-md p-1">
+              <button
+                onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-50"
+                title="축소"
+                disabled={zoomLevel <= 0.5}
+              >
+                <ZoomOut className="w-4 h-4" />
+              </button>
+              <span className="text-xs font-medium w-12 text-center">
+                {Math.round(zoomLevel * 100)}%
+              </span>
+              <button
+                onClick={() => setZoomLevel(Math.min(2.0, zoomLevel + 0.25))}
+                className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-50"
+                title="확대"
+                disabled={zoomLevel >= 2.0}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 도움말 버튼 */}
             <button
-              onClick={() => setShowColorPreset(true)}
-              className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-accent transition-colors font-medium flex items-center gap-2"
-              title="일정 기본 색상 설정"
+              onClick={() => setShowHelp(true)}
+              className="p-2 bg-muted text-foreground rounded-md hover:bg-accent transition-colors"
+              title="사용 가이드"
             >
-              <Palette className="w-4 h-4" />
-              색상 설정
+              <HelpCircle className="w-5 h-5" />
             </button>
 
-            {/* 관리자 버튼 */}
+            {/* 관리자 전용 버튼들 */}
             {isAdmin && (
-              <button
-                onClick={() => setShowAdminPanel(true)}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors font-medium flex items-center gap-2"
-              >
-                <Settings className="w-4 h-4" />
-                팀원 관리
-              </button>
+              <>
+                {/* 컬러 프리셋 버튼 */}
+                <button
+                  onClick={() => setShowColorPreset(true)}
+                  className="p-2 bg-muted text-foreground rounded-md hover:bg-accent transition-colors"
+                  title="일정 기본 색상 설정"
+                >
+                  <Palette className="w-5 h-5" />
+                </button>
+
+                {/* 팀원 관리 버튼 */}
+                <button
+                  onClick={() => setShowAdminPanel(true)}
+                  className="p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                  title="팀원 관리"
+                >
+                  <Settings className="w-5 h-5" />
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -167,6 +179,11 @@ function App() {
         {/* 컬러 프리셋 모달 */}
         {showColorPreset && (
           <ColorPresetModal onClose={() => setShowColorPreset(false)} />
+        )}
+
+        {/* 도움말 모달 */}
+        {showHelp && (
+          <HelpModal onClose={() => setShowHelp(false)} />
         )}
       </div>
     </ErrorBoundary>
