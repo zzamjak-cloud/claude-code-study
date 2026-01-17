@@ -1,6 +1,7 @@
 // 뷰 상태 슬라이스
 
 import { DEFAULT_ZOOM } from '../../lib/constants/grid'
+import { DEFAULT_SCHEDULE_COLOR } from '../../lib/constants/colors'
 
 export interface ViewSlice {
   // 줌 레벨 (1.0 = 기본, 0.5 = 축소, 2.0 = 확대)
@@ -18,11 +19,15 @@ export interface ViewSlice {
   // 현재 연도
   currentYear: number
 
+  // 선택한 기본 일정 색상
+  selectedScheduleColor: string
+
   // 메서드
   setZoomLevel: (level: number) => void
   setDateRange: (start: Date | null, end: Date | null) => void
   setScrollOffset: (offset: number) => void
   setCurrentYear: (year: number) => void
+  setSelectedScheduleColor: (color: string) => void
   resetFilters: () => void
 }
 
@@ -35,6 +40,7 @@ export const createViewSlice = (set: any): ViewSlice => ({
   },
   scrollOffset: 0,
   currentYear: new Date().getFullYear(),
+  selectedScheduleColor: DEFAULT_SCHEDULE_COLOR,
 
   // 줌 레벨 설정
   setZoomLevel: (level) => set({ zoomLevel: level }),
@@ -50,6 +56,9 @@ export const createViewSlice = (set: any): ViewSlice => ({
 
   // 현재 연도 설정
   setCurrentYear: (year) => set({ currentYear: year }),
+
+  // 기본 일정 색상 설정
+  setSelectedScheduleColor: (color) => set({ selectedScheduleColor: color }),
 
   // 필터 초기화
   resetFilters: () =>

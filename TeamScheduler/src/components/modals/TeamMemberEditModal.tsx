@@ -1,57 +1,53 @@
-// 관리자 패널 (간단한 버전 - Phase 1 MVP)
+// 팀원 정보 편집 모달
 
 import { useState } from 'react'
-import { X, Plus, UserPlus } from 'lucide-react'
+import { X, Save, User } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
-import { addTeamMember } from '../../lib/firebase/firestore'
+import { updateTeamMember } from '../../lib/firebase/firestore'
+import { TeamMember } from '../../types/team'
 import { COLOR_PRESETS } from '../../lib/constants/colors'
 
-interface AdminPanelProps {
+interface TeamMemberEditModalProps {
+  member: TeamMember
   onClose: () => void
 }
 
-export function AdminPanel({ onClose }: AdminPanelProps) {
-  const { workspaceId, members } = useAppStore()
-  const [name, setName] = useState('')
-  const [role, setRole] = useState('')
-  const [selectedColor, setSelectedColor] = useState(COLOR_PRESETS[0])
+export function TeamMemberEditModal({ member, onClose }: TeamMemberEditModalProps) {
+  const { workspaceId } = useAppStore()
+  const [name, setName] = useState(member.name)
+  const [role, setRole] = useState(member.role || '')
+  const [selectedColor, setSelectedColor] = useState(member.color)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!workspaceId || !name.trim()) {
-      alert('이름을 입력해주세요.')
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      // 순서는 현재 팀원 수 + 1
-      const order = members.length
-
-      await addTeamMember(workspaceId, {
+      await updateTeamMember(workspaceId, member.id, {
         name: name.trim(),
         role: role.trim() || '팀원',
         color: selectedColor,
-        isHidden: false,
-        order,
-        rowCount: 1,
       })
 
-      // 초기화
-      setName('')
-      setRole('')
-      setSelectedColor(COLOR_PRESETS[0])
-      alert('팀원이 추가되었습니다.')
+      onClose()
     } catch (error) {
-      console.error('팀원 추가 실패:', error)
-      alert('팀원 추가에 실패했습니다.')
+      console.error('팀원 정보 수정 실패:', error)
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  // 변경사항 있는지 확인
+  const hasChanges =
+    name.trim() !== member.name ||
+    (role.trim() || '팀원') !== (member.role || '팀원') ||
+    selectedColor !== member.color
 
   return (
     <div
@@ -64,8 +60,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         {/* 헤더 */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
-            <UserPlus className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-foreground">팀원 관리</h3>
+            <User className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">팀원 정보 편집</h3>
           </div>
           <button
             onClick={onClose}
@@ -75,7 +71,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           </button>
         </div>
 
-        {/* 팀원 추가 폼 */}
+        {/* 편집 폼 */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* 이름 */}
           <div>
@@ -140,48 +136,18 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !name.trim()}
+              disabled={isSubmitting || !name.trim() || !hasChanges}
               className="flex-1 px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {isSubmitting ? '추가 중...' : (
+              {isSubmitting ? '저장 중...' : (
                 <>
-                  <Plus className="w-4 h-4" />
-                  팀원 추가
+                  <Save className="w-4 h-4" />
+                  저장
                 </>
               )}
             </button>
           </div>
         </form>
-
-        {/* 현재 팀원 목록 */}
-        {members.length > 0 && (
-          <div className="mt-6 pt-6 border-t border-border">
-            <h4 className="text-sm font-medium text-foreground mb-3">
-              현재 팀원 ({members.length}명)
-            </h4>
-            <div className="space-y-2 max-h-48 overflow-y-auto scrollbar-thin">
-              {members.map((member) => (
-                <div
-                  key={member.id}
-                  className="flex items-center gap-3 p-2 rounded-md bg-muted/50"
-                >
-                  <div
-                    className="w-4 h-4 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: member.color }}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {member.name}
-                    </p>
-                    {member.role && (
-                      <p className="text-xs text-muted-foreground">{member.role}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   )

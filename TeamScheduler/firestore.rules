@@ -1,33 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 워크스페이스 읽기: 인증된 사용자만
+    // 개발/테스트용: 인증된 사용자는 모든 데이터 읽기/쓰기 가능
+    // 프로덕션에서는 더 엄격한 규칙으로 변경 필요
+
+    // 워크스페이스
     match /workspaces/{workspaceId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-                      request.auth.uid == resource.data.ownerId;
+      allow read, write: if request.auth != null;
     }
 
-    // 팀원: 워크스페이스 멤버만 읽기, 관리자만 쓰기
+    // 팀원
     match /teams/{workspaceId}/members/{memberId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-                      get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
 
-    // 일정: 워크스페이스 멤버만 읽기/쓰기
+    // 일정
     match /schedules/{workspaceId}/items/{scheduleId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null &&
-                       request.resource.data.createdBy == request.auth.uid;
-      allow update, delete: if request.auth != null;
+      allow read, write: if request.auth != null;
     }
 
-    // 특이사항: 관리자만 쓰기
+    // 특이사항
     match /events/{workspaceId}/items/{eventId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null &&
-                      get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid;
+      allow read, write: if request.auth != null;
     }
   }
 }

@@ -13,5 +13,6 @@ export const COLOR_PRESETS = [
   '#F1C40F', // 노랑
 ]
 
-export const DEFAULT_SCHEDULE_COLOR = '#3B82F6'  // 기본 일정 색상 (파랑)
+export const DEFAULT_SCHEDULE_COLOR = '#b1867c'  // 기본 일정 색상 (부드러운 브라운)
+export const WEEKEND_HOLIDAY_COLOR = '#fcc3b6'  // 주말/공휴일 배경색
 export const COLLISION_COLOR = '#EF4444'         // 겹침 표시 색상 (빨강)

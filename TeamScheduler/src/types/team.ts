@@ -9,6 +9,7 @@ export interface TeamMember {
   color: string
   isHidden: boolean
   order: number
+  rowCount?: number  // 팀원별 행 개수
   createdAt: number
   updatedAt: number
 }

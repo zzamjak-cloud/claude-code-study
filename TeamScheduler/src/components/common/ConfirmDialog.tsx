@@ -1,5 +1,6 @@
 // 확인 다이얼로그 컴포넌트 (CLAUDE.md 패턴 준수 - window.confirm 대신 커스텀 다이얼로그)
 
+import { useEffect } from 'react'
 import { X } from 'lucide-react'
 
 interface ConfirmDialogProps {
@@ -12,6 +13,7 @@ interface ConfirmDialogProps {
   onInputChange?: (value: string) => void
   onConfirm: () => void
   onCancel: () => void
+  isDestructive?: boolean  // 삭제 등 위험한 작업인지 여부
 }
 
 export function ConfirmDialog({
@@ -24,7 +26,26 @@ export function ConfirmDialog({
   onInputChange,
   onConfirm,
   onCancel,
+  isDestructive = false,
 }: ConfirmDialogProps) {
+  // Enter 키로 확인, Escape 키로 취소
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm()
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onConfirm, onCancel])
+
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
@@ -70,7 +91,11 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors font-medium"
+            className={`px-4 py-2 rounded-md transition-colors font-medium ${
+              isDestructive
+                ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
+                : 'bg-primary text-primary-foreground hover:bg-primary/90'
+            }`}
           >
             {confirmText}
           </button>

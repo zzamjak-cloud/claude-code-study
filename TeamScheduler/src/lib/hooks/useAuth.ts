@@ -15,6 +15,7 @@ export const useAuth = () => {
     setLoading(true)
 
     const unsubscribe = onAuthChange((firebaseUser) => {
+      console.log('🔐 Auth 상태 변경:', firebaseUser?.uid || 'null')
       if (firebaseUser) {
         const user: User = {
           uid: firebaseUser.uid,
