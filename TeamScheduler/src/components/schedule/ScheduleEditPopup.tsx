@@ -1,8 +1,9 @@
 // 일정 카드 편집 팝업
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { X, FolderKanban } from 'lucide-react'
 import { Project } from '../../types/project'
+import { useAppStore } from '../../store/useAppStore'
 
 interface ScheduleEditPopupProps {
   title: string
@@ -25,10 +26,23 @@ export function ScheduleEditPopup({
   onSave,
   onCancel,
 }: ScheduleEditPopupProps) {
+  const { lastSelectedProjectId, setLastSelectedProjectId } = useAppStore()
+
   const [titleValue, setTitleValue] = useState(title)
   const [commentValue, setCommentValue] = useState(comment)
   const [linkValue, setLinkValue] = useState(link)
-  const [projectIdValue, setProjectIdValue] = useState(projectId)
+  // 기존 projectId가 있으면 사용, 없으면 lastSelectedProjectId 사용
+  const [projectIdValue, setProjectIdValue] = useState(projectId || lastSelectedProjectId || '')
+
+  // 프로젝트 정렬 및 필터링: 숨김 제외, 프로젝트 타입 먼저 → 조직 타입
+  const sortedProjects = useMemo(() => {
+    // 숨김 프로젝트 제외
+    const visible = projects.filter(p => !p.isHidden)
+    // 프로젝트 타입과 조직 타입 분리
+    const projectType = visible.filter(p => p.type === 'project' || !p.type)
+    const orgType = visible.filter(p => p.type === 'organization')
+    return { projectType, orgType }
+  }, [projects])
 
   const titleRef = useRef<HTMLInputElement>(null)
   const commentRef = useRef<HTMLInputElement>(null)
@@ -79,6 +93,10 @@ export function ScheduleEditPopup({
   }
 
   const handleSave = () => {
+    // 마지막 선택한 프로젝트 기억
+    if (projectIdValue) {
+      setLastSelectedProjectId(projectIdValue)
+    }
     onSave(titleValue, commentValue, linkValue, projectIdValue || undefined)
   }
 
@@ -103,7 +121,7 @@ export function ScheduleEditPopup({
       </div>
 
       {/* 프로젝트 */}
-      {projects.length > 0 && (
+      {(sortedProjects.projectType.length > 0 || sortedProjects.orgType.length > 0) && (
         <div className="mb-2">
           <label className="block text-xs text-muted-foreground mb-1">
             <FolderKanban className="w-3 h-3 inline mr-1" />
@@ -115,7 +133,18 @@ export function ScheduleEditPopup({
             className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">프로젝트 선택 안함</option>
-            {projects.map((project) => (
+            {/* 프로젝트 타입 먼저 */}
+            {sortedProjects.projectType.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+            {/* 구분선 (프로젝트와 조직이 모두 있을 때만) */}
+            {sortedProjects.projectType.length > 0 && sortedProjects.orgType.length > 0 && (
+              <option disabled>───────────</option>
+            )}
+            {/* 조직 타입 */}
+            {sortedProjects.orgType.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
               </option>

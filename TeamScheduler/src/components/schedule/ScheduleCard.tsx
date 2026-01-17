@@ -196,14 +196,14 @@ export function ScheduleCard({
   const handleTransfer = async (targetMemberId: string) => {
     if (!workspaceId) return
 
-    // 대상 팀원 정보
+    // 대상 구성원 정보
     const targetMember = members.find((m) => m.id === targetMemberId)
     if (!targetMember) return
 
-    // 대상 팀원의 일정 목록
+    // 대상 구성원의 일정 목록
     const targetSchedules = schedules.filter((s) => s.memberId === targetMemberId)
 
-    // 대상 팀원의 행 개수
+    // 대상 구성원의 행 개수
     const targetRowCount = targetMember.rowCount || 1
 
     // 빈 행 찾기 (충돌 없는 rowIndex)
@@ -234,7 +234,7 @@ export function ScheduleCard({
     }
 
     try {
-      // 1. 행 추가 필요 시 대상 팀원 rowCount 업데이트
+      // 1. 행 추가 필요 시 대상 구성원 rowCount 업데이트
       if (needsNewRow) {
         await updateTeamMember(workspaceId, targetMemberId, {
           rowCount: targetRowCount + 1,
@@ -470,35 +470,37 @@ export function ScheduleCard({
           )}
 
           {/* 콘텐츠 영역 */}
-          <div className="flex items-center gap-1 h-full px-1.5">
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <span className="text-sm font-medium truncate leading-tight">
+          <div className="flex items-center h-full px-1.5 overflow-hidden">
+            <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
+              <span className="text-sm font-medium leading-tight overflow-hidden whitespace-nowrap">
                 {schedule.title || '제목 없음'}
               </span>
               {schedule.projectId && (() => {
                 const project = projects.find(p => p.id === schedule.projectId)
                 return project ? (
-                  <span className="text-[10px] opacity-80 truncate leading-tight">
+                  <span className="text-[10px] opacity-80 leading-tight overflow-hidden whitespace-nowrap">
                     {project.name}
                   </span>
                 ) : null
               })()}
             </div>
-            {schedule.link && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (schedule.link) {
-                    window.open(schedule.link, '_blank', 'noopener,noreferrer')
-                  }
-                }}
-                className="flex-shrink-0 opacity-70 hover:opacity-100 transition-opacity"
-                title="링크 열기"
-              >
-                <ExternalLink className="w-4 h-4" />
-              </button>
-            )}
           </div>
+
+          {/* 링크 버튼 (우측 하단 겹침) */}
+          {schedule.link && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (schedule.link) {
+                  window.open(schedule.link, '_blank', 'noopener,noreferrer')
+                }
+              }}
+              className="absolute bottom-0.5 right-0.5 p-0.5 rounded bg-black/30 opacity-70 hover:opacity-100 transition-opacity"
+              title="링크 열기"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          )}
 
           {/* 우측 리사이즈 핸들 */}
           {!isReadOnly && (

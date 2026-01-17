@@ -1,7 +1,7 @@
 // 월 필터링 컴포넌트 (월 바로가기 + 가시성 토글)
 
 import { useState, useRef, useEffect } from 'react'
-import { Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { Eye, EyeOff, ChevronDown, CalendarDays } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { getCellWidth } from '../../lib/utils/gridUtils'
 
@@ -74,6 +74,20 @@ export function MonthFilter() {
 
           {/* 월 리스트 */}
           <div className="py-1 max-h-[300px] overflow-y-auto">
+            {/* 현재(오늘) 버튼 */}
+            <button
+              onClick={() => {
+                const today = new Date()
+                const currentMonth = today.getMonth() + 1
+                scrollToMonth(currentMonth)
+                setIsOpen(false)
+              }}
+              className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent transition-colors text-primary font-medium"
+            >
+              <CalendarDays className="w-4 h-4" />
+              <span className="text-sm">현재</span>
+            </button>
+            <div className="border-b border-border mx-2 my-1" />
             {MONTH_NAMES.map((name, index) => {
               const month = index + 1
               const isVisible = monthVisibility[month]

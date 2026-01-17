@@ -1,4 +1,4 @@
-// 팀원별 메모 컴포넌트 (하단 고정 패널용)
+// 구성원별 메모 컴포넌트 (하단 고정 패널용)
 
 import { useState, useEffect, useCallback } from 'react'
 import { StickyNote } from 'lucide-react'
@@ -60,7 +60,7 @@ export function MemberMemo({ memberId }: MemberMemoProps) {
       <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-border flex-shrink-0">
         <StickyNote className="w-4 h-4 text-amber-600" />
         <span className="text-sm font-medium text-foreground">
-          {member?.name || '팀원'}님의 메모
+          {member?.name || '구성원'}님의 메모
         </span>
         {isSaving && (
           <span className="text-xs text-muted-foreground">저장 중...</span>

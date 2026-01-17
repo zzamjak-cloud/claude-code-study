@@ -1,48 +1,55 @@
 // 공지사항 컴포넌트 (하단 고정 패널용)
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Megaphone } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { updateAnnouncement } from '../../lib/firebase/firestore'
 
 export function Announcement() {
-  const { announcement, isAdmin, workspaceId, currentUser } = useAppStore()
-  const [editContent, setEditContent] = useState(announcement?.content || '')
+  const { announcements, isAdmin, workspaceId, currentUser, selectedProjectId } = useAppStore()
   const [isSaving, setIsSaving] = useState(false)
+
+  // 현재 선택된 프로젝트의 공지사항
+  const currentAnnouncement = useMemo(() => {
+    if (!selectedProjectId) return null
+    return announcements.find(a => a.projectId === selectedProjectId) || null
+  }, [announcements, selectedProjectId])
+
+  const [editContent, setEditContent] = useState(currentAnnouncement?.content || '')
 
   // 공지사항 변경 시 동기화
   useEffect(() => {
-    setEditContent(announcement?.content || '')
-  }, [announcement?.content])
+    setEditContent(currentAnnouncement?.content || '')
+  }, [currentAnnouncement?.content, selectedProjectId])
 
   // Debounce 저장 (관리자만)
   const saveAnnouncement = useCallback(
     async (content: string) => {
-      if (!workspaceId || !currentUser || !isAdmin) return
+      if (!workspaceId || !currentUser || !isAdmin || !selectedProjectId) return
 
       setIsSaving(true)
       try {
-        await updateAnnouncement(workspaceId, content, currentUser.uid)
+        await updateAnnouncement(workspaceId, selectedProjectId, content, currentUser.uid)
       } catch (error) {
         console.error('공지사항 저장 실패:', error)
       } finally {
         setIsSaving(false)
       }
     },
-    [workspaceId, currentUser, isAdmin]
+    [workspaceId, currentUser, isAdmin, selectedProjectId]
   )
 
   // Debounce 처리 (관리자만)
   useEffect(() => {
-    if (!isAdmin) return
-    if (editContent === (announcement?.content || '')) return
+    if (!isAdmin || !selectedProjectId) return
+    if (editContent === (currentAnnouncement?.content || '')) return
 
     const timer = setTimeout(() => {
       saveAnnouncement(editContent)
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [editContent, saveAnnouncement, announcement?.content, isAdmin])
+  }, [editContent, saveAnnouncement, currentAnnouncement?.content, isAdmin, selectedProjectId])
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEditContent(e.target.value)
@@ -67,7 +74,7 @@ export function Announcement() {
             <textarea
               value={editContent}
               onChange={handleChange}
-              placeholder="팀원들에게 전달할 공지사항을 입력하세요..."
+              placeholder="구성원들에게 전달할 공지사항을 입력하세요..."
               className="flex-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground"
               maxLength={500}
             />
@@ -80,7 +87,7 @@ export function Announcement() {
         ) : (
           // 일반 사용자: 읽기 전용
           <div className="text-sm text-foreground whitespace-pre-wrap overflow-auto h-full">
-            {announcement?.content || '공지사항이 없습니다.'}
+            {currentAnnouncement?.content || '공지사항이 없습니다.'}
           </div>
         )}
       </div>

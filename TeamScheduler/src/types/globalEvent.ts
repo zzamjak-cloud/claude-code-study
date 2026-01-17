@@ -2,6 +2,7 @@
 
 export interface GlobalEvent {
   id: string
+  projectId?: string  // 프로젝트 ID (없으면 전역 이벤트)
   title: string
   comment?: string
   link?: string

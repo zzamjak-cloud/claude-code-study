@@ -6,6 +6,7 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
+  deleteField,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore'
@@ -58,7 +59,7 @@ export const deleteSchedule = async (
 }
 
 /**
- * 팀원 추가
+ * 구성원 추가
  */
 export const addTeamMember = async (
   workspaceId: string,
@@ -67,6 +68,10 @@ export const addTeamMember = async (
   const ref = doc(collection(db, `teams/${workspaceId}/members`))
   await setDoc(ref, {
     ...member,
+    email: member.email || '',
+    jobTitle: member.jobTitle || '',
+    role: member.role || '',
+    isLeader: member.isLeader || false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -82,10 +87,18 @@ export const updateTeamMember = async (
   updates: Partial<TeamMember>
 ) => {
   const ref = doc(db, `teams/${workspaceId}/members/${memberId}`)
-  await updateDoc(ref, {
-    ...updates,
-    updatedAt: serverTimestamp(),
-  })
+
+  // undefined 값을 deleteField()로 변환 (Firebase는 undefined를 지원하지 않음)
+  const cleanedUpdates: Record<string, unknown> = { updatedAt: serverTimestamp() }
+  for (const [key, value] of Object.entries(updates)) {
+    if (value === undefined) {
+      cleanedUpdates[key] = deleteField()
+    } else {
+      cleanedUpdates[key] = value
+    }
+  }
+
+  await updateDoc(ref, cleanedUpdates)
 }
 
 /**
@@ -150,15 +163,35 @@ export const timestampToNumber = (timestamp: Timestamp | number): number => {
 }
 
 /**
- * 공지사항 업데이트 (단일 문서)
+ * 전역 공지사항 업데이트 (워크스페이스 전체)
  */
-export const updateAnnouncement = async (
+export const updateGlobalAnnouncement = async (
   workspaceId: string,
   content: string,
   userId: string
 ) => {
   const ref = doc(db, `announcements/${workspaceId}`)
   await setDoc(ref, {
+    content,
+    createdBy: userId,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true })
+}
+
+/**
+ * 공지사항 업데이트 (프로젝트별)
+ */
+export const updateAnnouncement = async (
+  workspaceId: string,
+  projectId: string,
+  content: string,
+  userId: string
+) => {
+  // 프로젝트별 공지사항: announcements/{workspaceId}/projects/{projectId}
+  const ref = doc(db, `announcements/${workspaceId}/projects/${projectId}`)
+  await setDoc(ref, {
+    projectId,
     content,
     createdBy: userId,
     createdAt: serverTimestamp(),
@@ -228,11 +261,21 @@ export const updateGlobalEventSettings = async (
  */
 export const createProject = async (
   workspaceId: string,
-  project: { name: string; color: string; description?: string; order: number; createdBy: string }
+  project: {
+    name: string
+    color: string
+    type: 'organization' | 'project'
+    description?: string
+    memberIds?: string[]
+    order: number
+    createdBy: string
+  }
 ) => {
   const ref = doc(collection(db, `projects/${workspaceId}/items`))
   await setDoc(ref, {
     ...project,
+    memberIds: project.memberIds || [],
+    isHidden: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   })
@@ -245,7 +288,15 @@ export const createProject = async (
 export const updateProject = async (
   workspaceId: string,
   projectId: string,
-  updates: { name?: string; color?: string; description?: string; order?: number }
+  updates: {
+    name?: string
+    color?: string
+    type?: 'organization' | 'project'
+    description?: string
+    memberIds?: string[]
+    isHidden?: boolean
+    order?: number
+  }
 ) => {
   const ref = doc(db, `projects/${workspaceId}/items/${projectId}`)
   await updateDoc(ref, {

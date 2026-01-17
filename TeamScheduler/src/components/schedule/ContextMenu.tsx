@@ -30,7 +30,7 @@ export function ContextMenu({
   const menuRef = useRef<HTMLDivElement>(null)
   const [showTransferSubmenu, setShowTransferSubmenu] = useState(false)
 
-  // 이관 가능한 팀원 (현재 팀원 제외)
+  // 이관 가능한 구성원 (현재 구성원 제외)
   const transferableMembers = members?.filter((m) => m.id !== currentMemberId && !m.isHidden) || []
 
   // 외부 클릭 시 닫기
@@ -94,7 +94,7 @@ export function ContextMenu({
         ))}
       </div>
 
-      {/* 업무 이관 섹션 (팀원이 있을 때만) */}
+      {/* 업무 이관 섹션 (구성원이 있을 때만) */}
       {onTransfer && transferableMembers.length > 0 && (
         <>
           <div className="my-2 border-t border-border" />
@@ -111,7 +111,7 @@ export function ContextMenu({
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             </button>
 
-            {/* 팀원 서브메뉴 */}
+            {/* 구성원 서브메뉴 */}
             {showTransferSubmenu && (
               <div className="absolute left-full top-0 ml-1 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[120px] z-[210]">
                 {transferableMembers.map((member) => (

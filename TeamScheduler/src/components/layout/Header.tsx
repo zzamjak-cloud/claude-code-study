@@ -1,11 +1,11 @@
 // 헤더 컴포넌트
 
-import { Calendar, Settings, LogOut } from 'lucide-react'
+import { Calendar, Settings, LogOut, FolderKanban } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { signOut } from '../../lib/firebase/auth'
 
 export function Header() {
-  const { currentUser, isAdmin } = useAppStore()
+  const { currentUser, isAdmin, projects, selectedProjectId, setSelectedProjectId } = useAppStore()
 
   const handleLogout = async () => {
     try {
@@ -18,10 +18,30 @@ export function Header() {
   return (
     <header className="bg-card border-b border-border px-6 py-4">
       <div className="flex items-center justify-between">
-        {/* 로고 */}
-        <div className="flex items-center gap-3">
-          <Calendar className="w-6 h-6 text-primary" />
-          <h1 className="text-xl font-bold text-foreground">TeamScheduler</h1>
+        {/* 로고 및 프로젝트 선택 */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-6 h-6 text-primary" />
+            <h1 className="text-xl font-bold text-foreground">TeamScheduler</h1>
+          </div>
+
+          {/* 프로젝트 선택 드롭다운 */}
+          {projects.length > 0 && (
+            <div className="flex items-center gap-2">
+              <FolderKanban className="w-4 h-4 text-muted-foreground" />
+              <select
+                value={selectedProjectId || ''}
+                onChange={(e) => setSelectedProjectId(e.target.value || null)}
+                className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[150px]"
+              >
+                {projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* 우측 메뉴 */}

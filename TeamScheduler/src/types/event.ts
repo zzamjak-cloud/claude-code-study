@@ -4,6 +4,7 @@ export type EventType = 'holiday' | 'evaluation' | 'release' | 'meeting' | 'cust
 
 export interface SpecialEvent {
   id: string
+  projectId?: string  // 프로젝트 ID (없으면 전역 특이사항)
   title: string
   date: number  // timestamp
   type: EventType

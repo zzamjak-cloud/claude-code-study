@@ -29,6 +29,8 @@ export function ScheduleGrid() {
     globalEvents,
     globalEventRowCount,
     monthVisibility,
+    selectedProjectId,
+    projects,
   } = useAppStore()
   const cellWidth = getCellWidth(zoomLevel)
   const cellHeight = getCellHeight(zoomLevel)
@@ -85,7 +87,7 @@ export function ScheduleGrid() {
   const [createGlobalStart, setCreateGlobalStart] = useState<number | null>(null)
   const [createGlobalEnd, setCreateGlobalEnd] = useState<number | null>(null)
 
-  // 팀원별 행 수 관리
+  // 구성원별 행 수 관리
   const [memberRowCounts, setMemberRowCounts] = useState<Record<string, number>>({})
 
   // 하단 패널 높이 (리사이즈 가능)
@@ -168,7 +170,7 @@ export function ScheduleGrid() {
     }
   }, [bottomPanelHeight, isResizingPanel])
 
-  // 팀원의 행 수 가져오기 (기본 1)
+  // 구성원의 행 수 가져오기 (기본 1)
   const getRowCount = (memberId: string) => {
     const member = members.find((m) => m.id === memberId)
     return member?.rowCount || memberRowCounts[memberId] || 1
@@ -252,6 +254,12 @@ export function ScheduleGrid() {
     ? schedules.filter((s) => s.memberId === selectedMemberId)
     : schedules
 
+  // 선택된 프로젝트의 글로벌 이벤트만 필터링 (projectId가 없는 이벤트는 전역으로 모든 프로젝트에 표시)
+  const filteredGlobalEvents = useMemo(() => {
+    if (!selectedProjectId) return globalEvents
+    return globalEvents.filter((e) => !e.projectId || e.projectId === selectedProjectId)
+  }, [globalEvents, selectedProjectId])
+
   // 글로벌 행 데이터 생성
   const generateGlobalRows = () => {
     const rows: Array<{
@@ -265,7 +273,7 @@ export function ScheduleGrid() {
     for (let i = 0; i < globalEventRowCount; i++) {
       rows.push({
         rowIndex: i,
-        events: globalEvents.filter((e) => (e.rowIndex || 0) === i),
+        events: filteredGlobalEvents.filter((e) => (e.rowIndex || 0) === i),
         isFirstRow: i === 0,
         isLastRow: i === globalEventRowCount - 1,
         totalRows: globalEventRowCount,
@@ -280,7 +288,7 @@ export function ScheduleGrid() {
   // 행 데이터 생성
   const generateRows = () => {
     if (isUnifiedTab) {
-      // 통합 탭: 각 팀원별로 카드가 있는 행만 생성 (기본 1행은 항상 표시)
+      // 통합 탭: 각 구성원별로 카드가 있는 행만 생성 (기본 1행은 항상 표시)
       const rows: Array<{
         memberId: string
         memberName: string
@@ -292,8 +300,17 @@ export function ScheduleGrid() {
         totalRows: number
       }> = []
 
-      // 숨긴 팀원 제외
-      const visibleMembers = members.filter((m) => !m.isHidden)
+      // 숨긴 구성원 제외 + 프로젝트 필터링
+      let visibleMembers = members.filter((m) => !m.isHidden)
+
+      // 선택된 프로젝트가 있으면 해당 프로젝트에 속한 구성원만 표시
+      if (selectedProjectId) {
+        const project = projects.find((p) => p.id === selectedProjectId)
+        if (project && project.memberIds) {
+          visibleMembers = visibleMembers.filter((m) => project.memberIds.includes(m.id))
+        }
+      }
+
       visibleMembers.forEach((m) => {
         const memberSchedules = schedules.filter((s) => s.memberId === m.id)
 
@@ -531,9 +548,10 @@ export function ScheduleGrid() {
 
     resetGlobalCreation()
 
-    if (workspaceId && currentUser) {
+    if (workspaceId && currentUser && selectedProjectId) {
       try {
         await createGlobalEvent(workspaceId, {
+          projectId: selectedProjectId,
           title: '',
           startDate: startDate.getTime(),
           endDate: endDate.getTime(),
@@ -593,7 +611,7 @@ export function ScheduleGrid() {
       {/* 상단: 그리드 영역 */}
       <div className="flex-1 flex overflow-hidden">
 
-      {/* 고정 열 (팀원 이름 또는 빈 영역) */}
+      {/* 고정 열 (구성원 이름 또는 빈 영역) */}
       <div
         ref={fixedColumnRef}
         className="flex-shrink-0 overflow-y-auto overflow-x-hidden bg-card border-r border-border scrollbar-none"
@@ -644,7 +662,7 @@ export function ScheduleGrid() {
           </div>
         )}
 
-        {/* 팀원 행 */}
+        {/* 구성원 행 */}
         {rows.map((row) => (
           <div
             key={`fixed-${row.memberId}-${row.rowIndex}`}
@@ -665,7 +683,7 @@ export function ScheduleGrid() {
           </div>
         ))}
 
-        {/* 팀원이 없을 때 빈 공간 */}
+        {/* 구성원이 없을 때 빈 공간 */}
         {rows.length === 0 && (
           <div style={{ height: '256px' }} />
         )}
@@ -886,10 +904,10 @@ export function ScheduleGrid() {
             )
           })}
 
-          {/* 팀원이 없을 때 */}
+          {/* 구성원이 없을 때 */}
           {rows.length === 0 && (
             <div className="flex items-center justify-center h-64 text-muted-foreground">
-              <p>팀원을 추가하여 일정을 관리하세요.</p>
+              <p>구성원을 추가하여 일정을 관리하세요.</p>
             </div>
           )}
 

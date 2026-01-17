@@ -2,6 +2,14 @@
 
 import { TeamMember } from '../../types/team'
 
+// localStorage에서 마지막 선택한 구성원 탭 로드
+const getInitialSelectedMemberId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('selectedMemberId')
+  }
+  return null
+}
+
 export interface TeamSlice {
   // 상태
   members: TeamMember[]
@@ -22,7 +30,7 @@ export interface TeamSlice {
 export const createTeamSlice = (set: any): TeamSlice => ({
   // 초기 상태
   members: [],
-  selectedMemberId: null,  // 통합 탭이 기본
+  selectedMemberId: getInitialSelectedMemberId(),  // localStorage에서 로드
   hiddenMembers: [],
 
   // 팀원 목록 설정 (Firebase 동기화용)
@@ -80,6 +88,13 @@ export const createTeamSlice = (set: any): TeamSlice => ({
   reorderMembers: (reorderedMembers) =>
     set({ members: reorderedMembers }),
 
-  // 탭 선택
-  selectMember: (memberId) => set({ selectedMemberId: memberId }),
+  // 탭 선택 (localStorage에도 저장)
+  selectMember: (memberId) => {
+    if (memberId) {
+      localStorage.setItem('selectedMemberId', memberId)
+    } else {
+      localStorage.removeItem('selectedMemberId')
+    }
+    set({ selectedMemberId: memberId })
+  },
 })

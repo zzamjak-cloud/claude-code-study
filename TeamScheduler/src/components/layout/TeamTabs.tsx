@@ -1,16 +1,14 @@
-// 팀원 탭 컴포넌트 (드래그 순서 변경 + 우클릭 메뉴 지원)
+// 구성원 탭 컴포넌트 (드래그 순서 변경 + 우클릭 메뉴 지원)
 
-import { useState, useEffect, useRef } from 'react'
-import { Users, Edit, Trash2, EyeOff, Archive } from 'lucide-react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import { Users, EyeOff, Archive } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
-import { updateTeamMember, deleteTeamMember } from '../../lib/firebase/firestore'
+import { updateTeamMember } from '../../lib/firebase/firestore'
 import { TeamMember } from '../../types/team'
-import { TeamMemberEditModal } from '../modals/TeamMemberEditModal'
 import { HiddenMembersModal } from '../modals/HiddenMembersModal'
-import { ConfirmDialog } from '../common/ConfirmDialog'
 
 export function TeamTabs() {
-  const { members, selectedMemberId, selectMember, reorderMembers, workspaceId, isAdmin } = useAppStore()
+  const { members, selectedMemberId, selectMember, reorderMembers, workspaceId, isAdmin, selectedProjectId, projects } = useAppStore()
 
   // 드래그 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -22,12 +20,6 @@ export function TeamTabs() {
     y: number
     member: TeamMember
   } | null>(null)
-
-  // 편집 모달 상태
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null)
-
-  // 삭제 확인 상태
-  const [deletingMember, setDeletingMember] = useState<TeamMember | null>(null)
 
   // 보관함 모달 상태
   const [showHiddenModal, setShowHiddenModal] = useState(false)
@@ -65,22 +57,6 @@ export function TeamTabs() {
     })
   }
 
-  // 편집 클릭
-  const handleEditClick = () => {
-    if (contextMenu) {
-      setEditingMember(contextMenu.member)
-      setContextMenu(null)
-    }
-  }
-
-  // 삭제 클릭
-  const handleDeleteClick = () => {
-    if (contextMenu) {
-      setDeletingMember(contextMenu.member)
-      setContextMenu(null)
-    }
-  }
-
   // 숨김 클릭
   const handleHideClick = async () => {
     if (!contextMenu || !workspaceId) return
@@ -92,38 +68,33 @@ export function TeamTabs() {
         selectMember(null)
       }
     } catch (error) {
-      console.error('팀원 숨김 실패:', error)
+      console.error('구성원 숨김 실패:', error)
     } finally {
       setContextMenu(null)
     }
   }
 
-  // 삭제 확인
-  const handleDeleteConfirm = async () => {
-    if (!deletingMember || !workspaceId) return
+  // order 기준으로 정렬된 구성원 목록 (숨긴 구성원 제외 + 프로젝트 필터링)
+  const sortedMembers = useMemo(() => {
+    // 숨긴 구성원 제외
+    let filtered = members.filter((m) => !m.isHidden)
 
-    try {
-      await deleteTeamMember(workspaceId, deletingMember.id)
-      // 현재 선택된 탭이 삭제된 경우 통합 탭으로 이동
-      if (selectedMemberId === deletingMember.id) {
-        selectMember(null)
+    // 선택된 프로젝트가 있으면 해당 프로젝트에 속한 구성원만 표시
+    if (selectedProjectId) {
+      const project = projects.find((p) => p.id === selectedProjectId)
+      if (project && project.memberIds) {
+        filtered = filtered.filter((m) => project.memberIds.includes(m.id))
       }
-    } catch (error) {
-      console.error('팀원 삭제 실패:', error)
-    } finally {
-      setDeletingMember(null)
     }
-  }
 
-  // order 기준으로 정렬된 팀원 목록 (숨긴 팀원 제외)
-  const sortedMembers = [...members]
-    .filter((m) => !m.isHidden)
-    .sort((a, b) => (a.order || 0) - (b.order || 0))
+    // order 기준 정렬
+    return filtered.sort((a, b) => (a.order || 0) - (b.order || 0))
+  }, [members, selectedProjectId, projects])
 
-  // 숨긴 팀원 수
+  // 숨긴 구성원 수
   const hiddenCount = members.filter((m) => m.isHidden).length
 
-  // 통합 탭 + 팀원 탭
+  // 통합 탭 + 구성원 탭
   const tabs = [
     { id: null, name: '통합', icon: <Users className="w-4 h-4" />, draggable: false, member: null },
     ...sortedMembers.map((m, index) => ({
@@ -187,7 +158,7 @@ export function TeamTabs() {
           await updateTeamMember(workspaceId, member.id, { order: member.order })
         }
       } catch (error) {
-        console.error('팀원 순서 변경 실패:', error)
+        console.error('구성원 순서 변경 실패:', error)
       }
     }
   }
@@ -202,19 +173,6 @@ export function TeamTabs() {
     <>
       <div className="bg-card border-b border-border px-6 overflow-x-auto scrollbar-thin">
         <div className="flex gap-2 py-2">
-          {/* 보관함 버튼 (숨긴 팀원이 있을 때만 표시) */}
-          {hiddenCount > 0 && (
-            <button
-              onClick={() => setShowHiddenModal(true)}
-              className="flex items-center gap-1 px-3 py-2 rounded-t-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-              title="숨긴 팀원 보관함"
-            >
-              <Archive className="w-4 h-4" />
-              <span className="text-xs bg-muted-foreground/20 px-1.5 py-0.5 rounded-full">
-                {hiddenCount}
-              </span>
-            </button>
-          )}
           {tabs.map((tab) => {
             const isSelected = tab.id === selectedMemberId
             const isUnified = tab.id === null
@@ -263,23 +221,33 @@ export function TeamTabs() {
               </div>
             )
           })}
+
+          {/* 빈 공간 (flex-1로 오른쪽으로 밀기) */}
+          <div className="flex-1" />
+
+          {/* 보관함 버튼 (숨긴 구성원이 있을 때만 표시, 오른쪽 끝) */}
+          {hiddenCount > 0 && (
+            <button
+              onClick={() => setShowHiddenModal(true)}
+              className="flex items-center gap-1 px-3 py-2 rounded-t-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              title="숨긴 구성원 보관함"
+            >
+              <Archive className="w-4 h-4" />
+              <span className="text-xs bg-muted-foreground/20 px-1.5 py-0.5 rounded-full">
+                {hiddenCount}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 우클릭 컨텍스트 메뉴 */}
+      {/* 우클릭 컨텍스트 메뉴 (숨김만) */}
       {contextMenu && (
         <div
           ref={menuRef}
-          className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[140px]"
+          className="fixed z-50 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[100px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
         >
-          <button
-            onClick={handleEditClick}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
-          >
-            <Edit className="w-4 h-4" />
-            편집
-          </button>
           <button
             onClick={handleHideClick}
             className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
@@ -287,37 +255,10 @@ export function TeamTabs() {
             <EyeOff className="w-4 h-4" />
             숨김
           </button>
-          <button
-            onClick={handleDeleteClick}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-accent transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            삭제
-          </button>
         </div>
       )}
 
-      {/* 팀원 편집 모달 */}
-      {editingMember && (
-        <TeamMemberEditModal
-          member={editingMember}
-          onClose={() => setEditingMember(null)}
-        />
-      )}
-
-      {/* 삭제 확인 다이얼로그 */}
-      {deletingMember && (
-        <ConfirmDialog
-          title="팀원 삭제"
-          message={`"${deletingMember.name}" 팀원을 삭제하시겠습니까? 해당 팀원의 모든 일정도 함께 삭제됩니다.`}
-          confirmText="삭제"
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeletingMember(null)}
-          isDestructive
-        />
-      )}
-
-      {/* 숨긴 팀원 보관함 모달 */}
+      {/* 숨긴 구성원 보관함 모달 */}
       {showHiddenModal && (
         <HiddenMembersModal onClose={() => setShowHiddenModal(false)} />
       )}

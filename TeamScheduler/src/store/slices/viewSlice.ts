@@ -37,6 +37,12 @@ export interface ViewSlice {
   // 월별 가시성 (true = 표시, false = 숨김)
   monthVisibility: MonthVisibility
 
+  // 선택된 프로젝트 ID (null = 전체)
+  selectedProjectId: string | null
+
+  // 마지막 선택한 프로젝트 ID (일정 등록시 기본값)
+  lastSelectedProjectId: string | null
+
   // 메서드
   setZoomLevel: (level: number) => void
   setDateRange: (start: Date | null, end: Date | null) => void
@@ -46,6 +52,8 @@ export interface ViewSlice {
   setWeekendColor: (color: string) => void
   toggleMonthVisibility: (month: number) => void
   setAllMonthsVisible: (visible: boolean) => void
+  setSelectedProjectId: (projectId: string | null) => void
+  setLastSelectedProjectId: (projectId: string | null) => void
   resetFilters: () => void
 }
 
@@ -113,6 +121,22 @@ const saveMonthVisibility = (visibility: MonthVisibility) => {
   }
 }
 
+// localStorage에서 마지막 선택 프로젝트 로드
+const getInitialLastSelectedProjectId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('lastSelectedProjectId')
+  }
+  return null
+}
+
+// localStorage에서 선택된 프로젝트 필터 로드
+const getInitialSelectedProjectId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('selectedProjectId')
+  }
+  return null
+}
+
 export const createViewSlice = (set: any): ViewSlice => ({
   // 초기 상태
   zoomLevel: getInitialZoomLevel(),
@@ -125,6 +149,8 @@ export const createViewSlice = (set: any): ViewSlice => ({
   selectedScheduleColor: getInitialScheduleColor(),
   weekendColor: getInitialWeekendColor(),
   monthVisibility: getInitialMonthVisibility(),
+  selectedProjectId: getInitialSelectedProjectId(),
+  lastSelectedProjectId: getInitialLastSelectedProjectId(),
 
   // 줌 레벨 설정 (localStorage에도 저장)
   setZoomLevel: (level) => {
@@ -175,6 +201,26 @@ export const createViewSlice = (set: any): ViewSlice => ({
     }
     saveMonthVisibility(newVisibility)
     set({ monthVisibility: newVisibility })
+  },
+
+  // 선택된 프로젝트 설정 (localStorage에도 저장)
+  setSelectedProjectId: (projectId) => {
+    if (projectId) {
+      localStorage.setItem('selectedProjectId', projectId)
+    } else {
+      localStorage.removeItem('selectedProjectId')
+    }
+    set({ selectedProjectId: projectId })
+  },
+
+  // 마지막 선택 프로젝트 설정 (localStorage에도 저장)
+  setLastSelectedProjectId: (projectId) => {
+    if (projectId) {
+      localStorage.setItem('lastSelectedProjectId', projectId)
+    } else {
+      localStorage.removeItem('lastSelectedProjectId')
+    }
+    set({ lastSelectedProjectId: projectId })
   },
 
   // 필터 초기화 (localStorage도 초기화)

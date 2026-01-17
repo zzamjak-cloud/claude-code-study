@@ -24,7 +24,7 @@ import { Project } from '../../types/project'
  * @param workspaceId - 워크스페이스 ID
  */
 export const useFirebaseSync = (workspaceId: string | null) => {
-  const { setSchedules, setMembers, setEvents, setAnnouncement, setGlobalEvents, setGlobalEventRowCount, setProjects } = useAppStore()
+  const { setSchedules, setMembers, setEvents, setAnnouncements, setGlobalEvents, setGlobalEventRowCount, setProjects } = useAppStore()
 
   useEffect(() => {
     console.log('🔄 Firebase 동기화 시작 - workspaceId:', workspaceId)
@@ -104,9 +104,12 @@ export const useFirebaseSync = (workspaceId: string | null) => {
           return {
             id: doc.id,
             name: data.name,
-            email: data.email,
+            email: data.email || '',
             profileImage: data.profileImage,
-            role: data.role,
+            jobTitle: data.jobTitle || '',
+            role: data.role || '',
+            isLeader: data.isLeader || false,
+            status: data.status,
             color: data.color,
             isHidden: data.isHidden || false,
             order: data.order || 0,
@@ -144,6 +147,7 @@ export const useFirebaseSync = (workspaceId: string | null) => {
           const data = doc.data()
           return {
             id: doc.id,
+            projectId: data.projectId,
             title: data.title,
             date:
               data.date instanceof Timestamp
@@ -171,16 +175,19 @@ export const useFirebaseSync = (workspaceId: string | null) => {
       }
     )
 
-    // 공지사항 동기화 (단일 문서)
-    const announcementRef = doc(db, `announcements/${workspaceId}`)
+    // 공지사항 동기화 (프로젝트별)
+    const announcementsQuery = query(
+      collection(db, `announcements/${workspaceId}/projects`)
+    )
 
     const unsubscribeAnnouncement = onSnapshot(
-      announcementRef,
+      announcementsQuery,
       (snapshot) => {
-        if (snapshot.exists()) {
-          const data = snapshot.data()
-          const announcement: Announcement = {
-            id: snapshot.id,
+        const announcements = snapshot.docs.map((doc) => {
+          const data = doc.data()
+          return {
+            id: doc.id,
+            projectId: data.projectId || doc.id,
             content: data.content || '',
             createdBy: data.createdBy || '',
             createdAt:
@@ -191,13 +198,10 @@ export const useFirebaseSync = (workspaceId: string | null) => {
               data.updatedAt instanceof Timestamp
                 ? data.updatedAt.toMillis()
                 : data.updatedAt || Date.now(),
-          }
-          console.log('✅ 공지사항 동기화:', announcement.content ? '내용 있음' : '내용 없음')
-          setAnnouncement(announcement)
-        } else {
-          console.log('✅ 공지사항 없음')
-          setAnnouncement(null)
-        }
+          } as Announcement
+        })
+        console.log('✅ 공지사항 동기화:', announcements.length, '개')
+        setAnnouncements(announcements)
       },
       (error) => {
         console.error('❌ 공지사항 동기화 실패:', error)
@@ -217,6 +221,7 @@ export const useFirebaseSync = (workspaceId: string | null) => {
           const data = doc.data()
           return {
             id: doc.id,
+            projectId: data.projectId,
             title: data.title,
             comment: data.comment,
             link: data.link,
@@ -288,7 +293,10 @@ export const useFirebaseSync = (workspaceId: string | null) => {
             id: doc.id,
             name: data.name,
             color: data.color,
+            type: data.type || 'project',  // 기본값: 프로젝트
             description: data.description,
+            memberIds: data.memberIds || [],
+            isHidden: data.isHidden || false,
             order: data.order ?? 0,
             createdBy: data.createdBy,
             createdAt:

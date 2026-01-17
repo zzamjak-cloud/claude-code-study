@@ -19,7 +19,7 @@ import { LogIn, Settings, Palette, HelpCircle, ZoomIn, ZoomOut } from 'lucide-re
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel } =
+  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel, projects, selectedProjectId, setSelectedProjectId } =
     useAppStore()
 
   // Firebase 실시간 동기화
@@ -43,6 +43,25 @@ function App() {
       setWorkspace(currentUser.uid, true) // 모든 사용자를 관리자로 설정 (테스트용)
     }
   }, [currentUser, workspaceId, setWorkspace])
+
+  // 프로젝트 기본값 설정 (저장된 값이 없거나 유효하지 않으면 "기타" 프로젝트 선택)
+  useEffect(() => {
+    if (projects.length === 0) return
+
+    // 현재 선택된 프로젝트가 유효한지 확인
+    const isValidProject = selectedProjectId && projects.some(p => p.id === selectedProjectId)
+
+    if (!isValidProject) {
+      // "기타" 프로젝트 찾기
+      const defaultProject = projects.find(p => p.name === '기타')
+      if (defaultProject) {
+        setSelectedProjectId(defaultProject.id)
+      } else {
+        // "기타"가 없으면 첫 번째 프로젝트 선택
+        setSelectedProjectId(projects[0].id)
+      }
+    }
+  }, [projects, selectedProjectId, setSelectedProjectId])
 
   // 로그인 핸들러
   const handleLogin = async () => {
@@ -72,7 +91,7 @@ function App() {
             TeamScheduler
           </h1>
           <p className="text-muted-foreground mb-8">
-            팀원들과 함께 연간 일정을 관리하세요
+            구성원들과 함께 연간 일정을 관리하세요
           </p>
 
           <button
@@ -94,11 +113,11 @@ function App() {
   // 메인 화면
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-background flex flex-col">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
         {/* 헤더 */}
         <Header />
 
-        {/* 팀원 탭 */}
+        {/* 구성원 탭 */}
         <TeamTabs />
 
         {/* 툴바 */}
@@ -155,11 +174,11 @@ function App() {
                   <Palette className="w-5 h-5" />
                 </button>
 
-                {/* 팀원 관리 버튼 */}
+                {/* 구성원 관리 버튼 */}
                 <button
                   onClick={() => setShowAdminPanel(true)}
                   className="p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                  title="팀원 관리"
+                  title="구성원 관리"
                 >
                   <Settings className="w-5 h-5" />
                 </button>

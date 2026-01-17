@@ -1,4 +1,4 @@
-// 팀원 정보 편집 모달
+// 구성원 정보 편집 모달
 
 import { useState } from 'react'
 import { X, Save, User } from 'lucide-react'
@@ -31,13 +31,13 @@ export function TeamMemberEditModal({ member, onClose }: TeamMemberEditModalProp
     try {
       await updateTeamMember(workspaceId, member.id, {
         name: name.trim(),
-        role: role.trim() || '팀원',
+        role: role.trim() || '구성원',
         color: selectedColor,
       })
 
       onClose()
     } catch (error) {
-      console.error('팀원 정보 수정 실패:', error)
+      console.error('구성원 정보 수정 실패:', error)
     } finally {
       setIsSubmitting(false)
     }
@@ -46,7 +46,7 @@ export function TeamMemberEditModal({ member, onClose }: TeamMemberEditModalProp
   // 변경사항 있는지 확인
   const hasChanges =
     name.trim() !== member.name ||
-    (role.trim() || '팀원') !== (member.role || '팀원') ||
+    (role.trim() || '구성원') !== (member.role || '구성원') ||
     selectedColor !== member.color
 
   return (
@@ -61,7 +61,7 @@ export function TeamMemberEditModal({ member, onClose }: TeamMemberEditModalProp
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5 text-primary" />
-            <h3 className="text-lg font-semibold text-foreground">팀원 정보 편집</h3>
+            <h3 className="text-lg font-semibold text-foreground">구성원 정보 편집</h3>
           </div>
           <button
             onClick={onClose}

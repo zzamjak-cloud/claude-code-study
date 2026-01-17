@@ -94,7 +94,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
               업무 이관
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p><strong>우클릭 → 업무 이관:</strong> 일정 카드를 우클릭하여 다른 팀원에게 업무를 이관할 수 있습니다.</p>
+              <p><strong>우클릭 → 업무 이관:</strong> 일정 카드를 우클릭하여 다른 구성원에게 업무를 이관할 수 있습니다.</p>
               <p>이관 시 빈 행이 없으면 자동으로 새 행이 추가됩니다.</p>
             </div>
           </section>
@@ -111,15 +111,15 @@ export function HelpModal({ onClose }: HelpModalProps) {
             </div>
           </section>
 
-          {/* 팀원 관리 */}
+          {/* 구성원 관리 */}
           <section>
             <h3 className="flex items-center gap-2 text-base font-semibold text-foreground mb-3">
               <Users className="w-5 h-5 text-primary" />
-              팀원 관리 (관리자)
+              구성원 관리 (관리자)
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>상단의 "팀원 관리" 버튼을 클릭하여 팀원을 추가, 수정, 삭제할 수 있습니다.</p>
-              <p>팀원의 순서를 변경하거나 특정 팀원을 숨길 수 있습니다.</p>
+              <p>상단의 "구성원 관리" 버튼을 클릭하여 구성원을 추가, 수정, 삭제할 수 있습니다.</p>
+              <p>구성원의 순서를 변경하거나 특정 구성원을 숨길 수 있습니다.</p>
             </div>
           </section>
 
@@ -130,8 +130,8 @@ export function HelpModal({ onClose }: HelpModalProps) {
               특이사항 (글로벌 이벤트)
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>화면 최상단의 "특이사항" 행은 모든 팀원에게 공유되는 일정입니다.</p>
-              <p>관리자만 통합 탭에서 편집할 수 있으며, 팀원 탭에서는 읽기 전용으로 표시됩니다.</p>
+              <p>화면 최상단의 "특이사항" 행은 모든 구성원에게 공유되는 일정입니다.</p>
+              <p>관리자만 통합 탭에서 편집할 수 있으며, 구성원 탭에서는 읽기 전용으로 표시됩니다.</p>
             </div>
           </section>
         </div>
