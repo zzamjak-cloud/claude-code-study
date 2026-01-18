@@ -224,10 +224,10 @@ function App() {
                 {Math.round(columnWidthScale * 100)}%
               </span>
               <button
-                onClick={() => setColumnWidthScale(Math.min(2.0, columnWidthScale + 0.25))}
+                onClick={() => setColumnWidthScale(Math.min(4.0, columnWidthScale + 0.25))}
                 className="p-1.5 hover:bg-accent rounded transition-colors disabled:opacity-50"
                 title="열너비 확대"
-                disabled={columnWidthScale >= 2.0}
+                disabled={columnWidthScale >= 4.0}
               >
                 <Plus className="w-3 h-3" />
               </button>

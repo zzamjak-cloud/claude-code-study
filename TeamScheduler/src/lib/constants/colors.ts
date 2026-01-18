@@ -13,7 +13,7 @@ export const COLOR_PRESETS = [
   '#F1C40F', // 노랑
 ]
 
-export const DEFAULT_SCHEDULE_COLOR = '#b1867c'  // 기본 일정 색상 (부드러운 브라운)
+export const DEFAULT_SCHEDULE_COLOR = '#3498DB'  // 기본 일정 색상 (파랑)
 export const DEFAULT_WEEKEND_COLOR = '#ffe3de'  // 기본 주말/공휴일 배경색
 export const WEEKEND_HOLIDAY_COLOR = '#ffe3de'  // 주말/공휴일 배경색 (하위 호환)
 export const ANNUAL_LEAVE_COLOR = '#e64c4c'     // 연차/공휴일 카드 색상 (빨강)

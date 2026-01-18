@@ -12,6 +12,7 @@ import {
   updateTeamMember,
 } from '../../lib/firebase/firestore'
 import { hasCollision } from '../../lib/utils/collisionDetection'
+import { ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
 import { ExternalLink } from 'lucide-react'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { ContextMenu } from './ContextMenu'
@@ -115,8 +116,9 @@ export const ScheduleCard = memo(function ScheduleCard({
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
 
-  // 과거 일정 여부 확인
-  const isPast = schedule.endDate < Date.now()
+  // 과거 일정 여부 확인 (연차는 제외 - 항상 원래 색상 유지)
+  const isAnnualLeave = schedule.color === ANNUAL_LEAVE_COLOR
+  const isPast = !isAnnualLeave && schedule.endDate < Date.now()
 
   // 편집 팝업 저장
   const handleEditSave = async (title: string, comment: string, link: string, projectId?: string) => {

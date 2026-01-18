@@ -29,6 +29,14 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
   const weekendColor = useAppStore(state => state.weekendColor)
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
 
+  // 줌 레벨에 따른 폰트 크기 및 행 높이 계산
+  const baseFontSize = 12 // 기본 폰트 크기 (px)
+  const scaledFontSize = Math.round(baseFontSize * zoomLevel)
+  const scaledSmallFontSize = Math.round(9 * zoomLevel) // 공휴일 텍스트용
+  const monthRowHeight = Math.round(24 * zoomLevel)
+  const dateRowHeight = Math.round(20 * zoomLevel)
+  const holidayRowHeight = Math.round(16 * zoomLevel)
+
   const yearStart = startOfYear(new Date(currentYear, 0, 1))
 
   // 표시할 날짜 인덱스 (숨겨진 월 제외)
@@ -133,7 +141,7 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
   return (
     <div className={hideFixedColumn ? '' : 'sticky top-0 z-30 bg-card border-b border-border'}>
       {/* 월 헤더 행 */}
-      <div className="flex" style={{ height: '24px' }}>
+      <div className="flex" style={{ height: `${monthRowHeight}px` }}>
         <div
           className="flex"
           style={{ width: `${visibleDayIndices.length * cellWidth}px` }}
@@ -141,10 +149,11 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
           {monthInfos.map((info, index) => (
             <div
               key={`month-${info.month}`}
-              className="flex-shrink-0 flex items-center justify-center text-xs font-bold text-foreground"
+              className="flex-shrink-0 flex items-center justify-center font-bold text-foreground"
               style={{
                 width: `${info.visibleDayCount * cellWidth}px`,
                 backgroundColor: getMonthBgColor(index),
+                fontSize: `${scaledFontSize}px`,
                 // 월 구분선: 첫 월과 마지막 월은 제외, 좌측에 선 표시
                 borderLeft: !info.isFirst ? '2px dashed #c5c7cc' : undefined,
               }}
@@ -156,7 +165,7 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
       </div>
 
       {/* 날짜 행 */}
-      <div className="flex" style={{ height: '20px' }}>
+      <div className="flex" style={{ height: `${dateRowHeight}px` }}>
         <div
           className="flex"
           style={{ width: `${visibleDayIndices.length * cellWidth}px` }}
@@ -170,9 +179,10 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
             return (
               <div
                 key={dayIndex}
-                className="flex-shrink-0 flex items-center justify-center text-xs text-muted-foreground border-r border-border"
+                className="flex-shrink-0 flex items-center justify-center text-muted-foreground border-r border-border"
                 style={{
                   width: `${cellWidth}px`,
+                  fontSize: `${scaledFontSize}px`,
                   backgroundColor: isSpecialDay ? weekendColor : undefined,
                   // 월 구분선 (월 헤더와 정확히 일치)
                   borderLeft: isFirstDay ? '2px dashed #c5c7cc' : undefined,
@@ -186,7 +196,7 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
       </div>
 
       {/* 공휴일 텍스트 행 */}
-      <div className="flex" style={{ height: '16px' }}>
+      <div className="flex" style={{ height: `${holidayRowHeight}px` }}>
         <div
           className="flex"
           style={{ width: `${visibleDayIndices.length * cellWidth}px` }}
@@ -200,9 +210,10 @@ export const DateAxis = memo(function DateAxis({ hideFixedColumn = false }: Date
             return (
               <div
                 key={`holiday-${dayIndex}`}
-                className="flex-shrink-0 flex items-center justify-center text-[9px] text-destructive font-medium border-r border-border overflow-hidden"
+                className="flex-shrink-0 flex items-center justify-center text-destructive font-medium border-r border-border overflow-hidden"
                 style={{
                   width: `${cellWidth}px`,
+                  fontSize: `${scaledSmallFontSize}px`,
                   backgroundColor: isSpecialDay ? weekendColor : undefined,
                   borderLeft: isFirstDay ? '2px dashed #c5c7cc' : undefined,
                 }}

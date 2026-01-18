@@ -133,6 +133,28 @@ export function TeamManagement() {
       return
     }
 
+    // 이름 중복 검사
+    const trimmedName = name.trim()
+    const duplicateName = members.find(
+      (m) => m.name.toLowerCase() === trimmedName.toLowerCase()
+    )
+    if (duplicateName) {
+      alert(`"${trimmedName}" 이름의 구성원이 이미 존재합니다.`)
+      return
+    }
+
+    // 이메일 중복 검사 (이메일이 입력된 경우에만)
+    const trimmedEmail = email.trim()
+    if (trimmedEmail) {
+      const duplicateEmail = members.find(
+        (m) => m.email?.toLowerCase() === trimmedEmail.toLowerCase()
+      )
+      if (duplicateEmail) {
+        alert(`"${trimmedEmail}" 이메일을 사용하는 구성원(${duplicateEmail.name})이 이미 존재합니다.`)
+        return
+      }
+    }
+
     setIsSubmitting(true)
 
     try {

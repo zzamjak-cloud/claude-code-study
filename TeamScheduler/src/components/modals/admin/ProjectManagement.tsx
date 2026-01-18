@@ -44,6 +44,16 @@ export function ProjectManagement() {
     e.preventDefault()
     if (!workspaceId || !currentUser || !newProjectName.trim()) return
 
+    // 프로젝트 이름 중복 검사
+    const trimmedName = newProjectName.trim()
+    const duplicateProject = projects.find(
+      (p) => p.name.toLowerCase() === trimmedName.toLowerCase()
+    )
+    if (duplicateProject) {
+      alert(`"${trimmedName}" 이름의 프로젝트가 이미 존재합니다.`)
+      return
+    }
+
     setIsLoading(true)
     try {
       const maxOrder = projects.length > 0

@@ -26,7 +26,6 @@ export const useAuth = () => {
         setCurrentUser(user)
       } else {
         // 로그아웃 시 모든 인증 관련 상태 초기화
-        // (currentUser, workspaceId, isAdmin 모두 초기화)
         logout()
       }
       setLoading(false)
