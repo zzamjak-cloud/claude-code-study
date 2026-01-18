@@ -23,5 +23,12 @@ export {
 // 프로젝트
 export { createProject, updateProject, deleteProject } from './project'
 
+// 글로벌 공지
+export {
+  createGlobalNotice,
+  updateGlobalNotice,
+  deleteGlobalNotice,
+} from './globalNotice'
+
 // 유틸리티
 export { timestampToNumber } from './utils'

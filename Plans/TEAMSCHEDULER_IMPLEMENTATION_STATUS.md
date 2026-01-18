@@ -12,6 +12,7 @@ TeamScheduler는 팀 일정 관리를 위한 웹 애플리케이션입니다. �
 - **프로젝트 관리**: 프로젝트/조직 단위로 구성원 그룹화
 - **공휴일 관리**: 한국 공휴일 자동 등록 및 커스텀 휴일 추가
 - **글로벌 이벤트**: 전체 구성원에게 적용되는 특이사항 관리
+- **글로벌 공지**: 모든 프로젝트에서 표시되는 전역 공지 시스템
 - **실시간 동기화**: Firebase Firestore를 통한 실시간 데이터 동기화
 - **연도별 페이지네이션**: 선택한 연도의 데이터만 로드
 - **Undo/Redo**: 작업 히스토리 관리
@@ -74,7 +75,9 @@ src/
 │       ├── TeamMemberEditModal.tsx   # 구성원 편집 모달
 │       ├── HiddenMembersModal.tsx    # 숨긴 구성원 보관함
 │       ├── ColorPresetModal.tsx      # 색상 프리셋 모달
-│       └── HelpModal.tsx             # 도움말 모달
+│       ├── HelpModal.tsx             # 도움말 모달
+│       ├── UserSettingsPopup.tsx     # 사용자 설정 팝업
+│       └── GlobalNoticeManagerModal.tsx # 글로벌 공지 관리 모달
 │
 ├── store/                  # Zustand 상태 관리
 │   ├── useAppStore.ts          # 메인 스토어 (슬라이스 통합)
@@ -87,6 +90,7 @@ src/
 │       ├── globalEventSlice.ts # 글로벌 이벤트 상태
 │       ├── projectSlice.ts     # 프로젝트 상태
 │       ├── announcementSlice.ts # 공지사항 상태
+│       ├── globalNoticeSlice.ts # 글로벌 공지 상태
 │       └── historySlice.ts     # Undo/Redo 히스토리
 │
 ├── lib/
@@ -101,6 +105,7 @@ src/
 │   │       ├── event.ts            # 특이사항 CRUD (46줄)
 │   │       ├── announcement.ts     # 공지사항 (41줄)
 │   │       ├── globalEvent.ts      # 글로벌 이벤트 (62줄)
+│   │       ├── globalNotice.ts     # 글로벌 공지 CRUD (42줄)
 │   │       ├── project.ts          # 프로젝트 CRUD (57줄)
 │   │       └── utils.ts            # 유틸리티 (12줄)
 │   │
@@ -115,7 +120,8 @@ src/
 │   │       ├── useEventsSync.ts        # 특이사항 동기화 (68줄)
 │   │       ├── useGlobalEventsSync.ts  # 글로벌 이벤트 동기화 (98줄)
 │   │       ├── useProjectsSync.ts      # 프로젝트 동기화 (60줄)
-│   │       └── useAnnouncementsSync.ts # 공지사항 동기화 (53줄)
+│   │       ├── useAnnouncementsSync.ts # 공지사항 동기화 (53줄)
+│   │       └── useGlobalNoticesSync.ts # 글로벌 공지 동기화 (45줄)
 │   │
 │   ├── utils/              # 유틸리티 함수
 │   │   ├── dateUtils.ts        # 날짜 계산 (픽셀 ↔ 날짜 변환)
@@ -137,6 +143,7 @@ src/
     ├── globalEvent.ts          # GlobalEvent 타입
     ├── event.ts                # Event(공휴일) 타입
     ├── announcement.ts         # Announcement 타입
+    ├── globalNotice.ts         # GlobalNotice 타입
     ├── workspace.ts            # Workspace 관련 타입
     └── store.ts                # Store 관련 타입
 ```
@@ -226,6 +233,19 @@ interface GlobalEvent {
 }
 ```
 
+### GlobalNotice (글로벌 공지)
+```typescript
+interface GlobalNotice {
+  id: string
+  content: string      // 공지 내용 (한 줄)
+  order: number        // 순서
+  isActive: boolean    // 활성화 여부
+  createdBy: string    // 생성자 UID
+  createdAt: number
+  updatedAt: number
+}
+```
+
 ---
 
 ## Zustand 상태 관리
@@ -244,7 +264,8 @@ type AppState =
   AnnouncementSlice &   // 공지사항 데이터
   GlobalEventSlice &    // 글로벌 이벤트 데이터
   ProjectSlice &        // 프로젝트 데이터
-  HistorySlice          // Undo/Redo 히스토리
+  HistorySlice &        // Undo/Redo 히스토리
+  GlobalNoticeSlice     // 글로벌 공지 데이터
 ```
 
 ### 주요 상태 및 액션
@@ -309,6 +330,7 @@ globalEvents/{workspaceId}/items/    # 글로벌 이벤트
 globalEventSettings/{workspaceId}    # 글로벌 이벤트 설정
 projects/{workspaceId}/items/        # 프로젝트
 announcements/{workspaceId}/projects/ # 공지사항
+globalNotices/{workspaceId}/items/   # 글로벌 공지
 ```
 
 ### 실시간 동기화 (모듈화된 구조)
@@ -324,6 +346,7 @@ export const useFirebaseSync = (workspaceId: string | null, currentYear: number)
   useGlobalEventsSync(workspaceId, currentYear) // 글로벌 이벤트 (연도별 필터링)
   useProjectsSync(workspaceId)                 // 프로젝트
   useAnnouncementsSync(workspaceId)            // 공지사항
+  useGlobalNoticesSync(workspaceId)            // 글로벌 공지
 }
 ```
 
@@ -359,6 +382,7 @@ const schedules = allSchedules.filter(s => s.endDate >= yearStart)
 | `announcement.ts` | `updateGlobalAnnouncement`, `updateAnnouncement` |
 | `globalEvent.ts` | `createGlobalEvent`, `updateGlobalEvent`, `deleteGlobalEvent`, `updateGlobalEventSettings` |
 | `project.ts` | `createProject`, `updateProject`, `deleteProject` |
+| `globalNotice.ts` | `createGlobalNotice`, `updateGlobalNotice`, `deleteGlobalNotice` |
 
 ### 낙관적 업데이트 패턴
 
@@ -378,6 +402,74 @@ try {
     startDate: schedule.startDate,
     endDate: schedule.endDate
   })
+}
+```
+
+---
+
+## 글로벌 공지 시스템
+
+### 개요
+
+모든 프로젝트에서 표시되는 전역 공지 시스템입니다. 최고 관리자만 공지를 추가/수정/삭제할 수 있습니다.
+
+### 주요 기능
+
+- **전역 표시**: 어떤 프로젝트에서든 헤더에 공지 표시
+- **자동 순환**: 10초마다 다음 공지로 자동 전환
+- **위로 상승 애니메이션**: 공지 변경 시 슬라이드 업 효과
+- **관리자 전용 편집**: 공지 필드 클릭으로 관리 모달 열기
+
+### UI 구성
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  📅 프로젝트명 일정    [📢 공지 내용... 1/3]    [프로젝트▼] [👤] [🎨] [⚙️] │
+└─────────────────────────────────────────────────────────────┘
+```
+
+- **공지 필드**: 박스형 UI (`bg-primary/10`, `border-primary/20`)
+- **텍스트 좌측 정렬**: 고정 너비(w-64)로 출렁임 방지
+- **관리자 클릭**: 공지 필드 전체가 버튼 역할 (hover 효과)
+
+### 관리 모달 기능
+
+- 공지 추가 (한 줄 텍스트)
+- 공지 수정 (인라인 편집)
+- 공지 삭제 (확인 다이얼로그)
+- 순서 변경 (위/아래 이동)
+
+### 관련 파일
+
+| 분류 | 파일 |
+|------|------|
+| 타입 | `src/types/globalNotice.ts` |
+| 슬라이스 | `src/store/slices/globalNoticeSlice.ts` |
+| Firebase CRUD | `src/lib/firebase/firestore/globalNotice.ts` |
+| 동기화 훅 | `src/lib/hooks/firebase/useGlobalNoticesSync.ts` |
+| UI | `src/components/layout/Header.tsx` |
+| 관리 모달 | `src/components/modals/GlobalNoticeManagerModal.tsx` |
+
+### CSS 애니메이션
+
+```css
+/* index.css */
+@keyframes slide-up {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.4s ease-out forwards;
 }
 ```
 
@@ -531,17 +623,48 @@ const {
 | **React.lazy (코드 스플리팅)** | AdminPanel, ColorPresetModal, HelpModal | 초기 번들 크기 8% 감소 |
 | **커스텀 비교 함수** | ScheduleCard, GlobalEventCard의 memo | props 깊은 비교로 정밀 제어 |
 | **연도별 페이지네이션** | Firebase 쿼리 | 로드 데이터량 50% 이상 감소 |
+| **manualChunks** | vite.config.ts (react, firebase, ui, state) | 500KB 경고 해결, 캐싱 효율 향상 |
 
-### 번들 크기
+### 번들 크기 (manualChunks 적용)
+
+Vite의 manualChunks 설정으로 번들을 vendor별로 분리:
+
+```typescript
+// vite.config.ts
+build: {
+  rollupOptions: {
+    output: {
+      manualChunks: {
+        'react-vendor': ['react', 'react-dom'],
+        'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
+        'ui-vendor': ['lucide-react', 'date-fns', 're-resizable', 'react-rnd'],
+        'state-vendor': ['zustand'],
+      },
+    },
+  },
+}
+```
+
+**번들 구조:**
 
 ```
 dist/assets/
-├── index.js              ~678 KB  # 메인 번들
-├── AdminPanel.js          ~53 KB  # 관리 패널 (lazy)
-├── HelpModal.js            ~6.5 KB # 도움말 (lazy)
-├── ColorPresetModal.js     ~5.4 KB # 색상 프리셋 (lazy)
+├── index.js              ~267 KB  # 앱 코드 (메인)
+├── firebase-vendor.js    ~336 KB  # Firebase 관련
+├── ui-vendor.js           ~79 KB  # UI 라이브러리
+├── react-vendor.js        ~12 KB  # React 코어
+├── state-vendor.js         ~3 KB  # Zustand
+├── AdminPanel.js          ~33 KB  # 관리 패널 (lazy)
+├── HelpModal.js            ~6 KB  # 도움말 (lazy)
+├── ColorPresetModal.js     ~5 KB  # 색상 프리셋 (lazy)
 └── index.css              ~23 KB  # 스타일
 ```
+
+**개선 효과:**
+- 이전: 단일 번들 678KB (500KB 초과 경고)
+- 이후: 최대 청크 336KB (경고 해결)
+- 모든 청크가 500KB 미만으로 분리됨
+- 캐싱 효율 향상 (vendor 청크는 앱 업데이트 시에도 캐시 유지)
 
 ### React.memo 커스텀 비교 함수 예시
 

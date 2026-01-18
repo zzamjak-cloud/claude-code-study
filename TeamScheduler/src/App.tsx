@@ -13,17 +13,18 @@ import { TeamTabs } from './components/layout/TeamTabs'
 import { ScheduleGrid } from './components/schedule/ScheduleGrid'
 import { MonthFilter } from './components/layout/MonthFilter'
 import { YearSelector } from './components/layout/YearSelector'
-import { LogIn, Settings, Palette, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus } from 'lucide-react'
+import { LogIn, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus } from 'lucide-react'
 
 // 코드 스플리팅: 모달 컴포넌트 lazy 로드 (초기 번들 크기 감소)
 const AdminPanel = lazy(() => import('./components/modals/AdminPanel'))
 const ColorPresetModal = lazy(() => import('./components/modals/ColorPresetModal'))
 const HelpModal = lazy(() => import('./components/modals/HelpModal'))
+const GlobalNoticeManagerModal = lazy(() => import('./components/modals/GlobalNoticeManagerModal'))
 
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, isAdmin, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear } =
+  const { currentUser, isLoading, workspaceId, setWorkspace, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear } =
     useAppStore()
 
   // Firebase 실시간 동기화 (연도별 페이지네이션 적용)
@@ -40,6 +41,9 @@ function App() {
 
   // 도움말 모달 상태
   const [showHelp, setShowHelp] = useState(false)
+
+  // 글로벌 공지 관리 모달 상태
+  const [showNoticeManager, setShowNoticeManager] = useState(false)
 
   // 임시: 워크스페이스 자동 설정 (실제로는 워크스페이스 선택 화면 필요)
   useEffect(() => {
@@ -122,7 +126,11 @@ function App() {
     <ErrorBoundary>
       <div className="h-screen bg-background flex flex-col overflow-hidden">
         {/* 헤더 */}
-        <Header />
+        <Header
+          onOpenColorPreset={() => setShowColorPreset(true)}
+          onOpenAdminPanel={() => setShowAdminPanel(true)}
+          onOpenNoticeManager={() => setShowNoticeManager(true)}
+        />
 
         {/* 구성원 탭 */}
         <TeamTabs />
@@ -201,29 +209,6 @@ function App() {
             >
               <HelpCircle className="w-5 h-5" />
             </button>
-
-            {/* 관리자 전용 버튼들 */}
-            {isAdmin && (
-              <>
-                {/* 컬러 프리셋 버튼 */}
-                <button
-                  onClick={() => setShowColorPreset(true)}
-                  className="p-2 bg-muted text-foreground rounded-md hover:bg-accent transition-colors"
-                  title="일정 기본 색상 설정"
-                >
-                  <Palette className="w-5 h-5" />
-                </button>
-
-                {/* 구성원 관리 버튼 */}
-                <button
-                  onClick={() => setShowAdminPanel(true)}
-                  className="p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
-                  title="구성원 관리"
-                >
-                  <Settings className="w-5 h-5" />
-                </button>
-              </>
-            )}
           </div>
         </div>
 
@@ -248,6 +233,13 @@ function App() {
         {showHelp && (
           <Suspense fallback={<LoadingSpinner size="lg" text="로딩 중..." />}>
             <HelpModal onClose={() => setShowHelp(false)} />
+          </Suspense>
+        )}
+
+        {/* 글로벌 공지 관리 모달 (lazy loaded) */}
+        {showNoticeManager && (
+          <Suspense fallback={<LoadingSpinner size="lg" text="로딩 중..." />}>
+            <GlobalNoticeManagerModal onClose={() => setShowNoticeManager(false)} />
           </Suspense>
         )}
       </div>

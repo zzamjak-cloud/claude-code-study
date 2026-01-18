@@ -1,19 +1,25 @@
 // 헤더 컴포넌트
 
-import { Calendar, Settings, LogOut, FolderKanban } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Calendar, User, Palette, Settings, Megaphone } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
-import { signOut } from '../../lib/firebase/auth'
+import { UserSettingsPopup } from '../modals/UserSettingsPopup'
 
-export function Header() {
-  const { currentUser, isAdmin, projects, selectedProjectId, setSelectedProjectId, selectMember } = useAppStore()
+interface HeaderProps {
+  onOpenColorPreset: () => void
+  onOpenAdminPanel: () => void
+  onOpenNoticeManager: () => void
+}
 
-  const handleLogout = async () => {
-    try {
-      await signOut()
-    } catch (error) {
-      console.error('로그아웃 실패:', error)
-    }
-  }
+export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManager }: HeaderProps) {
+  const { isAdmin, projects, selectedProjectId, setSelectedProjectId, selectMember, globalNotices } = useAppStore()
+  const [showUserSettings, setShowUserSettings] = useState(false)
+  const [currentNoticeIndex, setCurrentNoticeIndex] = useState(0)
+  const userSettingsRef = useRef<HTMLDivElement>(null)
+
+  // 선택된 프로젝트 이름
+  const selectedProject = projects.find(p => p.id === selectedProjectId)
+  const projectName = selectedProject?.name || 'TeamScheduler'
 
   // 프로젝트 변경 핸들러
   const handleProjectChange = (projectId: string | null) => {
@@ -21,80 +27,120 @@ export function Header() {
     selectMember(null)  // 통합 탭으로 초기화
   }
 
-  return (
-    <header className="bg-card border-b border-border px-6 py-4">
-      <div className="flex items-center justify-between">
-        {/* 로고 및 프로젝트 선택 */}
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <Calendar className="w-6 h-6 text-primary" />
-            <h1 className="text-xl font-bold text-foreground">TeamScheduler</h1>
-          </div>
+  // 공지 자동 순환 (10초마다)
+  useEffect(() => {
+    if (globalNotices.length <= 1) return
 
-          {/* 프로젝트 선택 드롭다운 */}
-          {projects.length > 0 && (
-            <div className="flex items-center gap-2">
-              <FolderKanban className="w-4 h-4 text-muted-foreground" />
-              <select
-                value={selectedProjectId || ''}
-                onChange={(e) => handleProjectChange(e.target.value || null)}
-                className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[150px]"
-              >
-                {projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
+    const interval = setInterval(() => {
+      setCurrentNoticeIndex((prev) => (prev + 1) % globalNotices.length)
+    }, 10000)
+
+    return () => clearInterval(interval)
+  }, [globalNotices.length])
+
+  // 공지 인덱스 리셋 (공지 목록 변경 시)
+  useEffect(() => {
+    if (currentNoticeIndex >= globalNotices.length) {
+      setCurrentNoticeIndex(0)
+    }
+  }, [globalNotices.length, currentNoticeIndex])
+
+  return (
+    <header className="bg-card border-b border-border px-6 py-3">
+      <div className="flex items-center justify-between">
+        {/* 왼쪽: 로고 및 프로젝트명 */}
+        <div className="flex items-center gap-3">
+          <Calendar className="w-6 h-6 text-primary" />
+          <div className="flex items-baseline gap-1">
+            <h1 className="text-xl font-bold text-foreground">{projectName}</h1>
+            <span className="text-sm text-muted-foreground">일정</span>
+          </div>
+        </div>
+
+        {/* 글로벌 공지 (오른쪽 정렬) */}
+        <div className="flex-1 flex items-center justify-end mx-4">
+          {globalNotices.length > 0 && (
+            <div
+              onClick={isAdmin ? onOpenNoticeManager : undefined}
+              className={`flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-3 py-1.5 max-w-md ${
+                isAdmin ? 'cursor-pointer hover:bg-primary/15 transition-colors' : ''
+              }`}
+              title={isAdmin ? '공지 관리' : undefined}
+            >
+              <Megaphone className="w-4 h-4 text-primary shrink-0" />
+              <div className="overflow-hidden relative w-64 h-5">
+                <div
+                  className="text-sm text-foreground whitespace-nowrap animate-slide-up absolute inset-0"
+                  key={currentNoticeIndex}
+                >
+                  {globalNotices[currentNoticeIndex]?.content}
+                </div>
+              </div>
+              {globalNotices.length > 1 && (
+                <span className="text-xs text-muted-foreground shrink-0 tabular-nums">
+                  {currentNoticeIndex + 1}/{globalNotices.length}
+                </span>
+              )}
             </div>
           )}
         </div>
 
-        {/* 우측 메뉴 */}
-        <div className="flex items-center gap-4">
-          {/* 사용자 정보 */}
-          {currentUser && (
-            <div className="flex items-center gap-3">
-              {currentUser.photoURL ? (
-                <img
-                  src={currentUser.photoURL}
-                  alt={currentUser.displayName || '사용자'}
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold">
-                  {currentUser.displayName?.charAt(0) || 'U'}
-                </div>
-              )}
-              <div className="flex flex-col">
-                <span className="text-sm font-medium text-foreground">
-                  {currentUser.displayName || '사용자'}
-                </span>
-                {isAdmin && (
-                  <span className="text-xs text-muted-foreground">관리자</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 설정 버튼 (관리자만) */}
-          {isAdmin && (
-            <button
-              className="p-2 text-muted-foreground hover:text-foreground transition-colors"
-              title="설정"
+        {/* 오른쪽: 프로젝트 선택, 내정보, 색상, 관리 */}
+        <div className="flex items-center gap-3">
+          {/* 프로젝트 선택 드롭다운 */}
+          {projects.length > 0 && (
+            <select
+              value={selectedProjectId || ''}
+              onChange={(e) => handleProjectChange(e.target.value || null)}
+              className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[130px]"
             >
-              <Settings className="w-5 h-5" />
-            </button>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
           )}
 
-          {/* 로그아웃 버튼 */}
-          <button
-            onClick={handleLogout}
-            className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-            title="로그아웃"
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
+          {/* 구분선 */}
+          <div className="w-px h-6 bg-border" />
+
+          {/* 내정보 버튼 */}
+          <div className="relative" ref={userSettingsRef}>
+            <button
+              onClick={() => setShowUserSettings(!showUserSettings)}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+              title="내 정보"
+            >
+              <User className="w-5 h-5" />
+            </button>
+            {showUserSettings && (
+              <UserSettingsPopup onClose={() => setShowUserSettings(false)} />
+            )}
+          </div>
+
+          {/* 관리자 전용 버튼들 */}
+          {isAdmin && (
+            <>
+              {/* 색상 설정 버튼 */}
+              <button
+                onClick={onOpenColorPreset}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                title="일정 기본 색상 설정"
+              >
+                <Palette className="w-5 h-5" />
+              </button>
+
+              {/* 관리 버튼 */}
+              <button
+                onClick={onOpenAdminPanel}
+                className="p-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                title="관리"
+              >
+                <Settings className="w-5 h-5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
     </header>
