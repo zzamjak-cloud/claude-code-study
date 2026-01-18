@@ -1,7 +1,7 @@
 // 글로벌 공지 관리 모달
 
-import { useState } from 'react'
-import { X, Plus, Trash2, ChevronUp, ChevronDown, Save, Pencil } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { X, Plus, Trash2, ChevronUp, ChevronDown, Save, Pencil, Smile } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import {
   createGlobalNotice,
@@ -9,6 +9,12 @@ import {
   deleteGlobalNotice,
 } from '../../lib/firebase/firestore'
 import { GlobalNotice } from '../../types/globalNotice'
+import {
+  getEmojisByCategory,
+  searchEmojis,
+  EMOJI_CATEGORIES,
+  type EmojiItem
+} from '../../lib/emojiData'
 
 interface GlobalNoticeManagerModalProps {
   onClose: () => void
@@ -21,6 +27,34 @@ export function GlobalNoticeManagerModal({ onClose }: GlobalNoticeManagerModalPr
   const [editContent, setEditContent] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
+
+  // 이모지 피커 상태
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [emojiSearch, setEmojiSearch] = useState('')
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
+
+  // 이모지 피커 외부 클릭 시 닫기
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false)
+      }
+    }
+
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showEmojiPicker])
+
+  // 이모지 선택 핸들러
+  const handleEmojiSelect = (emoji: EmojiItem) => {
+    setNewContent(prev => emoji.emoji + ' ' + prev)
+    setShowEmojiPicker(false)
+    setEmojiSearch('')
+    setSelectedCategory('all')
+  }
 
   // 공지 추가
   const handleAdd = async () => {
@@ -115,6 +149,73 @@ export function GlobalNoticeManagerModal({ onClose }: GlobalNoticeManagerModalPr
         {/* 새 공지 입력 */}
         <div className="p-4 border-b border-border">
           <div className="flex gap-2">
+            {/* 이모지 선택 버튼 */}
+            <div className="relative" ref={emojiPickerRef}>
+              <button
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors shrink-0"
+                title="이모지 선택"
+              >
+                <Smile className="w-5 h-5" />
+              </button>
+
+              {/* 이모지 피커 팝업 */}
+              {showEmojiPicker && (
+                <div className="absolute top-full left-0 mt-2 bg-card border border-border rounded-lg shadow-xl z-50 w-80">
+                  {/* 검색 바 */}
+                  <div className="p-3 border-b border-border">
+                    <input
+                      type="text"
+                      value={emojiSearch}
+                      onChange={(e) => setEmojiSearch(e.target.value)}
+                      placeholder="이모지 검색..."
+                      className="w-full px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+
+                  {/* 카테고리 탭 */}
+                  <div className="flex gap-1 p-2 border-b border-border overflow-x-auto scrollbar-thin">
+                    {EMOJI_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => {
+                          setSelectedCategory(cat.id)
+                          setEmojiSearch('')
+                        }}
+                        className={`px-3 py-1.5 text-xs rounded-md shrink-0 transition-colors ${
+                          selectedCategory === cat.id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted hover:bg-accent'
+                        }`}
+                        title={cat.name}
+                      >
+                        <span className="text-base">{cat.icon}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* 이모지 그리드 */}
+                  <div className="p-2 max-h-60 overflow-y-auto scrollbar-thin">
+                    <div className="grid grid-cols-8 gap-1">
+                      {(emojiSearch
+                        ? searchEmojis(emojiSearch, selectedCategory)
+                        : getEmojisByCategory(selectedCategory).slice(0, 100)
+                      ).map((emoji, index) => (
+                        <button
+                          key={index}
+                          onClick={() => handleEmojiSelect(emoji)}
+                          className="p-2 text-xl hover:bg-accent rounded transition-colors"
+                          title={emoji.name}
+                        >
+                          {emoji.emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <input
               type="text"
               value={newContent}
