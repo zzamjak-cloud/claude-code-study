@@ -8,6 +8,7 @@ import { useGlobalEventsSync } from './firebase/useGlobalEventsSync'
 import { useProjectsSync } from './firebase/useProjectsSync'
 import { useAnnouncementsSync } from './firebase/useAnnouncementsSync'
 import { useGlobalNoticesSync } from './firebase/useGlobalNoticesSync'
+import { useSuperAdminsSync } from './firebase/useSuperAdminsSync'
 
 /**
  * Firebase Firestore 실시간 동기화 통합 훅
@@ -22,6 +23,7 @@ import { useGlobalNoticesSync } from './firebase/useGlobalNoticesSync'
  * - 프로젝트 (projects)
  * - 공지사항 (announcements)
  * - 글로벌 공지 (globalNotices)
+ * - 최고 관리자 (superAdmins)
  *
  * @param workspaceId - 워크스페이스 ID
  * @param currentYear - 현재 연도 (연도별 페이지네이션)
@@ -47,6 +49,9 @@ export const useFirebaseSync = (workspaceId: string | null, currentYear: number)
 
   // 글로벌 공지 동기화
   useGlobalNoticesSync(workspaceId)
+
+  // 최고 관리자 동기화
+  useSuperAdminsSync(workspaceId)
 }
 
 // 개별 훅들도 내보내기 (필요한 경우 개별 사용 가능)
@@ -58,4 +63,5 @@ export {
   useProjectsSync,
   useAnnouncementsSync,
   useGlobalNoticesSync,
+  useSuperAdminsSync,
 }

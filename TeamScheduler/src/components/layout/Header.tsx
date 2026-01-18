@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Calendar, User, Palette, Settings, Megaphone } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
+import { usePermissions } from '../../lib/hooks/usePermissions'
 import { UserSettingsPopup } from '../modals/UserSettingsPopup'
 
 interface HeaderProps {
@@ -12,7 +13,8 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManager }: HeaderProps) {
-  const { isAdmin, projects, selectedProjectId, setSelectedProjectId, selectMember, globalNotices } = useAppStore()
+  const { projects, selectedProjectId, setSelectedProjectId, selectMember, globalNotices } = useAppStore()
+  const { isOwner } = usePermissions() // 최고 관리자만 관리 기능 사용 가능
   const [showUserSettings, setShowUserSettings] = useState(false)
   const [currentNoticeIndex, setCurrentNoticeIndex] = useState(0)
   const userSettingsRef = useRef<HTMLDivElement>(null)
@@ -61,11 +63,11 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
         <div className="flex-1 flex items-center justify-end mx-4">
           {globalNotices.length > 0 && (
             <div
-              onClick={isAdmin ? onOpenNoticeManager : undefined}
+              onClick={isOwner ? onOpenNoticeManager : undefined}
               className={`flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-3 py-1.5 max-w-md ${
-                isAdmin ? 'cursor-pointer hover:bg-primary/15 transition-colors' : ''
+                isOwner ? 'cursor-pointer hover:bg-primary/15 transition-colors' : ''
               }`}
-              title={isAdmin ? '공지 관리' : undefined}
+              title={isOwner ? '공지 관리' : undefined}
             >
               <Megaphone className="w-4 h-4 text-primary shrink-0" />
               <div className="overflow-hidden relative w-64 h-5">
@@ -119,8 +121,8 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
             )}
           </div>
 
-          {/* 관리자 전용 버튼들 */}
-          {isAdmin && (
+          {/* 최고 관리자 전용 버튼들 */}
+          {isOwner && (
             <>
               {/* 색상 설정 버튼 */}
               <button

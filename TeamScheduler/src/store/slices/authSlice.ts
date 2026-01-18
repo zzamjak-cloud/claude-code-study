@@ -1,6 +1,7 @@
 // 인증 상태 슬라이스
 
 import { User } from '../../types/store'
+import { SuperAdmin } from '../../types/superAdmin'
 
 export interface AuthSlice {
   // 상태
@@ -8,11 +9,13 @@ export interface AuthSlice {
   workspaceId: string | null
   isAdmin: boolean
   isLoading: boolean
+  superAdmins: SuperAdmin[]  // 최고 관리자 목록
 
   // 메서드
   setCurrentUser: (user: User | null) => void
   setWorkspace: (workspaceId: string | null, isAdmin: boolean) => void
   setLoading: (isLoading: boolean) => void
+  setSuperAdmins: (superAdmins: SuperAdmin[]) => void
   logout: () => void
 }
 
@@ -22,6 +25,7 @@ export const createAuthSlice = (set: any): AuthSlice => ({
   workspaceId: null,
   isAdmin: false,
   isLoading: true,
+  superAdmins: [],
 
   // 현재 사용자 설정
   setCurrentUser: (user) => set({ currentUser: user }),
@@ -35,6 +39,9 @@ export const createAuthSlice = (set: any): AuthSlice => ({
 
   // 로딩 상태 설정
   setLoading: (isLoading) => set({ isLoading }),
+
+  // 최고 관리자 목록 설정
+  setSuperAdmins: (superAdmins) => set({ superAdmins }),
 
   // 로그아웃
   logout: () =>

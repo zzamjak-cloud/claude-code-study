@@ -23,7 +23,7 @@ export interface Permission {
 
 // 역할별 기본 권한
 export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
-  // 최고 관리자 (workspace 소유자)
+  // 최고 관리자 (workspace 소유자 또는 superAdmins에 등록)
   owner: {
     canView: true,
     canEdit: true,
@@ -37,23 +37,25 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission> = {
   },
 
   // 서브 관리자 (isLeader = true)
+  // 현재는 일반 멤버와 동일한 권한 (향후 조정 예정)
   admin: {
     canView: true,
     canEdit: true,
     canDelete: true,
-    canManageTeam: true,      // 향후 제한 가능
-    canManageProjects: false,  // 향후 활성화 가능
-    canManageHolidays: true,
-    canManageNotices: false,   // 최고 관리자만
-    canAccessAdminPanel: true,
-    canChangeSettings: false,  // 최고 관리자만
+    canManageTeam: false,
+    canManageProjects: false,
+    canManageHolidays: false,
+    canManageNotices: false,
+    canAccessAdminPanel: false,
+    canChangeSettings: false,
   },
 
   // 일반 멤버 (등록된 구성원)
+  // 일정 생성/수정/삭제 가능
   member: {
     canView: true,
-    canEdit: true,             // 자신의 일정만 (향후 구현)
-    canDelete: false,          // 자신의 일정만 (향후 구현)
+    canEdit: true,
+    canDelete: true,
     canManageTeam: false,
     canManageProjects: false,
     canManageHolidays: false,

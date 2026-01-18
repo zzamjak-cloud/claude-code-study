@@ -31,5 +31,12 @@ export {
   deleteGlobalNotice,
 } from './firestore/globalNotice'
 
+// 최고 관리자
+export {
+  addSuperAdmin,
+  deleteSuperAdmin,
+  initializePrimarySuperAdmin,
+} from './firestore/superAdmin'
+
 // 유틸리티
 export { timestampToNumber } from './firestore/utils'

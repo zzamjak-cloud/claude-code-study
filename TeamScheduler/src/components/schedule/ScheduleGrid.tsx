@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useAppStore } from '../../store/useAppStore'
+import { usePermissions } from '../../lib/hooks/usePermissions'
 import { YEAR_DAYS } from '../../lib/constants/grid'
 import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { DateAxis } from './DateAxis'
@@ -26,7 +27,6 @@ export function ScheduleGrid() {
     workspaceId,
     currentUser,
     selectedScheduleColor, // 사용자가 선택한 기본 색상
-    isAdmin,
     globalEvents,
     globalEventRowCount,
     monthVisibility,
@@ -35,6 +35,12 @@ export function ScheduleGrid() {
     columnWidthScale,
     pushHistory,
   } = useAppStore()
+
+  // 권한 체크
+  // - isMember: 특이사항 입력은 구성원 이상만 가능
+  // - isOwner: 특이사항 행 추가/제거는 최고 관리자만 가능
+  const { isMember, isOwner } = usePermissions()
+
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -242,7 +248,7 @@ export function ScheduleGrid() {
 
   // 글로벌 행 추가 (관리자 + 통합 탭에서만)
   const addGlobalRow = useCallback(async () => {
-    if (!workspaceId || !isAdmin || !isUnifiedTab) return
+    if (!workspaceId || !isOwner || !isUnifiedTab) return
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
     try {
@@ -257,11 +263,11 @@ export function ScheduleGrid() {
     } catch (error) {
       console.error('글로벌 행 추가 실패:', error)
     }
-  }, [workspaceId, isAdmin, isUnifiedTab, globalEventRowCount, pushHistory])
+  }, [workspaceId, isOwner, isUnifiedTab, globalEventRowCount, pushHistory])
 
   // 글로벌 행 제거 (관리자 + 통합 탭에서만)
   const removeGlobalRow = useCallback(async () => {
-    if (!workspaceId || !isAdmin || !isUnifiedTab) return
+    if (!workspaceId || !isOwner || !isUnifiedTab) return
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
     try {
@@ -276,7 +282,7 @@ export function ScheduleGrid() {
     } catch (error) {
       console.error('글로벌 행 제거 실패:', error)
     }
-  }, [workspaceId, isAdmin, isUnifiedTab, globalEventRowCount, pushHistory])
+  }, [workspaceId, isOwner, isUnifiedTab, globalEventRowCount, pushHistory])
 
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId
@@ -522,10 +528,10 @@ export function ScheduleGrid() {
     }
   }, [isCreating, createStart, createEnd, createMemberId, createRowIndex, isAnnualLeave, currentYear, selectedScheduleColor, workspaceId, currentUser, members, pushHistory, resetCreation])
 
-  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (통합 탭 + 관리자만)
+  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (통합 탭 + 구성원 이상)
   const handleGlobalMouseDown = useCallback((e: React.MouseEvent, rowIndex: number) => {
-    // 통합 탭 + 관리자만 생성 가능
-    if (!isUnifiedTab || !isAdmin) return
+    // 통합 탭 + 구성원 이상만 생성 가능
+    if (!isUnifiedTab || !isMember) return
 
     // Ctrl 키가 눌려있지 않으면 무시
     const isCtrl = e.ctrlKey || e.metaKey
@@ -544,7 +550,7 @@ export function ScheduleGrid() {
     setCreateGlobalEnd(dayIndex)
 
     e.preventDefault()
-  }, [isUnifiedTab, isAdmin, cellWidth])
+  }, [isUnifiedTab, isMember, cellWidth])
 
   // 글로벌 행에서 마우스 이동
   const handleGlobalMouseMove = useCallback((e: React.MouseEvent) => {
@@ -682,7 +688,7 @@ export function ScheduleGrid() {
                 <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center">
                   특이사항
                 </span>
-                {isUnifiedTab && isAdmin && (
+                {isUnifiedTab && isOwner && (
                   <button
                     onClick={addGlobalRow}
                     className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold"
@@ -697,7 +703,7 @@ export function ScheduleGrid() {
               <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center px-1">
                 특이사항
               </span>
-            ) : row.isLastRow && isUnifiedTab && isAdmin ? (
+            ) : row.isLastRow && isUnifiedTab && isOwner ? (
               // 마지막 행 (다중 행일 때): +/- 버튼
               <div className="flex items-center gap-1">
                 <button
@@ -794,8 +800,8 @@ export function ScheduleGrid() {
           {/* 글로벌 특이사항 행 - 그리드 */}
           {globalRows.map((row) => {
             const globalPreview = getGlobalCreationPreview(row.rowIndex)
-            // 통합 탭 + 관리자만 편집 가능
-            const isGlobalReadOnly = !isUnifiedTab || !isAdmin
+            // 통합 탭 + 구성원 이상만 편집 가능
+            const isGlobalReadOnly = !isUnifiedTab || !isMember
 
             return (
               <div

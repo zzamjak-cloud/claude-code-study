@@ -23,13 +23,15 @@ function getAdminEmails(): string[] {
  *
  * 역할 결정 순서:
  * 1. 환경 변수의 관리자 이메일 → owner (최고 관리자)
- * 2. workspace.ownerId === currentUser.uid → owner (최고 관리자)
- * 3. 이메일 매칭 + isLeader = true → admin (서브 관리자)
- * 4. 이메일 매칭 → member (일반 멤버)
+ * 2. Firestore superAdmins에 등록된 이메일 → owner (최고 관리자)
+ * 3. workspace.ownerId === currentUser.uid → owner (최고 관리자)
+ * 4. 이메일 매칭 → member (일반 멤버, 리더 포함)
  * 5. 매칭 실패 → guest (접근 거부)
+ *
+ * 참고: 리더(isLeader)는 향후 권한 조정 예정, 현재는 일반 멤버와 동일
  */
 export function usePermissions(): UserPermissionInfo {
-  const { currentUser, workspaceId, members } = useAppStore()
+  const { currentUser, workspaceId, members, superAdmins } = useAppStore()
 
   return useMemo(() => {
     // 1. 로그인하지 않은 경우 → guest
@@ -67,9 +69,24 @@ export function usePermissions(): UserPermissionInfo {
       }
     }
 
-    // 3. workspace.ownerId 확인 (Firestore 기반)
-    const isOwner = useAppStore.getState().isAdmin
-    if (isOwner) {
+    // 3. Firestore superAdmins에 등록된 이메일 확인
+    const isSuperAdmin = superAdmins.some(
+      (admin) => admin.email.toLowerCase() === userEmail
+    )
+    if (isSuperAdmin) {
+      console.log('✅ Firestore 최고 관리자 이메일 매칭:', userEmail)
+      return {
+        role: 'owner',
+        permissions: ROLE_PERMISSIONS.owner,
+        isOwner: true,
+        isAdmin: true,
+        isMember: true,
+      }
+    }
+
+    // 4. workspace.ownerId 확인 (Firestore 기반)
+    const isWorkspaceOwner = useAppStore.getState().isAdmin
+    if (isWorkspaceOwner) {
       console.log('✅ Workspace ownerId 매칭')
       return {
         role: 'owner',
@@ -80,12 +97,12 @@ export function usePermissions(): UserPermissionInfo {
       }
     }
 
-    // 4. 이메일로 팀원 매칭
+    // 5. 이메일로 팀원 매칭
     const matchedMember = members.find(
       (m) => m.email?.toLowerCase() === userEmail && !m.isHidden
     )
 
-    // 5. 매칭된 팀원이 없으면 → guest
+    // 6. 매칭된 팀원이 없으면 → guest
     if (!matchedMember) {
       return {
         role: 'guest',
@@ -96,20 +113,8 @@ export function usePermissions(): UserPermissionInfo {
       }
     }
 
-    // 6. 서브 관리자 확인 (isLeader = true)
-    if (matchedMember.isLeader) {
-      return {
-        role: 'admin',
-        permissions: ROLE_PERMISSIONS.admin,
-        memberId: matchedMember.id,
-        memberName: matchedMember.name,
-        isOwner: false,
-        isAdmin: true,
-        isMember: true,
-      }
-    }
-
-    // 7. 일반 멤버
+    // 7. 일반 멤버 (리더 포함 - 향후 권한 조정 예정)
+    // 현재는 리더도 일반 멤버와 동일한 권한 (일정 CRUD만 가능)
     return {
       role: 'member',
       permissions: ROLE_PERMISSIONS.member,
@@ -119,7 +124,7 @@ export function usePermissions(): UserPermissionInfo {
       isAdmin: false,
       isMember: true,
     }
-  }, [currentUser, workspaceId, members])
+  }, [currentUser, workspaceId, members, superAdmins])
 }
 
 /**

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Users, EyeOff, Archive } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
+import { usePermissions } from '../../lib/hooks/usePermissions'
 import { updateTeamMember } from '../../lib/firebase/firestore'
 import { TeamMember } from '../../types/team'
 import { HiddenMembersModal } from '../modals/HiddenMembersModal'
@@ -14,9 +15,11 @@ export function TeamTabs() {
   const selectMember = useAppStore(state => state.selectMember)
   const reorderMembers = useAppStore(state => state.reorderMembers)
   const workspaceId = useAppStore(state => state.workspaceId)
-  const isAdmin = useAppStore(state => state.isAdmin)
   const selectedProjectId = useAppStore(state => state.selectedProjectId)
   const projects = useAppStore(state => state.projects)
+
+  // 최고 관리자 권한 확인
+  const { isOwner } = usePermissions()
 
   // 드래그 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
@@ -52,11 +55,11 @@ export function TeamTabs() {
     }
   }, [contextMenu])
 
-  // 우클릭 핸들러 (관리자만 사용 가능)
+  // 우클릭 핸들러 (최고 관리자만 사용 가능)
   const handleContextMenu = (e: React.MouseEvent, member: TeamMember) => {
     e.preventDefault()
-    // 관리자가 아니면 컨텍스트 메뉴 표시하지 않음
-    if (!isAdmin) return
+    // 최고 관리자가 아니면 컨텍스트 메뉴 표시하지 않음
+    if (!isOwner) return
 
     setContextMenu({
       x: e.clientX,

@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Megaphone } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
+import { usePermissions } from '../../lib/hooks/usePermissions'
 import { updateAnnouncement } from '../../lib/firebase/firestore'
 
 export function Announcement() {
-  const { announcements, isAdmin, workspaceId, currentUser, selectedProjectId, projects, members } = useAppStore()
+  const { announcements, workspaceId, currentUser, selectedProjectId, projects, members } = useAppStore()
+  const { isOwner } = usePermissions() // 최고 관리자 권한 확인
   const [isSaving, setIsSaving] = useState(false)
 
   // 현재 선택된 프로젝트
@@ -25,8 +27,8 @@ export function Announcement() {
     return currentProject.memberIds?.includes(userMember.id) || false
   }, [currentProject, currentUser, members])
 
-  // 편집 가능 여부: 관리자이거나 프로젝트 구성원인 경우
-  const canEdit = isAdmin || isProjectMember
+  // 편집 가능 여부: 최고 관리자이거나 프로젝트 구성원인 경우
+  const canEdit = isOwner || isProjectMember
 
   // 현재 선택된 프로젝트의 공지사항
   const currentAnnouncement = useMemo(() => {
