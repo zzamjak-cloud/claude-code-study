@@ -1,6 +1,8 @@
 // 메인 App 컴포넌트
 
 import { useState, useEffect, lazy, Suspense } from 'react'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from './lib/firebase/config'
 import { useAppStore } from './store/useAppStore'
 import { useAuth } from './lib/hooks/useAuth'
 import { useFirebaseSync } from './lib/hooks/useFirebaseSync'
@@ -8,6 +10,7 @@ import { useUndoRedo } from './lib/hooks/useUndoRedo'
 import { signInWithGoogle } from './lib/firebase/auth'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { LoadingSpinner } from './components/common/LoadingSpinner'
+import { AuthGuard } from './components/AuthGuard'
 import { Header } from './components/layout/Header'
 import { TeamTabs } from './components/layout/TeamTabs'
 import { ScheduleGrid } from './components/schedule/ScheduleGrid'
@@ -45,15 +48,74 @@ function App() {
   // 글로벌 공지 관리 모달 상태
   const [showNoticeManager, setShowNoticeManager] = useState(false)
 
-  // 임시: 워크스페이스 자동 설정 (실제로는 워크스페이스 선택 화면 필요)
+  // 워크스페이스 자동 설정 및 권한 확인
+  // 사용자가 바뀔 때마다 권한을 다시 확인해야 함
   useEffect(() => {
-    console.log('🔍 App useEffect - currentUser:', currentUser?.uid, 'workspaceId:', workspaceId)
-    if (currentUser && !workspaceId) {
-      console.log('📌 워크스페이스 설정:', currentUser.uid)
-      // 임시로 사용자 ID를 워크스페이스 ID로 사용
-      setWorkspace(currentUser.uid, true) // 모든 사용자를 관리자로 설정 (테스트용)
+    const initWorkspace = async () => {
+      console.log('🔍 App useEffect - currentUser:', currentUser?.uid, 'workspaceId:', workspaceId)
+
+      // 로그인하지 않은 경우 처리하지 않음
+      if (!currentUser) {
+        return
+      }
+
+      // 고정 workspace ID 사용 (모든 팀원이 같은 workspace 공유)
+      const wsId = import.meta.env.VITE_WORKSPACE_ID || 'default-workspace'
+      console.log('📌 워크스페이스 설정:', wsId)
+
+      try {
+        const userEmail = currentUser.email?.toLowerCase() || ''
+
+        // 환경 변수에서 관리자 이메일 확인
+        const adminEmailsEnv = import.meta.env.VITE_ADMIN_EMAILS || ''
+        const adminEmails = adminEmailsEnv
+          .split(',')
+          .map((email: string) => email.trim().toLowerCase())
+          .filter((email: string) => email.length > 0)
+
+        const isAdminEmail = adminEmails.includes(userEmail)
+
+        if (isAdminEmail) {
+          console.log('✅ 환경 변수 관리자 이메일:', userEmail)
+        }
+
+        // Firestore에서 workspace 정보 가져오기
+        const workspaceRef = doc(db, 'workspaces', wsId)
+        const workspaceSnap = await getDoc(workspaceRef)
+
+        let isOwner = false
+        if (workspaceSnap.exists()) {
+          // workspace가 있으면 ownerId 확인 또는 환경 변수 이메일 확인
+          const workspaceData = workspaceSnap.data()
+          isOwner = workspaceData.ownerId === currentUser.uid || isAdminEmail
+          console.log('✅ Workspace 존재 - isOwner:', isOwner, 'ownerId:', workspaceData.ownerId, 'currentUID:', currentUser.uid, 'isAdminEmail:', isAdminEmail)
+        } else {
+          // workspace가 없으면 첫 로그인 사용자 → 최고 관리자로 설정하고 생성
+          isOwner = true
+          console.log('🆕 새 Workspace - 첫 사용자를 최고 관리자로 설정')
+
+          // Firestore에 workspace 생성
+          const { setDoc } = await import('firebase/firestore')
+          await setDoc(workspaceRef, {
+            id: wsId,
+            name: 'Loadcomplete',
+            ownerId: currentUser.uid,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          })
+          console.log('✅ Workspace 생성 완료 - ownerId:', currentUser.uid)
+        }
+
+        setWorkspace(wsId, isOwner)
+      } catch (error) {
+        console.error('❌ Workspace 확인 실패:', error)
+        // 오류 발생 시 일반 사용자로 설정
+        setWorkspace(wsId, false)
+      }
     }
-  }, [currentUser, workspaceId, setWorkspace])
+
+    initWorkspace()
+  }, [currentUser, setWorkspace])  // workspaceId 의존성 제거 - 사용자가 바뀔 때만 실행
 
   // 프로젝트 기본값 설정 (저장된 값이 없거나 유효하지 않으면 "기타" 프로젝트 선택)
   useEffect(() => {
@@ -124,16 +186,17 @@ function App() {
   // 메인 화면
   return (
     <ErrorBoundary>
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
-        {/* 헤더 */}
-        <Header
-          onOpenColorPreset={() => setShowColorPreset(true)}
-          onOpenAdminPanel={() => setShowAdminPanel(true)}
-          onOpenNoticeManager={() => setShowNoticeManager(true)}
-        />
+      <AuthGuard>
+        <div className="h-screen bg-background flex flex-col overflow-hidden">
+          {/* 헤더 */}
+          <Header
+            onOpenColorPreset={() => setShowColorPreset(true)}
+            onOpenAdminPanel={() => setShowAdminPanel(true)}
+            onOpenNoticeManager={() => setShowNoticeManager(true)}
+          />
 
-        {/* 구성원 탭 */}
-        <TeamTabs />
+          {/* 구성원 탭 */}
+          <TeamTabs />
 
         {/* 툴바 */}
         <div className="bg-card border-b border-border px-6 py-3 flex items-center justify-between">
@@ -243,6 +306,7 @@ function App() {
           </Suspense>
         )}
       </div>
+      </AuthGuard>
     </ErrorBoundary>
   )
 }

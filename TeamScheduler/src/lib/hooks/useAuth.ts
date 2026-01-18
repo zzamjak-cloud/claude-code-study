@@ -9,7 +9,7 @@ import { User } from '../../types/store'
  * Firebase Authentication 상태 관리 훅
  */
 export const useAuth = () => {
-  const { setCurrentUser, setLoading } = useAppStore()
+  const { setCurrentUser, setLoading, logout } = useAppStore()
 
   useEffect(() => {
     setLoading(true)
@@ -25,11 +25,13 @@ export const useAuth = () => {
         }
         setCurrentUser(user)
       } else {
-        setCurrentUser(null)
+        // 로그아웃 시 모든 인증 관련 상태 초기화
+        // (currentUser, workspaceId, isAdmin 모두 초기화)
+        logout()
       }
       setLoading(false)
     })
 
     return () => unsubscribe()
-  }, [setCurrentUser, setLoading])
+  }, [setCurrentUser, setLoading, logout])
 }

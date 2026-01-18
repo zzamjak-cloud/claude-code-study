@@ -1,27 +1,148 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 개발/테스트용: 인증된 사용자는 모든 데이터 읽기/쓰기 가능
-    // 프로덕션에서는 더 엄격한 규칙으로 변경 필요
+    // 헬퍼 함수들
+
+    // 워크스페이스 소유자 확인 (최고 관리자)
+    function isWorkspaceOwner(workspaceId) {
+      return request.auth != null &&
+             exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
+             get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid;
+    }
+
+    // 워크스페이스 생성 권한 확인 (workspace가 없을 때 생성 가능)
+    function canCreateWorkspace(workspaceId) {
+      return request.auth != null &&
+             !exists(/databases/$(database)/documents/workspaces/$(workspaceId));
+    }
+
+    // 등록된 팀원 확인
+    // 클라이언트 측 AuthGuard에서 이메일 매칭을 하므로
+    // 여기서는 인증된 사용자인지만 체크 (읽기 전용)
+    function isTeamMember(workspaceId) {
+      return request.auth != null;
+    }
+
+    // 서브 관리자 확인 (isLeader = true)
+    function isAdmin(workspaceId) {
+      let member = get(/databases/$(database)/documents/teams/$(workspaceId)/members/$(request.auth.uid));
+      return member.data.isLeader == true;
+    }
 
     // 워크스페이스
     match /workspaces/{workspaceId} {
-      allow read, write: if request.auth != null;
+      // 읽기: 로그인된 모든 사용자 (워크스페이스 확인용)
+      allow read: if request.auth != null;
+
+      // 생성: workspace가 없을 때만 (첫 사용자)
+      allow create: if canCreateWorkspace(workspaceId);
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
     }
 
     // 팀원
     match /teams/{workspaceId}/members/{memberId} {
-      allow read, write: if request.auth != null;
+      // 읽기: 인증된 사용자 (AuthGuard에서 이메일 체크)
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자 (첫 팀원 등록)
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
     }
 
     // 일정
     match /schedules/{workspaceId}/items/{scheduleId} {
-      allow read, write: if request.auth != null;
+      // 읽기: 등록된 팀원
+      allow read: if request.auth != null && isTeamMember(workspaceId);
+
+      // 쓰기: 등록된 팀원 (향후 자신의 일정만 수정하도록 제한 가능)
+      allow create, update, delete: if request.auth != null && isTeamMember(workspaceId);
     }
 
     // 특이사항
     match /events/{workspaceId}/items/{eventId} {
-      allow read, write: if request.auth != null;
+      // 읽기: 등록된 팀원
+      allow read: if request.auth != null && isTeamMember(workspaceId);
+
+      // 쓰기: 등록된 팀원
+      allow create, update, delete: if request.auth != null && isTeamMember(workspaceId);
+    }
+
+    // 글로벌 특이사항
+    match /globalEvents/{workspaceId}/items/{eventId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
+    }
+
+    // 프로젝트
+    match /projects/{workspaceId}/items/{projectId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자 (첫 프로젝트)
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
+    }
+
+    // 공지사항 (프로젝트별)
+    // 경로: announcements/{workspaceId}/projects/{projectId}
+    match /announcements/{workspaceId}/projects/{projectId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
+    }
+
+    // 전역 공지사항 (워크스페이스 전체)
+    // 경로: announcements/{workspaceId}
+    match /announcements/{workspaceId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
+    }
+
+    // 글로벌 공지
+    match /globalNotices/{workspaceId}/items/{noticeId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
+    }
+
+    // 글로벌 이벤트 설정 (행 개수 등)
+    match /globalEventSettings/{workspaceId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자
+      allow create: if request.auth != null;
+
+      // 수정/삭제: 소유자만
+      allow update, delete: if isWorkspaceOwner(workspaceId);
     }
   }
 }
