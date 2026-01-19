@@ -49,10 +49,10 @@ service cloud.firestore {
       // 생성: 인증된 사용자 (첫 팀원 등록)
       allow create: if request.auth != null;
 
-      // 수정: 소유자이거나, rowCount만 변경하는 경우 (행 추가/제거)
+      // 수정: 소유자이거나, rowCount/memo만 변경하는 경우 (행 추가/제거, 메모)
       allow update: if isWorkspaceOwner(workspaceId) ||
                        (request.auth != null &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rowCount', 'updatedAt']));
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rowCount', 'memo', 'updatedAt']));
 
       // 삭제: 소유자만
       allow delete: if isWorkspaceOwner(workspaceId);
