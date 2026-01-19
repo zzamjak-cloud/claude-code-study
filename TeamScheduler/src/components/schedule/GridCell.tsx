@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
-import { addDays, isWeekend, isSameDay, isToday } from 'date-fns'
+import { addDays, isWeekend, isSameDay, isToday, isBefore, startOfDay } from 'date-fns'
 
 interface GridCellProps {
   dayIndex: number
@@ -37,6 +37,9 @@ export const GridCell = memo(function GridCell({ dayIndex, isFirstDayOfMonth = f
   // 오늘 날짜 확인
   const isTodayDate = isToday(date)
 
+  // 과거 날짜 확인 (오늘 이전)
+  const isPastDate = isBefore(date, startOfDay(new Date()))
+
   return (
     <div
       className="border-r border-border transition-colors flex-shrink-0 relative"
@@ -48,12 +51,31 @@ export const GridCell = memo(function GridCell({ dayIndex, isFirstDayOfMonth = f
         borderLeft: isFirstDayOfMonth ? '2px dashed #c5c7cc' : undefined,
       }}
     >
-      {/* 오늘 날짜 세로 라인 */}
-      {isTodayDate && (
+      {/* 과거 날짜 망점 처리 */}
+      {isPastDate && (
         <div
-          className="absolute left-0 top-0 bottom-0 w-0.5 bg-primary z-10"
-          style={{ boxShadow: '0 0 8px rgba(59, 130, 246, 0.5)' }}
+          className="absolute inset-0 pointer-events-none z-[5]"
+          style={{
+            backgroundImage: 'radial-gradient(circle, rgba(128, 128, 128, 0.25) 1px, transparent 1px)',
+            backgroundSize: '4px 4px',
+          }}
         />
+      )}
+
+      {/* 오늘 날짜 강조 (세로 라인 + 배경) */}
+      {isTodayDate && (
+        <>
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1 bg-primary z-10"
+            style={{ boxShadow: '0 0 8px rgba(59, 130, 246, 0.6)' }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none z-[5]"
+            style={{
+              background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 50%, transparent 100%)',
+            }}
+          />
+        </>
       )}
     </div>
   )

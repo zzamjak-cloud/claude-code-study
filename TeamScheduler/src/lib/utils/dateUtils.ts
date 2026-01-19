@@ -1,6 +1,6 @@
 // 날짜 계산 유틸리티
 
-import { startOfYear, differenceInDays, addDays } from 'date-fns'
+import { startOfYear, startOfDay, differenceInDays, addDays } from 'date-fns'
 import { CELL_WIDTH_BASE } from '../constants/grid'
 
 /**
@@ -69,8 +69,9 @@ export const getVisibleDayIndices = (
 
 /**
  * 일정 날짜 범위에서 표시할 부분 계산 (클리핑)
+ * 월별 필터링 시 숨겨진 월에 시작일이 있어도 표시 가능한 월의 부분은 표시
  * @param startDate - 일정 시작일
- * @param endDate - 일정 종료일
+ * @param endDate - 일정 종료일 (exclusive: 종료일 다음날 0시)
  * @param year - 연도
  * @param monthVisibility - 월별 가시성
  * @returns 클리핑된 날짜 범위 배열 (연속된 세그먼트 별로)
@@ -82,8 +83,13 @@ export const getVisibleScheduleSegments = (
   monthVisibility: Record<number, boolean>
 ): Array<{ startDayIndex: number; endDayIndex: number }> => {
   const yearStart = startOfYear(new Date(year, 0, 1))
-  const startDayIndex = Math.max(0, differenceInDays(startDate, yearStart))
-  const endDayIndex = Math.max(0, differenceInDays(endDate, yearStart))
+
+  // 시간대 문제 방지를 위해 startOfDay 사용
+  const normalizedStart = startOfDay(startDate)
+  const normalizedEnd = startOfDay(endDate)
+
+  const startDayIndex = Math.max(0, differenceInDays(normalizedStart, yearStart))
+  const endDayIndex = Math.max(0, differenceInDays(normalizedEnd, yearStart))
 
   const segments: Array<{ startDayIndex: number; endDayIndex: number }> = []
   let currentSegmentStart: number | null = null
