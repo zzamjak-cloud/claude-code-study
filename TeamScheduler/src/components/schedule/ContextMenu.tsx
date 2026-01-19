@@ -1,7 +1,7 @@
 // 일정 카드 우클릭 컨텍스트 메뉴
 
 import { useEffect, useRef, useState } from 'react'
-import { Palette, UserCog, ChevronRight } from 'lucide-react'
+import { Palette, UserCog, ChevronRight, Search } from 'lucide-react'
 import { COLOR_PRESETS, DEFAULT_SCHEDULE_COLOR } from '../../lib/constants/colors'
 import { TeamMember } from '../../types/team'
 
@@ -28,10 +28,19 @@ export function ContextMenu({
   onTransfer,
 }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [showTransferSubmenu, setShowTransferSubmenu] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // 이관 가능한 구성원 (현재 구성원 제외)
   const transferableMembers = members?.filter((m) => m.id !== currentMemberId && !m.isHidden) || []
+
+  // 검색 필터링된 구성원
+  const filteredMembers = searchQuery
+    ? transferableMembers.filter((m) =>
+        m.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : transferableMembers
 
   // 외부 클릭 시 닫기
   useEffect(() => {
@@ -100,8 +109,15 @@ export function ContextMenu({
           <div className="my-2 border-t border-border" />
           <div
             className="relative"
-            onMouseEnter={() => setShowTransferSubmenu(true)}
-            onMouseLeave={() => setShowTransferSubmenu(false)}
+            onMouseEnter={() => {
+              setShowTransferSubmenu(true)
+              // 서브메뉴가 열리면 검색 필드에 포커스
+              setTimeout(() => searchInputRef.current?.focus(), 50)
+            }}
+            onMouseLeave={() => {
+              setShowTransferSubmenu(false)
+              setSearchQuery('')
+            }}
           >
             <button className="w-full flex items-center justify-between gap-2 px-2 py-2 rounded-md hover:bg-accent transition-colors">
               <div className="flex items-center gap-2">
@@ -113,23 +129,46 @@ export function ContextMenu({
 
             {/* 구성원 서브메뉴 */}
             {showTransferSubmenu && (
-              <div className="absolute left-full top-0 ml-1 bg-card border border-border rounded-lg shadow-xl py-1 min-w-[120px] z-[210]">
-                {transferableMembers.map((member) => (
-                  <button
-                    key={member.id}
-                    onClick={() => {
-                      onTransfer(member.id)
-                      onClose()
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent transition-colors"
-                  >
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: member.color }}
+              <div className="absolute left-full top-0 ml-1 bg-card border border-border rounded-lg shadow-xl min-w-[160px] z-[210]">
+                {/* 검색 필드 */}
+                <div className="p-2 border-b border-border">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="이름 검색..."
+                      className="w-full pl-7 pr-2 py-1.5 text-sm bg-muted/50 border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary"
                     />
-                    <span className="text-sm text-foreground truncate">{member.name}</span>
-                  </button>
-                ))}
+                  </div>
+                </div>
+                {/* 구성원 목록 */}
+                <div className="max-h-[200px] overflow-y-auto py-1">
+                  {filteredMembers.length > 0 ? (
+                    filteredMembers.map((member) => (
+                      <button
+                        key={member.id}
+                        onClick={() => {
+                          onTransfer(member.id)
+                          onClose()
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 hover:bg-accent transition-colors"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: member.color }}
+                        />
+                        <span className="text-sm text-foreground truncate">{member.name}</span>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-sm text-muted-foreground text-center">
+                      검색 결과 없음
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
