@@ -18,6 +18,9 @@ TeamScheduler는 팀 일정 관리를 위한 웹 애플리케이션입니다. �
 - **Undo/Redo**: 작업 히스토리 관리
 - **Google Calendar 연동**: 오늘의 일정 동기화 (OAuth 2.0)
 - **리치 텍스트 에디터**: Tiptap 기반 공지사항/메모 편집기
+- **과거 날짜 시각화**: 오늘 이전 날짜에 망점 오버레이 표시
+- **통합 탭 편집**: 통합 탭에서도 일정 편집/생성/삭제 가능
+- **개인 메모 동기화**: 로그인 사용자 이메일 기준으로 메모 동기화
 
 ---
 
@@ -63,7 +66,7 @@ src/
 │   │   ├── ScheduleGrid.tsx     # 메인 타임라인 그리드 (~1,000줄)
 │   │   ├── ScheduleCard.tsx     # 일정 카드 (드래그/리사이즈, zoom 50% 제목만 표시)
 │   │   ├── GlobalEventCard.tsx  # 글로벌 이벤트 카드
-│   │   ├── GridCell.tsx         # 그리드 셀 (클릭으로 일정 생성)
+│   │   ├── GridCell.tsx         # 그리드 셀 (과거 날짜 망점, 오늘 강조)
 │   │   ├── DateAxis.tsx         # 날짜 축 (월/일 헤더)
 │   │   ├── ContextMenu.tsx      # 우클릭 메뉴 (색상 변경, 이관)
 │   │   ├── ScheduleEditPopup.tsx # 일정 편집 팝업
@@ -537,9 +540,12 @@ storage.setString(STORAGE_KEYS.ZOOM_LEVEL, level.toString())
 
 **주요 기능:**
 - 구성원별/통합 뷰 렌더링
-- 마우스 드래그로 일정 생성
+- 마우스 드래그로 일정 생성 (Ctrl+드래그)
+- 연차 카드 생성 (Alt+드래그)
 - 글로벌 이벤트 영역 관리
 - 행 추가/삭제
+- **통합 탭에서도 편집 기능 활성화** (일정 생성/수정/삭제)
+- 하단 패널 메모: 로그인 사용자 이메일 기준 동기화
 
 **useCallback 최적화된 핸들러:**
 
@@ -732,6 +738,16 @@ export function getVisibleDayIndices(
   year: number,
   monthVisibility: boolean[]
 ): number[]
+
+// 일정 세그먼트 계산 (월 필터링 시 클리핑)
+// - 시간대 문제 방지를 위해 startOfDay 사용
+// - 숨겨진 월에 시작일이 있어도 표시 가능한 월의 부분은 정상 표시
+export function getVisibleScheduleSegments(
+  startDate: Date,
+  endDate: Date,
+  year: number,
+  monthVisibility: Record<number, boolean>
+): Array<{ startDayIndex: number; endDayIndex: number }>
 ```
 
 ### gridUtils.ts
