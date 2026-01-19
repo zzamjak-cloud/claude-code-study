@@ -737,11 +737,13 @@ export function ScheduleGrid() {
         {rows.map((row) => (
           <div
             key={`fixed-${row.memberId}-${row.rowIndex}`}
-            className={`flex items-center justify-center ${
-              row.isLastRow ? 'border-b-2 border-gray-300 dark:border-gray-600' : ''
-            }`}
+            className="flex items-center justify-center relative"
             style={{ height: `${cellHeight}px` }}
           >
+            {/* 통합탭 구성원 구분선 (점선, 공휴일 배경보다 위에 표시) */}
+            {row.isLastRow && (
+              <div className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-gray-400 dark:border-gray-500 z-10" />
+            )}
             {!isUnifiedTab && row.isFirstRow && row.totalRows === 1 ? (
               // 개별 탭, 행이 1개일 때: 이름 + 버튼
               <div className="flex items-center gap-1">
@@ -898,9 +900,7 @@ export function ScheduleGrid() {
             return (
               <div
                 key={`grid-${row.memberId}-${row.rowIndex}`}
-                className={`relative ${
-                  row.isLastRow ? 'border-b-2 border-gray-300 dark:border-gray-600' : ''
-                }`}
+                className="relative"
                 style={{ height: `${cellHeight}px` }}
                 onMouseDown={(e) => handleMouseDown(e, row.memberId, row.rowIndex)}
                 onMouseMove={handleMouseMove}
@@ -915,6 +915,11 @@ export function ScheduleGrid() {
                     <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
                   ))}
                 </div>
+
+                {/* 통합탭 구성원 구분선 (점선, 공휴일 배경보다 위에 표시) */}
+                {row.isLastRow && (
+                  <div className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-gray-400 dark:border-gray-500 z-10" />
+                )}
 
                 {/* 생성 중인 일정 미리보기 */}
                 {preview && (

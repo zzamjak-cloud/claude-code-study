@@ -73,7 +73,7 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
               title={isOwner ? '공지 관리' : undefined}
             >
               <Megaphone className="w-4 h-4 text-primary shrink-0" />
-              <div className="overflow-hidden relative w-64 h-5">
+              <div className="overflow-hidden relative w-96 h-5">
                 <div
                   className="text-sm text-foreground whitespace-nowrap animate-slide-up absolute inset-0"
                   key={currentNoticeIndex}
