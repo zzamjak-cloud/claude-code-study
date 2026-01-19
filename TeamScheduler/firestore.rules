@@ -3,11 +3,23 @@ service cloud.firestore {
   match /databases/{database}/documents {
     // 헬퍼 함수들
 
-    // 워크스페이스 소유자 확인 (최고 관리자)
+    // 워크스페이스 소유자 확인 (workspace.ownerId)
     function isWorkspaceOwner(workspaceId) {
       return request.auth != null &&
              exists(/databases/$(database)/documents/workspaces/$(workspaceId)) &&
              get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.ownerId == request.auth.uid;
+    }
+
+    // 최고 관리자 확인 (superAdmins 컬렉션에 이메일 등록)
+    function isSuperAdmin(workspaceId) {
+      return request.auth != null &&
+             request.auth.token.email != null &&
+             exists(/databases/$(database)/documents/superAdmins/$(workspaceId)/admins/$(request.auth.token.email));
+    }
+
+    // 관리 권한 확인 (workspace 소유자 또는 superAdmins에 등록된 사용자)
+    function hasAdminAccess(workspaceId) {
+      return isWorkspaceOwner(workspaceId) || isSuperAdmin(workspaceId);
     }
 
     // 워크스페이스 생성 권한 확인 (workspace가 없을 때 생성 가능)
@@ -49,13 +61,13 @@ service cloud.firestore {
       // 생성: 인증된 사용자 (첫 팀원 등록)
       allow create: if request.auth != null;
 
-      // 수정: 소유자이거나, rowCount/memo만 변경하는 경우 (행 추가/제거, 메모)
-      allow update: if isWorkspaceOwner(workspaceId) ||
+      // 수정: 관리자이거나, rowCount/memo만 변경하는 경우 (행 추가/제거, 메모)
+      allow update: if hasAdminAccess(workspaceId) ||
                        (request.auth != null &&
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rowCount', 'memo', 'updatedAt']));
 
-      // 삭제: 소유자만
-      allow delete: if isWorkspaceOwner(workspaceId);
+      // 삭제: 관리자만
+      allow delete: if hasAdminAccess(workspaceId);
     }
 
     // 일정
@@ -84,8 +96,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 소유자만
-      allow update, delete: if isWorkspaceOwner(workspaceId);
+      // 수정/삭제: 관리자만
+      allow update, delete: if hasAdminAccess(workspaceId);
     }
 
     // 프로젝트
@@ -96,8 +108,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자 (첫 프로젝트)
       allow create: if request.auth != null;
 
-      // 수정/삭제: 소유자만
-      allow update, delete: if isWorkspaceOwner(workspaceId);
+      // 수정/삭제: 관리자만
+      allow update, delete: if hasAdminAccess(workspaceId);
     }
 
     // 공지사항 (프로젝트별)
@@ -109,8 +121,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 소유자만
-      allow update, delete: if isWorkspaceOwner(workspaceId);
+      // 수정/삭제: 관리자만
+      allow update, delete: if hasAdminAccess(workspaceId);
     }
 
     // 전역 공지사항 (워크스페이스 전체)
@@ -122,8 +134,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 소유자만
-      allow update, delete: if isWorkspaceOwner(workspaceId);
+      // 수정/삭제: 관리자만
+      allow update, delete: if hasAdminAccess(workspaceId);
     }
 
     // 글로벌 공지
@@ -134,8 +146,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 소유자만
-      allow update, delete: if isWorkspaceOwner(workspaceId);
+      // 수정/삭제: 관리자만
+      allow update, delete: if hasAdminAccess(workspaceId);
     }
 
     // 글로벌 이벤트 설정 (행 개수 등)
@@ -146,8 +158,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 소유자만
-      allow update, delete: if isWorkspaceOwner(workspaceId);
+      // 수정/삭제: 관리자만
+      allow update, delete: if hasAdminAccess(workspaceId);
     }
 
     // 최고 관리자 목록

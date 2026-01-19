@@ -47,6 +47,9 @@ export interface ViewSlice {
   // 마지막 선택한 프로젝트 ID (일정 등록시 기본값)
   lastSelectedProjectId: string | null
 
+  // 선택된 직군 필터 (null = 전체)
+  selectedJobTitle: string | null
+
   // 메서드
   setZoomLevel: (level: number) => void
   setColumnWidthScale: (scale: number) => void
@@ -60,6 +63,7 @@ export interface ViewSlice {
   setAllMonthsVisible: (visible: boolean) => void
   setSelectedProjectId: (projectId: string | null) => void
   setLastSelectedProjectId: (projectId: string | null) => void
+  setSelectedJobTitle: (jobTitle: string | null) => void
   resetFilters: () => void
 }
 
@@ -154,6 +158,7 @@ export const createViewSlice = (set: any): ViewSlice => ({
   monthVisibility: getInitialMonthVisibility(),
   selectedProjectId: getInitialSelectedProjectId(),
   lastSelectedProjectId: getInitialLastSelectedProjectId(),
+  selectedJobTitle: null,
 
   // 줌 레벨 설정 (localStorage에도 저장)
   setZoomLevel: (level) => {
@@ -236,6 +241,11 @@ export const createViewSlice = (set: any): ViewSlice => ({
       storage.remove(STORAGE_KEYS.LAST_SELECTED_PROJECT_ID)
     }
     set({ lastSelectedProjectId: projectId })
+  },
+
+  // 직군 필터 설정
+  setSelectedJobTitle: (jobTitle) => {
+    set({ selectedJobTitle: jobTitle })
   },
 
   // 필터 초기화 (localStorage도 초기화)

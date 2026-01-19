@@ -35,6 +35,7 @@ export function ScheduleGrid() {
     projects,
     columnWidthScale,
     pushHistory,
+    selectedJobTitle,
   } = useAppStore()
 
   // 권한 체크 - 특이사항 입력/행 추가/제거는 구성원 이상만 가능
@@ -336,7 +337,7 @@ export function ScheduleGrid() {
         totalRows: number
       }> = []
 
-      // 숨긴 구성원 제외 + 프로젝트 필터링
+      // 숨긴 구성원 제외 + 프로젝트 필터링 + 직군 필터링
       let visibleMembers = members.filter((m) => !m.isHidden)
 
       // 선택된 프로젝트가 있으면 해당 프로젝트에 속한 구성원만 표시
@@ -345,6 +346,11 @@ export function ScheduleGrid() {
         if (project && project.memberIds) {
           visibleMembers = visibleMembers.filter((m) => project.memberIds.includes(m.id))
         }
+      }
+
+      // 선택된 직군이 있으면 해당 직군만 표시
+      if (selectedJobTitle) {
+        visibleMembers = visibleMembers.filter((m) => m.jobTitle === selectedJobTitle)
       }
 
       visibleMembers.forEach((m) => {
@@ -408,7 +414,7 @@ export function ScheduleGrid() {
 
       return rowData
     }
-  }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts])
+  }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
 
   // 생성 상태 초기화
   const resetCreation = useCallback(() => {
@@ -663,10 +669,10 @@ export function ScheduleGrid() {
       {/* 상단: 그리드 영역 */}
       <div className="flex-1 flex overflow-hidden">
 
-      {/* 고정 열 (구성원 이름 또는 빈 영역) */}
+      {/* 고정 열 (구성원 이름 또는 빈 영역) - 스크롤은 scrollContainer와 동기화 */}
       <div
         ref={fixedColumnRef}
-        className="flex-shrink-0 overflow-y-auto overflow-x-hidden bg-card border-r border-border scrollbar-none"
+        className="flex-shrink-0 overflow-hidden bg-card border-r border-border"
         style={{ width: `${fixedColumnWidth}px` }}
       >
         {/* 고정 열 헤더 (날짜 축과 동일 - sticky, 줌 레벨에 따라 스케일링) */}
@@ -732,7 +738,7 @@ export function ScheduleGrid() {
           <div
             key={`fixed-${row.memberId}-${row.rowIndex}`}
             className={`flex items-center justify-center ${
-              row.isLastRow ? 'border-b border-border' : ''
+              row.isLastRow ? 'border-b-2 border-gray-300 dark:border-gray-600' : ''
             }`}
             style={{ height: `${cellHeight}px` }}
           >
@@ -893,7 +899,7 @@ export function ScheduleGrid() {
               <div
                 key={`grid-${row.memberId}-${row.rowIndex}`}
                 className={`relative ${
-                  row.isLastRow ? 'border-b border-border' : ''
+                  row.isLastRow ? 'border-b-2 border-gray-300 dark:border-gray-600' : ''
                 }`}
                 style={{ height: `${cellHeight}px` }}
                 onMouseDown={(e) => handleMouseDown(e, row.memberId, row.rowIndex)}

@@ -426,7 +426,8 @@ export const ScheduleCard = memo(function ScheduleCard({
               <span className="text-sm font-medium leading-tight overflow-hidden whitespace-nowrap">
                 {schedule.title || '제목 없음'}
               </span>
-              {schedule.projectId && (() => {
+              {/* columnWidthScale 0.5 이하일 때는 프로젝트명 숨김 */}
+              {columnWidthScale > 0.5 && schedule.projectId && (() => {
                 const project = projects.find(p => p.id === schedule.projectId)
                 return project ? (
                   <span className="text-[10px] opacity-80 leading-tight overflow-hidden whitespace-nowrap">

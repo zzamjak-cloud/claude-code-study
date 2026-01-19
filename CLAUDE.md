@@ -47,6 +47,23 @@ Game Planner 관련 수정 및 개선 작업 시 **반드시** 다음 문서를 
 
 **중요**: Game Planner의 모든 수정 작업 전에 이 문서를 먼저 읽고 현재 구현 상태와 설계 의도를 파악하세요.
 
+#### Team Scheduler (TeamScheduler)
+
+Team Scheduler 관련 수정 및 개선 작업 시 **반드시** 다음 문서를 참조하세요:
+
+- **구현 현황 문서**: `/Users/woody/Desktop/AI/claude-code-study/Plans/TEAMSCHEDULER_IMPLEMENTATION_STATUS.md`
+
+이 문서에는 다음 정보가 포함되어 있습니다:
+- 프로젝트 개요 및 목표 (팀 스케줄 관리)
+- 시스템 아키텍처
+- Firebase 연동 (Firestore, Authentication)
+- 핵심 컴포넌트 및 데이터 구조
+- 권한 시스템
+- 알려진 이슈 및 제한사항
+- 파일 구조 및 개발 팁
+
+**중요**: Team Scheduler의 모든 수정 작업 전에 이 문서를 먼저 읽고 현재 구현 상태와 설계 의도를 파악하세요.
+
 ## Language Policy
 
 - **Communication**: All conversations and responses must be in Korean (한국어)
@@ -703,6 +720,68 @@ const DropZone = ({ onDrop }) => {
 - `StyleStudio-Tauri/src/components/generator/ImageUpload.tsx` - 앱 외부 드래그 앤 드롭 (이미지)
 - `GamePlanner-Tauri/src/components/ReferenceManager.tsx` - 앱 외부 드래그 앤 드롭 (문서)
 - `GamePlanner-Tauri/src/components/Sidebar.tsx` - 앱 내부 드래그 앤 드롭 (세션 재정렬, 향후 구현 예정)
+
+## Super Claude 슬래시 명령어 자동 사용 가이드
+
+Super Claude가 설치되어 있으며, 작업 상황에 따라 적절한 슬래시 명령어를 **자동으로 판단하여 사용**합니다.
+
+### 명령어 자동 사용 기준
+
+다음 상황에서 해당 명령어를 자동으로 실행합니다:
+
+| 상황 | 자동 실행 명령어 | 트리거 조건 |
+|------|-----------------|------------|
+| **코드 분석 필요** | `/sc:analyze` | 코드 품질, 보안, 성능, 아키텍처 분석 요청 시 |
+| **기능 구현** | `/sc:implement` | 새로운 기능 구현, 코드 작성 요청 시 |
+| **테스트 실행** | `/sc:test` | 테스트 실행, 커버리지 분석 요청 시 |
+| **빌드/컴파일** | `/sc:build` | 프로젝트 빌드, 패키징 요청 시 |
+| **Git 커밋** | `/sc:git` | 변경사항 커밋, Git 작업 요청 시 |
+| **문서 생성** | `/sc:document` | API, 컴포넌트, 함수 문서화 요청 시 |
+| **코드 개선** | `/sc:improve` | 코드 품질, 성능, 유지보수성 개선 요청 시 |
+| **문제 해결** | `/sc:troubleshoot` | 버그, 빌드 오류, 배포 문제 진단 요청 시 |
+| **설계/아키텍처** | `/sc:design` | 시스템 아키텍처, API 설계 요청 시 |
+| **코드 정리** | `/sc:cleanup` | 데드 코드 제거, 구조 최적화 요청 시 |
+| **작업량 산정** | `/sc:estimate` | 개발 작업량 추정 요청 시 |
+| **웹 리서치** | `/sc:research` | 기술 조사, 최신 정보 검색 필요 시 |
+| **요구사항 정의** | `/sc:brainstorm` | 요구사항 발굴, 소크라테스식 대화 필요 시 |
+| **워크플로우 생성** | `/sc:workflow` | PRD에서 구현 계획 생성 필요 시 |
+| **코드 설명** | `/sc:explain` | 코드, 개념, 시스템 동작 설명 요청 시 |
+| **PR 코드 리뷰** | `/code-review` | Pull Request 리뷰 요청 시 |
+
+### 자동 실행 규칙
+
+1. **명시적 요청 우선**: 사용자가 특정 명령어를 직접 요청하면 그 명령어를 사용
+2. **작업 컨텍스트 기반**: 현재 작업의 성격에 따라 가장 적합한 명령어 자동 선택
+3. **연속 작업 지원**: 코드 작성 후 `/sc:test`, 문제 발견 시 `/sc:troubleshoot` 등 자연스럽게 연계
+4. **불필요한 실행 금지**: 단순 질문이나 파일 읽기만 필요한 경우 명령어 사용 안 함
+
+### 자동 실행 예시
+
+```
+사용자: "이 함수의 성능을 개선해줘"
+→ /sc:analyze로 현재 상태 분석 후 /sc:improve로 개선 적용
+
+사용자: "로그인 기능을 구현해줘"
+→ /sc:implement로 기능 구현
+
+사용자: "빌드가 안 되는데 왜 그런지 봐줘"
+→ /sc:troubleshoot로 문제 진단
+
+사용자: "변경사항 커밋해줘"
+→ /sc:git으로 커밋 생성
+
+사용자: "이 코드가 뭐하는 건지 설명해줘"
+→ /sc:explain으로 상세 설명 제공
+```
+
+### 명령어 조합 패턴
+
+복잡한 작업의 경우 여러 명령어를 순차적으로 조합합니다:
+
+- **기능 개발 전체 흐름**: `/sc:design` → `/sc:implement` → `/sc:test` → `/sc:git`
+- **버그 수정 흐름**: `/sc:troubleshoot` → `/sc:implement` → `/sc:test`
+- **리팩토링 흐름**: `/sc:analyze` → `/sc:improve` → `/sc:cleanup` → `/sc:test`
+- **문서화 흐름**: `/sc:explain` → `/sc:document`
 
 ## Notes
 

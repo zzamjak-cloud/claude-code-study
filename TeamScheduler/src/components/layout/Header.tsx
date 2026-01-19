@@ -19,6 +19,9 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
   const [currentNoticeIndex, setCurrentNoticeIndex] = useState(0)
   const userSettingsRef = useRef<HTMLDivElement>(null)
 
+  // 숨김 프로젝트 제외한 목록
+  const visibleProjects = projects.filter(p => !p.isHidden)
+
   // 선택된 프로젝트 이름
   const selectedProject = projects.find(p => p.id === selectedProjectId)
   const projectName = selectedProject?.name || 'TeamScheduler'
@@ -89,14 +92,14 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
 
         {/* 오른쪽: 프로젝트 선택, 내정보, 색상, 관리 */}
         <div className="flex items-center gap-3">
-          {/* 프로젝트 선택 드롭다운 */}
-          {projects.length > 0 && (
+          {/* 프로젝트 선택 드롭다운 (숨김 프로젝트 제외) */}
+          {visibleProjects.length > 0 && (
             <select
               value={selectedProjectId || ''}
               onChange={(e) => handleProjectChange(e.target.value || null)}
               className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[130px]"
             >
-              {projects.map((project) => (
+              {visibleProjects.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>

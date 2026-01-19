@@ -1,7 +1,10 @@
 // 오늘의 일정 컴포넌트 (하단 고정 패널용 - Google Calendar 연동)
+// Firebase 로그인 시 캘린더 토큰이 자동으로 저장됨
 
 import { useState, useEffect, useCallback } from 'react'
-import { Calendar, RefreshCw, ExternalLink, AlertCircle, LogIn } from 'lucide-react'
+import { Calendar, RefreshCw, ExternalLink, AlertCircle, KeyRound } from 'lucide-react'
+import { useAppStore } from '../../store/useAppStore'
+import { loadCalendarToken, clearCalendarToken, refreshCalendarToken } from '../../lib/firebase/auth'
 
 // Google Calendar 이벤트 타입
 interface CalendarEvent {
@@ -18,46 +21,16 @@ interface CalendarEvent {
   htmlLink?: string
 }
 
-// Google API 설정
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-const SCOPES = 'https://www.googleapis.com/auth/calendar.readonly'
-const TOKEN_STORAGE_KEY = 'google_calendar_token'
-
-// 토큰 저장/로드 유틸리티
-const saveToken = (token: { access_token: string; expires_at: number }) => {
-  localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(token))
-}
-
-const loadToken = (): { access_token: string; expires_at: number } | null => {
-  const stored = localStorage.getItem(TOKEN_STORAGE_KEY)
-  if (!stored) return null
-  try {
-    const token = JSON.parse(stored)
-    // 토큰 만료 확인 (5분 여유)
-    if (token.expires_at && token.expires_at > Date.now() + 300000) {
-      return token
-    }
-    localStorage.removeItem(TOKEN_STORAGE_KEY)
-    return null
-  } catch {
-    return null
-  }
-}
-
-const clearToken = () => {
-  localStorage.removeItem(TOKEN_STORAGE_KEY)
-}
-
 export function TodaySchedule() {
+  const { currentUser } = useAppStore()
   const [events, setEvents] = useState<CalendarEvent[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [isSignedIn, setIsSignedIn] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [hasToken, setHasToken] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [gisLoaded, setGisLoaded] = useState(false)
-  const [tokenClient, setTokenClient] = useState<google.accounts.oauth2.TokenClient | null>(null)
 
   // 오늘의 일정 가져오기 (REST API 직접 호출)
-  const fetchTodayEventsWithToken = useCallback(async (accessToken: string) => {
+  const fetchTodayEvents = useCallback(async (accessToken: string) => {
     setIsLoading(true)
     setError(null)
 
@@ -85,10 +58,19 @@ export function TodaySchedule() {
       )
 
       if (!response.ok) {
-        if (response.status === 401) {
-          clearToken()
-          setIsSignedIn(false)
-          setError('다시 로그인이 필요합니다.')
+        // 에러 응답 본문 확인
+        const errorData = await response.json().catch(() => ({}))
+        console.error('❌ Calendar API 에러:', response.status, errorData)
+
+        if (response.status === 401 || response.status === 403) {
+          // 상세 에러 메시지 출력
+          const errorMessage = errorData?.error?.message || '알 수 없는 오류'
+          const errorReason = errorData?.error?.errors?.[0]?.reason || ''
+          console.error('❌ 상세 에러:', errorMessage, errorReason)
+
+          clearCalendarToken()
+          setHasToken(false)
+          setError(`캘린더 접근 오류: ${errorReason || errorMessage}`)
           return
         }
         throw new Error(`HTTP ${response.status}`)
@@ -104,112 +86,52 @@ export function TodaySchedule() {
     }
   }, [])
 
-  // 컴포넌트 마운트 시 저장된 토큰 확인
-  useEffect(() => {
-    const savedToken = loadToken()
-    if (savedToken) {
-      setIsSignedIn(true)
-      fetchTodayEventsWithToken(savedToken.access_token)
-    }
-  }, [fetchTodayEventsWithToken])
-
-  // GIS (Google Identity Services) 로드
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) {
-      return
-    }
-
-    // 이미 로드되었으면 스킵
-    if (document.querySelector('script[src*="accounts.google.com/gsi/client"]')) {
-      setGisLoaded(true)
-      return
-    }
-
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.onload = () => {
-      setGisLoaded(true)
-    }
-    document.body.appendChild(script)
-  }, [])
-
-  // TokenClient 초기화
-  useEffect(() => {
-    if (!gisLoaded || !GOOGLE_CLIENT_ID) return
+  // 토큰 갱신 버튼 핸들러
+  const handleRefreshToken = useCallback(async () => {
+    setIsRefreshing(true)
+    setError(null)
 
     try {
-      const client = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: SCOPES,
-        callback: (response) => {
-          if (response.error) {
-            console.error('토큰 에러:', response.error)
-            setError('인증에 실패했습니다.')
-            return
-          }
-
-          // 토큰 저장 (expires_in은 초 단위)
-          const expiresAt = Date.now() + (response.expires_in * 1000)
-          saveToken({ access_token: response.access_token, expires_at: expiresAt })
-
-          setIsSignedIn(true)
-          setError(null)
-          fetchTodayEventsWithToken(response.access_token)
-        },
-      })
-      setTokenClient(client)
-    } catch (err) {
-      console.error('TokenClient 초기화 실패:', err)
-    }
-  }, [gisLoaded, fetchTodayEventsWithToken])
-
-  // 로그인 처리
-  const handleSignIn = () => {
-    if (!tokenClient) {
-      setError('Google 인증이 준비되지 않았습니다.')
-      return
-    }
-
-    try {
-      tokenClient.requestAccessToken({ prompt: 'select_account' })
-    } catch (err) {
-      console.error('로그인 요청 실패:', err)
-      setError('로그인 요청에 실패했습니다.')
-    }
-  }
-
-  // 로그아웃 처리
-  const handleSignOut = () => {
-    const savedToken = loadToken()
-    if (savedToken) {
-      try {
-        google.accounts.oauth2.revoke(savedToken.access_token, () => {
-          clearToken()
-          setIsSignedIn(false)
-          setEvents([])
-        })
-      } catch {
-        clearToken()
-        setIsSignedIn(false)
-        setEvents([])
+      const newToken = await refreshCalendarToken()
+      if (newToken) {
+        setHasToken(true)
+        await fetchTodayEvents(newToken)
+      } else {
+        setError('토큰 갱신에 실패했습니다. 다시 시도해주세요.')
       }
-    } else {
-      clearToken()
-      setIsSignedIn(false)
-      setEvents([])
+    } catch (err) {
+      console.error('토큰 갱신 실패:', err)
+      setError('토큰 갱신에 실패했습니다.')
+    } finally {
+      setIsRefreshing(false)
     }
-  }
+  }, [fetchTodayEvents])
+
+  // 토큰 확인 및 일정 로드
+  useEffect(() => {
+    if (!currentUser) {
+      setHasToken(false)
+      setEvents([])
+      return
+    }
+
+    const token = loadCalendarToken()
+    if (token) {
+      setHasToken(true)
+      fetchTodayEvents(token)
+    } else {
+      setHasToken(false)
+    }
+  }, [currentUser, fetchTodayEvents])
 
   // 새로고침
   const handleRefresh = () => {
-    const savedToken = loadToken()
-    if (savedToken) {
-      fetchTodayEventsWithToken(savedToken.access_token)
+    const token = loadCalendarToken()
+    if (token) {
+      fetchTodayEvents(token)
     } else {
-      setIsSignedIn(false)
-      setError('다시 로그인이 필요합니다.')
+      setHasToken(false)
+      setError('토큰이 만료되었습니다. 앱에 다시 로그인해주세요.')
     }
   }
 
@@ -223,8 +145,8 @@ export function TodaySchedule() {
     return '종일'
   }
 
-  // API 설정이 없는 경우
-  if (!GOOGLE_CLIENT_ID) {
+  // 로그인하지 않은 경우
+  if (!currentUser) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border-b border-border flex-shrink-0">
@@ -232,13 +154,9 @@ export function TodaySchedule() {
           <span className="text-sm font-medium text-foreground">오늘의 일정</span>
         </div>
         <div className="flex-1 p-3 flex flex-col items-center justify-center text-center">
-          <AlertCircle className="w-8 h-8 text-muted-foreground mb-2" />
+          <Calendar className="w-8 h-8 text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">
-            Google Calendar 연동을 위해<br />
-            환경 변수 설정이 필요합니다.
-          </p>
-          <p className="text-xs text-muted-foreground mt-2">
-            VITE_GOOGLE_CLIENT_ID
+            로그인 후 Google Calendar<br />일정을 확인할 수 있습니다.
           </p>
         </div>
       </div>
@@ -254,7 +172,7 @@ export function TodaySchedule() {
           <span className="text-sm font-medium text-foreground">오늘의 일정</span>
         </div>
         <div className="flex items-center gap-1">
-          {isSignedIn && (
+          {hasToken && (
             <button
               onClick={handleRefresh}
               disabled={isLoading}
@@ -269,23 +187,32 @@ export function TodaySchedule() {
 
       {/* 내용 */}
       <div className="flex-1 p-3 overflow-auto">
-        {!isSignedIn ? (
-          // 로그인 필요
+        {!hasToken ? (
+          // 토큰 없음 - 권한 갱신 필요
           <div className="h-full flex flex-col items-center justify-center">
-            <Calendar className="w-10 h-10 text-muted-foreground mb-3" />
-            <p className="text-sm text-muted-foreground mb-3 text-center">
-              Google Calendar의<br />오늘 일정을 확인하세요
+            <KeyRound className="w-10 h-10 text-muted-foreground mb-3" />
+            <p className="text-sm text-muted-foreground mb-2 text-center">
+              캘린더 권한이 필요합니다.
             </p>
             <button
-              onClick={handleSignIn}
-              disabled={!gisLoaded}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm disabled:opacity-50"
+              onClick={handleRefreshToken}
+              disabled={isRefreshing}
+              className="mt-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
             >
-              <LogIn className="w-4 h-4" />
-              Google 로그인
+              {isRefreshing ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  갱신 중...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="w-4 h-4" />
+                  권한 갱신
+                </>
+              )}
             </button>
             {error && (
-              <p className="mt-2 text-xs text-destructive">{error}</p>
+              <p className="mt-2 text-xs text-destructive text-center">{error}</p>
             )}
           </div>
         ) : error ? (
@@ -294,10 +221,10 @@ export function TodaySchedule() {
             <AlertCircle className="w-8 h-8 text-destructive mb-2" />
             <p className="text-sm text-destructive">{error}</p>
             <button
-              onClick={handleSignIn}
+              onClick={handleRefresh}
               className="mt-3 text-xs text-primary hover:underline"
             >
-              다시 로그인
+              다시 시도
             </button>
           </div>
         ) : isLoading ? (
@@ -310,12 +237,6 @@ export function TodaySchedule() {
           <div className="h-full flex flex-col items-center justify-center text-center">
             <Calendar className="w-8 h-8 text-muted-foreground mb-2" />
             <p className="text-sm text-muted-foreground">오늘 예정된 일정이 없습니다.</p>
-            <button
-              onClick={handleSignOut}
-              className="mt-3 text-xs text-muted-foreground hover:text-foreground"
-            >
-              로그아웃
-            </button>
           </div>
         ) : (
           // 일정 목록
@@ -348,14 +269,6 @@ export function TodaySchedule() {
                 </div>
               </div>
             ))}
-            <div className="pt-2 border-t border-border mt-3">
-              <button
-                onClick={handleSignOut}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                로그아웃
-              </button>
-            </div>
           </div>
         )}
       </div>

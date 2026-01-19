@@ -17,6 +17,7 @@ export function TeamTabs() {
   const workspaceId = useAppStore(state => state.workspaceId)
   const selectedProjectId = useAppStore(state => state.selectedProjectId)
   const projects = useAppStore(state => state.projects)
+  const selectedJobTitle = useAppStore(state => state.selectedJobTitle)
 
   // 최고 관리자 권한 확인
   const { isOwner } = usePermissions()
@@ -85,7 +86,7 @@ export function TeamTabs() {
     }
   }
 
-  // order 기준으로 정렬된 구성원 목록 (숨긴 구성원 제외 + 프로젝트 필터링)
+  // order 기준으로 정렬된 구성원 목록 (숨긴 구성원 제외 + 프로젝트 필터링 + 직군 필터링)
   const sortedMembers = useMemo(() => {
     // 숨긴 구성원 제외
     let filtered = members.filter((m) => !m.isHidden)
@@ -98,9 +99,14 @@ export function TeamTabs() {
       }
     }
 
+    // 선택된 직군이 있으면 해당 직군만 표시
+    if (selectedJobTitle) {
+      filtered = filtered.filter((m) => m.jobTitle === selectedJobTitle)
+    }
+
     // order 기준 정렬
     return filtered.sort((a, b) => (a.order || 0) - (b.order || 0))
-  }, [members, selectedProjectId, projects])
+  }, [members, selectedProjectId, projects, selectedJobTitle])
 
   // 숨긴 구성원 수
   const hiddenCount = members.filter((m) => m.isHidden).length

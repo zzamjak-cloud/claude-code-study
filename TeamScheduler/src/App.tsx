@@ -16,6 +16,7 @@ import { TeamTabs } from './components/layout/TeamTabs'
 import { ScheduleGrid } from './components/schedule/ScheduleGrid'
 import { MonthFilter } from './components/layout/MonthFilter'
 import { YearSelector } from './components/layout/YearSelector'
+import { JobTitleFilter } from './components/layout/JobTitleFilter'
 import { LogIn, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus } from 'lucide-react'
 
 // 코드 스플리팅: 모달 컴포넌트 lazy 로드 (초기 번들 크기 감소)
@@ -206,6 +207,9 @@ function App() {
 
             {/* 월 바로가기 + 필터링 */}
             <MonthFilter />
+
+            {/* 직군 필터링 */}
+            <JobTitleFilter />
           </div>
 
           <div className="flex items-center gap-2">

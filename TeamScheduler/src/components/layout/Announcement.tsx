@@ -1,10 +1,12 @@
 // 공지사항 컴포넌트 (하단 고정 패널용)
+// TipTap 에디터 적용 - 링크, 헤더, 리스트, 볼드/이탤릭 지원
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Megaphone } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { usePermissions } from '../../lib/hooks/usePermissions'
 import { updateAnnouncement } from '../../lib/firebase/firestore'
+import { RichTextEditor, RichTextViewer } from '../common/RichTextEditor'
 
 export function Announcement() {
   const { announcements, workspaceId, currentUser, selectedProjectId, projects, members } = useAppStore()
@@ -37,10 +39,13 @@ export function Announcement() {
   }, [announcements, selectedProjectId])
 
   const [editContent, setEditContent] = useState(currentAnnouncement?.content || '')
+  const lastSavedContent = useRef(currentAnnouncement?.content || '')
 
   // 공지사항 변경 시 동기화
   useEffect(() => {
-    setEditContent(currentAnnouncement?.content || '')
+    const newContent = currentAnnouncement?.content || ''
+    setEditContent(newContent)
+    lastSavedContent.current = newContent
   }, [currentAnnouncement?.content, selectedProjectId])
 
   // Debounce 저장 (편집 가능한 사용자만)
@@ -51,6 +56,7 @@ export function Announcement() {
       setIsSaving(true)
       try {
         await updateAnnouncement(workspaceId, selectedProjectId, content, currentUser.uid)
+        lastSavedContent.current = content
       } catch (error) {
         console.error('공지사항 저장 실패:', error)
       } finally {
@@ -63,17 +69,17 @@ export function Announcement() {
   // Debounce 처리 (편집 가능한 사용자만)
   useEffect(() => {
     if (!canEdit || !selectedProjectId) return
-    if (editContent === (currentAnnouncement?.content || '')) return
+    if (editContent === lastSavedContent.current) return
 
     const timer = setTimeout(() => {
       saveAnnouncement(editContent)
     }, 1000)
 
     return () => clearTimeout(timer)
-  }, [editContent, saveAnnouncement, currentAnnouncement?.content, canEdit, selectedProjectId])
+  }, [editContent, saveAnnouncement, canEdit, selectedProjectId])
 
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setEditContent(e.target.value)
+  const handleChange = (content: string) => {
+    setEditContent(content)
   }
 
   return (
@@ -93,24 +99,23 @@ export function Announcement() {
       <div className="flex-1 p-3 overflow-hidden">
         {canEdit ? (
           // 편집 가능한 사용자: 관리자 또는 프로젝트 구성원
-          <div className="h-full flex flex-col">
-            <textarea
-              value={editContent}
-              onChange={handleChange}
-              placeholder="구성원들에게 전달할 공지사항을 입력하세요..."
-              className="flex-1 w-full px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-muted-foreground"
-              maxLength={500}
-            />
-            <div className="flex justify-end mt-1 flex-shrink-0">
-              <span className="text-xs text-muted-foreground">
-                {editContent.length} / 500
-              </span>
-            </div>
-          </div>
+          <RichTextEditor
+            content={editContent}
+            onChange={handleChange}
+            placeholder="구성원들에게 전달할 공지사항을 입력하세요... (Ctrl+K: 링크, #: 제목)"
+            minHeight="calc(100% - 8px)"
+            maxHeight="100%"
+            className="h-full"
+            showToolbar={false}
+          />
         ) : (
           // 일반 사용자: 읽기 전용
-          <div className="text-sm text-foreground whitespace-pre-wrap overflow-auto h-full">
-            {currentAnnouncement?.content || '공지사항이 없습니다.'}
+          <div className="overflow-auto h-full text-sm">
+            {currentAnnouncement?.content ? (
+              <RichTextViewer content={currentAnnouncement.content} />
+            ) : (
+              <p className="text-muted-foreground">공지사항이 없습니다.</p>
+            )}
           </div>
         )}
       </div>
