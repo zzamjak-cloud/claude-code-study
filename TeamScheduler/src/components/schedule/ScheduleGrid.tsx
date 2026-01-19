@@ -250,9 +250,9 @@ export function ScheduleGrid() {
     }
   }, [members, memberRowCounts, schedules, workspaceId, pushHistory])
 
-  // 글로벌 행 추가 (구성원 + 개별 탭에서만 - 통합 탭은 읽기 전용)
+  // 글로벌 행 추가 (구성원 이상)
   const addGlobalRow = useCallback(async () => {
-    if (!workspaceId || !isMember || isUnifiedTab) return
+    if (!workspaceId || !isMember) return
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
     try {
@@ -269,9 +269,9 @@ export function ScheduleGrid() {
     }
   }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, pushHistory])
 
-  // 글로벌 행 제거 (구성원 + 개별 탭에서만 - 통합 탭은 읽기 전용)
+  // 글로벌 행 제거 (구성원 이상)
   const removeGlobalRow = useCallback(async () => {
-    if (!workspaceId || !isMember || isUnifiedTab) return
+    if (!workspaceId || !isMember) return
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
     try {
@@ -434,10 +434,8 @@ export function ScheduleGrid() {
     setCreateGlobalEnd(null)
   }, [])
 
-  // 마우스 다운: Ctrl/Alt + 드래그로 일정 생성 시작 (통합 탭에서는 비활성화)
+  // 마우스 다운: Ctrl/Alt + 드래그로 일정 생성 시작
   const handleMouseDown = useCallback((e: React.MouseEvent, memberId: string, rowIndex: number) => {
-    // 통합 탭에서는 생성 불가
-    if (isUnifiedTab) return
 
     // Ctrl 또는 Alt 키가 눌려있지 않으면 무시
     const isCtrl = e.ctrlKey || e.metaKey
@@ -537,10 +535,10 @@ export function ScheduleGrid() {
     }
   }, [isCreating, createStart, createEnd, createMemberId, createRowIndex, isAnnualLeave, currentYear, selectedScheduleColor, workspaceId, currentUser, members, pushHistory, resetCreation])
 
-  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (개별 탭 + 구성원 이상)
+  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (구성원 이상)
   const handleGlobalMouseDown = useCallback((e: React.MouseEvent, rowIndex: number) => {
-    // 개별 탭 + 구성원 이상만 생성 가능 (통합 탭은 읽기 전용)
-    if (isUnifiedTab || !isMember) return
+    // 구성원 이상만 생성 가능
+    if (!isMember) return
 
     // Ctrl 키가 눌려있지 않으면 무시
     const isCtrl = e.ctrlKey || e.metaKey
@@ -696,7 +694,7 @@ export function ScheduleGrid() {
                 <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center">
                   특이사항
                 </span>
-                {!isUnifiedTab && isMember && (
+                {isMember && (
                   <button
                     onClick={addGlobalRow}
                     className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold"
@@ -711,7 +709,7 @@ export function ScheduleGrid() {
               <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center px-1">
                 특이사항
               </span>
-            ) : row.isLastRow && !isUnifiedTab && isMember ? (
+            ) : row.isLastRow && isMember ? (
               // 마지막 행 (다중 행일 때): +/- 버튼 (개별 탭 + 구성원만)
               <div className="flex items-center gap-1">
                 <button
@@ -811,7 +809,7 @@ export function ScheduleGrid() {
           {globalRows.map((row) => {
             const globalPreview = getGlobalCreationPreview(row.rowIndex)
             // 개별 탭 + 구성원 이상만 편집 가능 (통합 탭은 읽기 전용)
-            const isGlobalReadOnly = isUnifiedTab || !isMember
+            const isGlobalReadOnly = !isMember
 
             return (
               <div
@@ -967,10 +965,10 @@ export function ScheduleGrid() {
                       key={schedule.id}
                       schedule={schedule}
                       x={x}
-                      isReadOnly={isUnifiedTab}
+                      isReadOnly={false}
                       totalRows={row.totalRows}
                       visibleWidth={totalVisibleDays * cellWidth}
-                      onRowChange={isUnifiedTab ? undefined : async (_newRowIndex) => {
+                      onRowChange={async (_newRowIndex) => {
                         // 행 변경 로직은 ScheduleCard에서 처리
                       }}
                     />
@@ -991,36 +989,47 @@ export function ScheduleGrid() {
       </div>
       </div>
 
-      {/* 하단: 고정 패널 - 공지사항 | 메모 (개별 탭에서만 표시) */}
-      {!isUnifiedTab && selectedMemberId && (
-        <div className="flex-shrink-0 flex flex-col border-t border-border bg-card">
-          {/* 리사이즈 핸들 */}
-          <div
-            onMouseDown={handlePanelResizeStart}
-            className={`h-1.5 cursor-ns-resize hover:bg-primary/30 transition-colors flex items-center justify-center group ${
-              isResizingPanel ? 'bg-primary/30' : 'bg-transparent'
-            }`}
-          >
-            <div className="w-12 h-1 bg-border group-hover:bg-primary/50 rounded-full" />
-          </div>
+      {/* 하단: 고정 패널 - 공지사항 | 메모 | 오늘의 일정 (개별 탭에서만 표시) */}
+      {(() => {
+        // 통합 탭에서는 하단 패널 숨김 (더 많은 타임라인 표시)
+        if (isUnifiedTab) return null
 
-          {/* 패널 내용 */}
-          <div className="flex" style={{ height: `${bottomPanelHeight}px` }}>
-            {/* 공지사항 */}
-            <div className="flex-1 border-r border-border">
-              <Announcement />
+        // 메모에 사용할 memberId 결정: 항상 로그인한 사용자의 이메일과 일치하는 구성원
+        const memoMemberId = members.find(m => m.email === currentUser?.email)?.id
+
+        // 표시할 memberId가 없으면 패널 숨김
+        if (!memoMemberId) return null
+
+        return (
+          <div className="flex-shrink-0 flex flex-col border-t border-border bg-card">
+            {/* 리사이즈 핸들 */}
+            <div
+              onMouseDown={handlePanelResizeStart}
+              className={`h-1.5 cursor-ns-resize hover:bg-primary/30 transition-colors flex items-center justify-center group ${
+                isResizingPanel ? 'bg-primary/30' : 'bg-transparent'
+              }`}
+            >
+              <div className="w-12 h-1 bg-border group-hover:bg-primary/50 rounded-full" />
             </div>
-            {/* 메모 */}
-            <div className="flex-1 border-r border-border">
-              <MemberMemo memberId={selectedMemberId} />
-            </div>
-            {/* 오늘의 일정 (Google Calendar) */}
-            <div className="flex-1">
-              <TodaySchedule />
+
+            {/* 패널 내용 */}
+            <div className="flex" style={{ height: `${bottomPanelHeight}px` }}>
+              {/* 공지사항 */}
+              <div className="flex-1 border-r border-border">
+                <Announcement />
+              </div>
+              {/* 메모 (로그인 사용자 기준) */}
+              <div className="flex-1 border-r border-border">
+                <MemberMemo memberId={memoMemberId} />
+              </div>
+              {/* 오늘의 일정 (Google Calendar) */}
+              <div className="flex-1">
+                <TodaySchedule />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
