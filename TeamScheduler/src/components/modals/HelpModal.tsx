@@ -1,6 +1,6 @@
 // 도움말 모달 컴포넌트
 
-import { X, MousePointer, Calendar, Trash2, Move, Palette, Users, Eye } from 'lucide-react'
+import { X, MousePointer, Calendar, Trash2, Move, Palette, Eye, Settings, FolderKanban, ZoomIn, StickyNote, Megaphone } from 'lucide-react'
 
 interface HelpModalProps {
   onClose: () => void
@@ -111,22 +111,62 @@ export function HelpModal({ onClose }: HelpModalProps) {
             </div>
           </section>
 
-          {/* 구성원 관리 */}
+          {/* 관리 패널 */}
           <section>
             <h3 className="flex items-center gap-2 text-base font-semibold text-foreground mb-3">
-              <Users className="w-5 h-5 text-primary" />
-              구성원 관리 (관리자)
+              <Settings className="w-5 h-5 text-primary" />
+              관리 (관리자)
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
-              <p>상단의 "구성원 관리" 버튼을 클릭하여 구성원을 추가, 수정, 삭제할 수 있습니다.</p>
-              <p>구성원의 순서를 변경하거나 특정 구성원을 숨길 수 있습니다.</p>
+              <p>상단의 톱니바퀴 아이콘을 클릭하여 관리 패널을 열 수 있습니다.</p>
+              <p><strong>구성원 탭:</strong> 구성원을 추가, 수정, 삭제합니다. 이름, 이메일, 직군은 필수 항목입니다. 목록에서 구성원을 클릭하면 왼쪽 폼에서 수정할 수 있습니다.</p>
+              <p><strong>프로젝트 탭:</strong> 프로젝트를 생성하고 구성원을 배정합니다. 프로젝트/조직으로 구분하여 관리할 수 있습니다.</p>
+              <p><strong>공휴일 탭:</strong> 대한민국 공휴일을 일괄 등록하거나, 커스텀 휴일을 추가할 수 있습니다.</p>
+            </div>
+          </section>
+
+          {/* 프로젝트/탭 전환 */}
+          <section>
+            <h3 className="flex items-center gap-2 text-base font-semibold text-foreground mb-3">
+              <FolderKanban className="w-5 h-5 text-primary" />
+              프로젝트 & 탭
+            </h3>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>통합 탭:</strong> 모든 구성원의 일정을 한눈에 볼 수 있습니다. 관리자는 전체 일정을 편집할 수 있습니다.</p>
+              <p><strong>구성원 탭:</strong> 본인 이름의 탭에서 개인 일정을 관리합니다.</p>
+              <p><strong>프로젝트 선택:</strong> 상단 드롭다운에서 프로젝트를 선택하면 해당 프로젝트에 배정된 구성원만 표시됩니다.</p>
+            </div>
+          </section>
+
+          {/* 줌 & 연도 선택 */}
+          <section>
+            <h3 className="flex items-center gap-2 text-base font-semibold text-foreground mb-3">
+              <ZoomIn className="w-5 h-5 text-primary" />
+              줌 & 연도 선택
+            </h3>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>줌:</strong> +/- 버튼으로 타임라인의 확대/축소를 조정합니다. 50%~200% 범위로 설정 가능합니다.</p>
+              <p><strong>연도 선택:</strong> 연도 드롭다운에서 보고 싶은 연도를 선택합니다. 새 연도를 추가하면 해당 연도의 공휴일이 자동 등록됩니다.</p>
+            </div>
+          </section>
+
+          {/* 메모 & 공지사항 */}
+          <section>
+            <h3 className="flex items-center gap-2 text-base font-semibold text-foreground mb-3">
+              <StickyNote className="w-5 h-5 text-amber-500" />
+              메모 & 공지사항
+            </h3>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p><strong>구성원 메모:</strong> 각 구성원 탭 하단에서 개인 메모를 작성할 수 있습니다. 향후 일정 후보나 참고사항을 기록하세요.</p>
+              <p><strong>프로젝트 공지:</strong> 프로젝트별 공지사항을 작성할 수 있습니다. 관리자와 프로젝트 구성원이 편집 가능합니다.</p>
+              <p>메모/공지에서는 <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">Ctrl+K</kbd>로 링크를, <kbd className="px-1.5 py-0.5 bg-muted rounded text-xs font-mono">#</kbd>으로 제목을 추가할 수 있습니다.</p>
             </div>
           </section>
 
           {/* 특이사항 행 */}
           <section>
             <h3 className="flex items-center gap-2 text-base font-semibold text-foreground mb-3">
-              <Calendar className="w-5 h-5 text-amber-500" />
+              <Megaphone className="w-5 h-5 text-amber-500" />
               특이사항 (글로벌 이벤트)
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
