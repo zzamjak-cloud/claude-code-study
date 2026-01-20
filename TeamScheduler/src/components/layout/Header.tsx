@@ -22,6 +22,14 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
   // 숨김 프로젝트 제외한 목록
   const visibleProjects = projects.filter(p => !p.isHidden)
 
+  // 프로젝트와 조직 분리 후 알파벳 순 정렬
+  const sortedProjectsOnly = visibleProjects
+    .filter(p => p.type === 'project' || !p.type)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  const sortedOrganizations = visibleProjects
+    .filter(p => p.type === 'organization')
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+
   // 선택된 프로젝트 이름
   const selectedProject = projects.find(p => p.id === selectedProjectId)
   const projectName = selectedProject?.name || 'TeamScheduler'
@@ -92,18 +100,33 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
 
         {/* 오른쪽: 프로젝트 선택, 내정보, 색상, 관리 */}
         <div className="flex items-center gap-3">
-          {/* 프로젝트 선택 드롭다운 (숨김 프로젝트 제외) */}
+          {/* 프로젝트 선택 드롭다운 (숨김 프로젝트 제외, 프로젝트/조직 구분) */}
           {visibleProjects.length > 0 && (
             <select
               value={selectedProjectId || ''}
               onChange={(e) => handleProjectChange(e.target.value || null)}
               className="px-3 py-1.5 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary min-w-[130px]"
             >
-              {visibleProjects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
+              {/* 프로젝트 그룹 */}
+              {sortedProjectsOnly.length > 0 && (
+                <optgroup label="프로젝트">
+                  {sortedProjectsOnly.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {/* 조직 그룹 */}
+              {sortedOrganizations.length > 0 && (
+                <optgroup label="조직">
+                  {sortedOrganizations.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           )}
 

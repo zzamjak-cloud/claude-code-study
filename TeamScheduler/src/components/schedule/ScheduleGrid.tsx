@@ -779,11 +779,43 @@ export function ScheduleGrid() {
                   -
                 </button>
               </div>
-            ) : row.isFirstRow ? (
-              // 통합 탭: 이름만
+            ) : isUnifiedTab && row.isFirstRow && row.totalRows === 1 ? (
+              // 통합 탭, 행이 1개일 때: 이름 + 버튼
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-medium text-foreground truncate text-center">
+                  {row.memberName}
+                </span>
+                <button
+                  onClick={() => addRow(row.memberId)}
+                  className="text-xs text-foreground hover:text-primary transition-colors font-bold"
+                  title="행 추가"
+                >
+                  +
+                </button>
+              </div>
+            ) : isUnifiedTab && row.isFirstRow ? (
+              // 통합 탭, 첫 번째 행 (다중 행일 때): 이름만
               <span className="text-xs font-medium text-foreground truncate text-center px-1">
                 {row.memberName}
               </span>
+            ) : isUnifiedTab && row.isLastRow ? (
+              // 통합 탭, 마지막 행 (다중 행일 때): +/- 버튼
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => addRow(row.memberId)}
+                  className="text-xs text-foreground hover:text-primary transition-colors font-bold px-1"
+                  title="행 추가"
+                >
+                  +
+                </button>
+                <button
+                  onClick={() => removeRow(row.memberId)}
+                  className="text-xs text-foreground hover:text-destructive transition-colors font-bold px-1"
+                  title="행 제거"
+                >
+                  -
+                </button>
+              </div>
             ) : null}
           </div>
         ))}
@@ -791,6 +823,11 @@ export function ScheduleGrid() {
         {/* 구성원이 없을 때 빈 공간 */}
         {rows.length === 0 && (
           <div style={{ height: '256px' }} />
+        )}
+
+        {/* 통합 탭 하단 여백 (그리드 영역과 동기화) */}
+        {isUnifiedTab && rows.length > 0 && (
+          <div style={{ height: '500px' }} />
         )}
       </div>
 
@@ -983,6 +1020,11 @@ export function ScheduleGrid() {
             <div className="flex items-center justify-center h-64 text-muted-foreground">
               <p>구성원을 추가하여 일정을 관리하세요.</p>
             </div>
+          )}
+
+          {/* 통합 탭 하단 여백 (일정 수정 팝업이 가려지지 않도록) */}
+          {isUnifiedTab && rows.length > 0 && (
+            <div style={{ height: '500px' }} />
           )}
 
         </div>

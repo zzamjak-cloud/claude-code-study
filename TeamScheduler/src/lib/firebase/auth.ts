@@ -27,32 +27,26 @@ const CALENDAR_TOKEN_KEY = 'google_calendar_token'
 
 /**
  * 캘린더 토큰 저장
+ * sessionStorage 사용 - 브라우저 창을 닫기 전까지 유지
  */
 export const saveCalendarToken = (accessToken: string) => {
-  // 토큰은 약 1시간 유효, 만료 시간 저장 (55분 후)
-  const expiresAt = Date.now() + 55 * 60 * 1000
-  localStorage.setItem(CALENDAR_TOKEN_KEY, JSON.stringify({
+  // sessionStorage 사용으로 브라우저 세션 동안만 유지 (창 닫으면 삭제)
+  sessionStorage.setItem(CALENDAR_TOKEN_KEY, JSON.stringify({
     access_token: accessToken,
-    expires_at: expiresAt,
   }))
 }
 
 /**
  * 캘린더 토큰 로드
+ * sessionStorage에서 로드 - 만료 체크 없음 (세션 종료 시 자동 삭제)
  */
 export const loadCalendarToken = (): string | null => {
-  const stored = localStorage.getItem(CALENDAR_TOKEN_KEY)
+  const stored = sessionStorage.getItem(CALENDAR_TOKEN_KEY)
   if (!stored) return null
 
   try {
-    const { access_token, expires_at } = JSON.parse(stored)
-    // 만료 확인
-    if (expires_at && expires_at > Date.now()) {
-      return access_token
-    }
-    // 만료된 토큰 삭제
-    localStorage.removeItem(CALENDAR_TOKEN_KEY)
-    return null
+    const { access_token } = JSON.parse(stored)
+    return access_token || null
   } catch {
     return null
   }
@@ -62,7 +56,7 @@ export const loadCalendarToken = (): string | null => {
  * 캘린더 토큰 삭제
  */
 export const clearCalendarToken = () => {
-  localStorage.removeItem(CALENDAR_TOKEN_KEY)
+  sessionStorage.removeItem(CALENDAR_TOKEN_KEY)
 }
 
 /**

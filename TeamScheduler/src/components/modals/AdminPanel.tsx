@@ -22,7 +22,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="bg-card border border-border rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-card border border-border rounded-lg shadow-xl max-w-4xl w-full h-[90vh] flex flex-col">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center gap-2">
@@ -74,8 +74,8 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           </button>
         </div>
 
-        {/* 탭 컨텐츠 */}
-        <div className="flex-1 overflow-y-auto p-4">
+        {/* 탭 컨텐츠 - 고정 높이로 탭별 크기 통일 */}
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
           {activeTab === 'team' && <TeamManagement />}
           {activeTab === 'project' && <ProjectManagement />}
           {activeTab === 'holiday' && <HolidayManagement />}
