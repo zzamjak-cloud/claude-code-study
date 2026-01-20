@@ -11,6 +11,7 @@ import {
   deleteSchedule as deleteScheduleFirebase,
   updateTeamMember,
 } from '../../lib/firebase/firestore'
+import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
 import { hasCollision } from '../../lib/utils/collisionDetection'
 import { ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
 import { ExternalLink } from 'lucide-react'
@@ -304,15 +305,15 @@ export const ScheduleCard = memo(function ScheduleCard({
     const { updateSchedule } = useAppStore.getState()
     updateSchedule(schedule.id, updates)
 
+    // Firebase 쓰기는 debounce 적용 (500ms)
     if (workspaceId) {
-      updateScheduleFirebase(workspaceId, schedule.id, updates).catch((error) => {
-        console.error('일정 업데이트 실패:', error)
-        updateSchedule(schedule.id, {
-          startDate: schedule.startDate,
-          endDate: schedule.endDate,
-          rowIndex: schedule.rowIndex,
-        })
-      })
+      debouncedFirebaseUpdate(
+        `schedule-drag-${schedule.id}`,
+        async () => {
+          await updateScheduleFirebase(workspaceId, schedule.id, updates)
+        },
+        500
+      )
     }
   }
 
@@ -352,14 +353,15 @@ export const ScheduleCard = memo(function ScheduleCard({
     const { updateSchedule } = useAppStore.getState()
     updateSchedule(schedule.id, updates)
 
+    // Firebase 쓰기는 debounce 적용 (500ms)
     if (workspaceId) {
-      updateScheduleFirebase(workspaceId, schedule.id, updates).catch((error) => {
-        console.error('일정 리사이즈 실패:', error)
-        updateSchedule(schedule.id, {
-          startDate: schedule.startDate,
-          endDate: schedule.endDate,
-        })
-      })
+      debouncedFirebaseUpdate(
+        `schedule-resize-${schedule.id}`,
+        async () => {
+          await updateScheduleFirebase(workspaceId, schedule.id, updates)
+        },
+        500
+      )
     }
   }
 

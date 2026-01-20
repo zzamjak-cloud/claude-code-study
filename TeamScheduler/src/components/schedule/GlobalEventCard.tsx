@@ -11,6 +11,7 @@ import {
   updateGlobalEvent as updateGlobalEventFirebase,
   deleteGlobalEvent as deleteGlobalEventFirebase,
 } from '../../lib/firebase/firestore'
+import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { ScheduleEditPopup } from './ScheduleEditPopup'
 import { ContextMenu } from './ContextMenu'
@@ -215,15 +216,15 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     const { updateGlobalEvent } = useAppStore.getState()
     updateGlobalEvent(event.id, updates)
 
+    // Firebase 쓰기는 debounce 적용 (500ms)
     if (workspaceId) {
-      updateGlobalEventFirebase(workspaceId, event.id, updates).catch((error) => {
-        console.error('글로벌 이벤트 업데이트 실패:', error)
-        updateGlobalEvent(event.id, {
-          startDate: event.startDate,
-          endDate: event.endDate,
-          rowIndex: event.rowIndex,
-        })
-      })
+      debouncedFirebaseUpdate(
+        `global-event-drag-${event.id}`,
+        async () => {
+          await updateGlobalEventFirebase(workspaceId, event.id, updates)
+        },
+        500
+      )
     }
   }
 
@@ -259,14 +260,15 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     const { updateGlobalEvent } = useAppStore.getState()
     updateGlobalEvent(event.id, updates)
 
+    // Firebase 쓰기는 debounce 적용 (500ms)
     if (workspaceId) {
-      updateGlobalEventFirebase(workspaceId, event.id, updates).catch((error) => {
-        console.error('글로벌 이벤트 리사이즈 실패:', error)
-        updateGlobalEvent(event.id, {
-          startDate: event.startDate,
-          endDate: event.endDate,
-        })
-      })
+      debouncedFirebaseUpdate(
+        `global-event-resize-${event.id}`,
+        async () => {
+          await updateGlobalEventFirebase(workspaceId, event.id, updates)
+        },
+        500
+      )
     }
   }
 

@@ -1,7 +1,7 @@
 // Firebase 설정
 
 import { initializeApp } from 'firebase/app'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
 import { getAuth } from 'firebase/auth'
 
 const firebaseConfig = {
@@ -16,8 +16,14 @@ const firebaseConfig = {
 // Firebase 초기화
 const app = initializeApp(firebaseConfig)
 
-// Firestore 데이터베이스
-export const db = getFirestore(app)
+// Firestore 데이터베이스 - 오프라인 캐싱 활성화
+// persistentLocalCache: IndexedDB에 데이터 캐싱 (오프라인 지원)
+// persistentMultipleTabManager: 여러 탭에서 캐시 공유
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager(),
+  }),
+})
 
 // Authentication
 export const auth = getAuth(app)
