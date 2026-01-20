@@ -2,6 +2,14 @@
   "projects": {
     "lc_scheduler": "teamscheduler-9f626"
   },
-  "targets": {},
+  "targets": {
+    "teamscheduler-9f626": {
+      "hosting": {
+        "scheduler": [
+          "loadcomplete-scheduler"
+        ]
+      }
+    }
+  },
   "etags": {}
 }
