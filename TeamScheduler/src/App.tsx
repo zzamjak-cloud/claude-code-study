@@ -31,8 +31,9 @@ function App() {
   const { currentUser, isLoading, workspaceId, setWorkspace, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear } =
     useAppStore()
 
-  // Firebase 실시간 동기화 (연도별 페이지네이션 적용)
-  useFirebaseSync(workspaceId, currentYear)
+  // Firebase 동기화 (연도별 페이지네이션 적용)
+  // getDocs 기반 데이터 (teams, projects, superAdmins)는 refresh 함수로 새로고침 가능
+  const { refreshTeamMembers, refreshProjects, refreshSuperAdmins } = useFirebaseSync(workspaceId, currentYear)
 
   // Undo/Redo 기능 (Ctrl+Z, Ctrl+Shift+Z)
   useUndoRedo()
@@ -285,7 +286,12 @@ function App() {
         {/* 관리자 패널 모달 (lazy loaded) */}
         {showAdminPanel && (
           <Suspense fallback={<LoadingSpinner size="lg" text="로딩 중..." />}>
-            <AdminPanel onClose={() => setShowAdminPanel(false)} />
+            <AdminPanel
+              onClose={() => setShowAdminPanel(false)}
+              onRefreshTeamMembers={refreshTeamMembers}
+              onRefreshProjects={refreshProjects}
+              onRefreshSuperAdmins={refreshSuperAdmins}
+            />
           </Suspense>
         )}
 

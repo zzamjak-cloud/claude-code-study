@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Users, EyeOff, Archive } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { usePermissions } from '../../lib/hooks/usePermissions'
-import { updateTeamMember } from '../../lib/firebase/firestore'
+import { batchReorderTeamMembers, updateTeamMember } from '../../lib/firebase/firestore'
 import { TeamMember } from '../../types/team'
 import { HiddenMembersModal } from '../modals/HiddenMembersModal'
 
@@ -168,12 +168,14 @@ export function TeamTabs() {
     // 로컬 상태 업데이트
     reorderMembers(updatedMembers)
 
-    // Firebase 업데이트
+    // Firebase 배치 업데이트 (한 번의 쓰기로 모든 순서 변경)
     if (workspaceId) {
       try {
-        for (const member of updatedMembers) {
-          await updateTeamMember(workspaceId, member.id, { order: member.order })
-        }
+        const memberOrders = updatedMembers.map(member => ({
+          memberId: member.id,
+          order: member.order,
+        }))
+        await batchReorderTeamMembers(workspaceId, memberOrders)
       } catch (error) {
         console.error('구성원 순서 변경 실패:', error)
       }

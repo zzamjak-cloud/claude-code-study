@@ -5,9 +5,41 @@ import {
   setDoc,
   deleteDoc,
   serverTimestamp,
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  Timestamp,
 } from 'firebase/firestore'
 import { db } from '../config'
-import { CreateSuperAdminInput } from '../../../types/superAdmin'
+import { CreateSuperAdminInput, SuperAdmin } from '../../../types/superAdmin'
+
+/**
+ * 최고 관리자 목록 조회 (일회성 조회)
+ * 실시간 동기화 대신 사용하여 Firebase 읽기 비용 절감
+ */
+export const fetchSuperAdmins = async (workspaceId: string): Promise<SuperAdmin[]> => {
+  const adminsQuery = query(
+    collection(db, `superAdmins/${workspaceId}/admins`),
+    orderBy('name', 'asc')
+  )
+
+  const snapshot = await getDocs(adminsQuery)
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      name: data.name || '',
+      email: data.email || '',
+      isPrimary: data.isPrimary || false,
+      createdAt: data.createdAt instanceof Timestamp
+        ? data.createdAt.toMillis()
+        : data.createdAt || Date.now(),
+      createdBy: data.createdBy || '',
+    } as SuperAdmin
+  })
+}
 
 /**
  * 최고 관리자 추가

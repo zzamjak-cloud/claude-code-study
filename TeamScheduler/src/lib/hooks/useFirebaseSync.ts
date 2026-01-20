@@ -29,29 +29,36 @@ import { useSuperAdminsSync } from './firebase/useSuperAdminsSync'
  * @param currentYear - 현재 연도 (연도별 페이지네이션)
  */
 export const useFirebaseSync = (workspaceId: string | null, currentYear: number) => {
-  // 일정 동기화 (연도별)
+  // 일정 동기화 (연도별) - 실시간
   useSchedulesSync(workspaceId, currentYear)
 
-  // 팀원 동기화
-  useTeamSync(workspaceId)
+  // 팀원 동기화 - 일회성 조회 (getDocs)
+  const { refreshTeamMembers } = useTeamSync(workspaceId)
 
-  // 특이사항 동기화 (연도별)
+  // 특이사항 동기화 (연도별) - 실시간
   useEventsSync(workspaceId, currentYear)
 
-  // 글로벌 이벤트 동기화 (연도별)
+  // 글로벌 이벤트 동기화 (연도별) - 실시간
   useGlobalEventsSync(workspaceId, currentYear)
 
-  // 프로젝트 동기화
-  useProjectsSync(workspaceId)
+  // 프로젝트 동기화 - 일회성 조회 (getDocs)
+  const { refreshProjects } = useProjectsSync(workspaceId)
 
-  // 공지사항 동기화
+  // 공지사항 동기화 - 실시간
   useAnnouncementsSync(workspaceId)
 
-  // 글로벌 공지 동기화
+  // 글로벌 공지 동기화 - 실시간
   useGlobalNoticesSync(workspaceId)
 
-  // 최고 관리자 동기화
-  useSuperAdminsSync(workspaceId)
+  // 최고 관리자 동기화 - 일회성 조회 (getDocs)
+  const { refreshSuperAdmins } = useSuperAdminsSync(workspaceId)
+
+  // 새로고침 함수들 반환 (CRUD 작업 후 데이터 갱신에 사용)
+  return {
+    refreshTeamMembers,
+    refreshProjects,
+    refreshSuperAdmins,
+  }
 }
 
 // 개별 훅들도 내보내기 (필요한 경우 개별 사용 가능)

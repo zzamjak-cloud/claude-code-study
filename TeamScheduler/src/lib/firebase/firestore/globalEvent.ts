@@ -67,3 +67,33 @@ export const updateGlobalEventSettings = async (
     updatedAt: serverTimestamp(),
   }, { merge: true })
 }
+
+/**
+ * 글로벌 이벤트 일괄 추가 (배치 쓰기)
+ * 여러 글로벌 이벤트를 한 번에 추가하여 Firebase 쓰기 비용 절감
+ * 공휴일 일괄 등록 등에 사용
+ */
+export const batchCreateGlobalEvents = async (
+  workspaceId: string,
+  events: Array<Omit<GlobalEvent, 'id' | 'createdAt' | 'updatedAt'>>
+): Promise<string[]> => {
+  if (events.length === 0) return []
+
+  const { writeBatch } = await import('firebase/firestore')
+  const batch = writeBatch(db)
+  const eventIds: string[] = []
+
+  for (const event of events) {
+    const ref = doc(collection(db, `globalEvents/${workspaceId}/items`))
+    eventIds.push(ref.id)
+
+    batch.set(ref, {
+      ...event,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  await batch.commit()
+  return eventIds
+}

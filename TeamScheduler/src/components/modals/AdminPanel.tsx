@@ -8,6 +8,9 @@ import { ProjectManagement } from './admin/ProjectManagement'
 
 interface AdminPanelProps {
   onClose: () => void
+  onRefreshTeamMembers?: () => void
+  onRefreshProjects?: () => void
+  onRefreshSuperAdmins?: () => void
 }
 
 type TabType = 'team' | 'holiday' | 'project'

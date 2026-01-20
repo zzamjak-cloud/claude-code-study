@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react'
 import { Plus, Check, Trash2, RefreshCw } from 'lucide-react'
 import { useAppStore } from '../../../store/useAppStore'
-import { addEvent, createGlobalEvent, deleteEvent } from '../../../lib/firebase/firestore'
+import { addEvent, createGlobalEvent, deleteEvent, batchAddEvents, batchCreateGlobalEvents } from '../../../lib/firebase/firestore'
 import { ANNUAL_LEAVE_COLOR } from '../../../lib/constants/colors'
 import { getHolidaysForYear, KoreanHoliday } from '../../../lib/utils/koreanHolidays'
 import { startOfDay, endOfDay, format } from 'date-fns'
@@ -59,7 +59,7 @@ export function HolidayManagement() {
     }
   }
 
-  // 모든 공휴일 일괄 등록
+  // 모든 공휴일 일괄 등록 (배치 쓰기로 최적화)
   const registerAllHolidays = async () => {
     if (!workspaceId || !currentUser) return
 
@@ -71,26 +71,31 @@ export function HolidayManagement() {
 
     setIsLoading(true)
     try {
-      for (const holiday of unregistered) {
-        const dateTimestamp = new Date(holiday.date).getTime()
+      // 특이사항 데이터 준비
+      const eventData = unregistered.map(holiday => ({
+        title: holiday.name,
+        date: new Date(holiday.date).getTime(),
+        type: 'holiday' as const,
+        color: ANNUAL_LEAVE_COLOR,
+        createdBy: currentUser.uid,
+      }))
 
-        await addEvent(workspaceId, {
-          title: holiday.name,
-          date: dateTimestamp,
-          type: 'holiday',
-          color: ANNUAL_LEAVE_COLOR,
-          createdBy: currentUser.uid,
-        })
+      // 글로벌 이벤트 데이터 준비
+      const globalEventData = unregistered.map(holiday => ({
+        title: holiday.name,
+        startDate: startOfDay(new Date(holiday.date)).getTime(),
+        endDate: endOfDay(new Date(holiday.date)).getTime(),
+        color: ANNUAL_LEAVE_COLOR,
+        rowIndex: 0,
+        createdBy: currentUser.uid,
+      }))
 
-        await createGlobalEvent(workspaceId, {
-          title: holiday.name,
-          startDate: startOfDay(new Date(holiday.date)).getTime(),
-          endDate: endOfDay(new Date(holiday.date)).getTime(),
-          color: ANNUAL_LEAVE_COLOR,
-          rowIndex: 0,
-          createdBy: currentUser.uid,
-        })
-      }
+      // 배치 쓰기로 한 번에 등록 (Firebase 쓰기 비용 절감)
+      await Promise.all([
+        batchAddEvents(workspaceId, eventData),
+        batchCreateGlobalEvents(workspaceId, globalEventData),
+      ])
+
       alert(`${unregistered.length}개의 공휴일이 등록되었습니다.`)
     } catch (error) {
       console.error('공휴일 일괄 등록 실패:', error)

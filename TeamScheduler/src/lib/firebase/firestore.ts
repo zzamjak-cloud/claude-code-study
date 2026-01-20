@@ -5,10 +5,10 @@
 export { createSchedule, updateSchedule, deleteSchedule } from './firestore/schedule'
 
 // 팀원
-export { addTeamMember, updateTeamMember, deleteTeamMember } from './firestore/team'
+export { addTeamMember, updateTeamMember, deleteTeamMember, fetchTeamMembers, batchReorderTeamMembers } from './firestore/team'
 
 // 특이사항
-export { addEvent, updateEvent, deleteEvent } from './firestore/event'
+export { addEvent, updateEvent, deleteEvent, batchAddEvents } from './firestore/event'
 
 // 공지사항
 export { updateGlobalAnnouncement, updateAnnouncement } from './firestore/announcement'
@@ -19,10 +19,11 @@ export {
   updateGlobalEvent,
   deleteGlobalEvent,
   updateGlobalEventSettings,
+  batchCreateGlobalEvents,
 } from './firestore/globalEvent'
 
 // 프로젝트
-export { createProject, updateProject, deleteProject } from './firestore/project'
+export { createProject, updateProject, deleteProject, fetchProjects } from './firestore/project'
 
 // 글로벌 공지
 export {
@@ -33,10 +34,11 @@ export {
 
 // 최고 관리자
 export {
+  fetchSuperAdmins,
   addSuperAdmin,
   deleteSuperAdmin,
   initializePrimarySuperAdmin,
 } from './firestore/superAdmin'
 
-// 유틸리티
-export { timestampToNumber } from './firestore/utils'
+// 유틸리티 및 배치 작업
+export { timestampToNumber, batchUpdate, batchCreate, batchDelete } from './firestore/utils'

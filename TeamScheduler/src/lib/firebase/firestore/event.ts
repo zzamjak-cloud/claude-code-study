@@ -52,3 +52,33 @@ export const deleteEvent = async (
   const ref = doc(db, `events/${workspaceId}/items/${eventId}`)
   await deleteDoc(ref)
 }
+
+/**
+ * 특이사항 일괄 추가 (배치 쓰기)
+ * 여러 특이사항을 한 번에 추가하여 Firebase 쓰기 비용 절감
+ * 공휴일 일괄 등록 등에 사용
+ */
+export const batchAddEvents = async (
+  workspaceId: string,
+  events: Array<Omit<SpecialEvent, 'id' | 'createdAt' | 'updatedAt'>>
+): Promise<string[]> => {
+  if (events.length === 0) return []
+
+  const { writeBatch } = await import('firebase/firestore')
+  const batch = writeBatch(db)
+  const eventIds: string[] = []
+
+  for (const event of events) {
+    const ref = doc(collection(db, `events/${workspaceId}/items`))
+    eventIds.push(ref.id)
+
+    batch.set(ref, {
+      ...event,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  await batch.commit()
+  return eventIds
+}

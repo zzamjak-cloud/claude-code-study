@@ -7,8 +7,49 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  query,
+  orderBy,
+  getDocs,
+  Timestamp,
 } from 'firebase/firestore'
 import { db } from '../config'
+import { Project } from '../../../types/project'
+
+/**
+ * 프로젝트 목록 조회 (일회성 조회)
+ * 실시간 동기화 대신 사용하여 Firebase 읽기 비용 절감
+ */
+export const fetchProjects = async (workspaceId: string): Promise<Project[]> => {
+  const projectsQuery = query(
+    collection(db, `projects/${workspaceId}/items`),
+    orderBy('createdAt', 'asc')
+  )
+
+  const snapshot = await getDocs(projectsQuery)
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      name: data.name,
+      color: data.color,
+      type: data.type || 'project',
+      description: data.description,
+      memberIds: data.memberIds || [],
+      isHidden: data.isHidden || false,
+      order: data.order ?? 0,
+      createdBy: data.createdBy,
+      createdAt:
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toMillis()
+          : data.createdAt || Date.now(),
+      updatedAt:
+        data.updatedAt instanceof Timestamp
+          ? data.updatedAt.toMillis()
+          : data.updatedAt || Date.now(),
+    } as Project
+  })
+}
 
 /**
  * 프로젝트 생성

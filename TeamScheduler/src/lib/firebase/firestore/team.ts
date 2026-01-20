@@ -8,9 +8,53 @@ import {
   deleteDoc,
   deleteField,
   serverTimestamp,
+  query,
+  orderBy,
+  getDocs,
+  Timestamp,
 } from 'firebase/firestore'
 import { db } from '../config'
 import { TeamMember } from '../../../types/team'
+
+/**
+ * 팀원 목록 조회 (일회성 조회)
+ * 실시간 동기화 대신 사용하여 Firebase 읽기 비용 절감
+ */
+export const fetchTeamMembers = async (workspaceId: string): Promise<TeamMember[]> => {
+  const membersQuery = query(
+    collection(db, `teams/${workspaceId}/members`),
+    orderBy('order', 'asc')
+  )
+
+  const snapshot = await getDocs(membersQuery)
+
+  return snapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      name: data.name,
+      email: data.email || '',
+      profileImage: data.profileImage,
+      jobTitle: data.jobTitle || '',
+      role: data.role || '',
+      isLeader: data.isLeader || false,
+      status: data.status,
+      color: data.color,
+      isHidden: data.isHidden || false,
+      order: data.order || 0,
+      rowCount: data.rowCount || 1,
+      memo: data.memo || '',
+      createdAt:
+        data.createdAt instanceof Timestamp
+          ? data.createdAt.toMillis()
+          : data.createdAt || Date.now(),
+      updatedAt:
+        data.updatedAt instanceof Timestamp
+          ? data.updatedAt.toMillis()
+          : data.updatedAt || Date.now(),
+    } as TeamMember
+  })
+}
 
 /**
  * 구성원 추가
@@ -64,4 +108,28 @@ export const deleteTeamMember = async (
 ) => {
   const ref = doc(db, `teams/${workspaceId}/members/${memberId}`)
   await deleteDoc(ref)
+}
+
+/**
+ * 팀원 순서 일괄 업데이트 (배치 쓰기)
+ * 여러 팀원의 order 필드를 한 번에 업데이트하여 Firebase 쓰기 비용 절감
+ */
+export const batchReorderTeamMembers = async (
+  workspaceId: string,
+  memberOrders: Array<{ memberId: string; order: number }>
+): Promise<void> => {
+  if (memberOrders.length === 0) return
+
+  const { writeBatch } = await import('firebase/firestore')
+  const batch = writeBatch(db)
+
+  for (const { memberId, order } of memberOrders) {
+    const ref = doc(db, `teams/${workspaceId}/members/${memberId}`)
+    batch.update(ref, {
+      order,
+      updatedAt: serverTimestamp(),
+    })
+  }
+
+  await batch.commit()
 }

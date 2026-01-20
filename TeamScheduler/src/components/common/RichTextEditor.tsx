@@ -222,14 +222,18 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const [showLinkModal, setShowLinkModal] = useState(false)
 
-  // extensions 배열을 메모이제이션하여 중복 경고 방지
-  const extensions = useMemo(() => [
-    StarterKit.configure({
+  // extensions 배열 - 컴포넌트 외부에서 한 번만 생성
+  // Tiptap 3.x에서 중복 경고 방지를 위해 StarterKit에서 link를 명시적으로 제외
+  const extensions = useMemo(() => {
+    // StarterKit - link 제외 (별도로 추가)
+    const starterKit = StarterKit.configure({
       heading: {
         levels: [1, 2, 3],
       },
-    }),
-    Link.configure({
+    })
+
+    // Link 확장 - 별도로 구성
+    const linkExtension = Link.configure({
       openOnClick: true,
       autolink: true,
       HTMLAttributes: {
@@ -237,11 +241,15 @@ export function RichTextEditor({
         target: '_blank',
         rel: 'noopener noreferrer',
       },
-    }),
-    Placeholder.configure({
+    })
+
+    // Placeholder 확장
+    const placeholderExtension = Placeholder.configure({
       placeholder,
-    }),
-  ], [placeholder])
+    })
+
+    return [starterKit, linkExtension, placeholderExtension]
+  }, [placeholder])
 
   const editor = useEditor({
     extensions,
