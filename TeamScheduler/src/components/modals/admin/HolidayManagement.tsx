@@ -153,10 +153,45 @@ export function HolidayManagement() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-6">
-      {/* 왼쪽: 공휴일 등록 */}
-      <div className="space-y-6">
-        <div>
+    <div className="grid grid-cols-2 gap-6 h-full overflow-hidden">
+      {/* 왼쪽: 커스텀 휴일 추가 (상단 고정) + 공휴일 등록 */}
+      <div className="flex flex-col space-y-4 h-full overflow-hidden">
+        {/* 커스텀 휴일 추가 - 상단 고정 */}
+        <div className="pb-4 border-b border-border">
+          <h4 className="text-sm font-semibold text-foreground mb-3">
+            커스텀 휴일 추가
+          </h4>
+          <form onSubmit={addCustomHoliday} className="space-y-3">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customHolidayName}
+                onChange={(e) => setCustomHolidayName(e.target.value)}
+                placeholder="휴일명"
+                className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+              <input
+                type="date"
+                value={customHolidayDate}
+                onChange={(e) => setCustomHolidayDate(e.target.value)}
+                className="px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading || !customHolidayName.trim() || !customHolidayDate}
+              className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              휴일 추가
+            </button>
+          </form>
+        </div>
+
+        {/* 공휴일 등록 - 스크롤 영역 */}
+        <div className="flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-semibold text-foreground">
               {currentYear}년 대한민국 공휴일
@@ -174,7 +209,7 @@ export function HolidayManagement() {
             공휴일을 등록하면 타임라인에 배경색이 적용됩니다.
           </p>
 
-          <div className="space-y-1 max-h-[280px] overflow-y-auto scrollbar-thin">
+          <div className="flex-1 space-y-1 overflow-y-auto scrollbar-thin min-h-0">
             {koreanHolidays.map((holiday) => {
               const isRegistered = registeredHolidayDates.has(holiday.date)
               return (
@@ -216,44 +251,10 @@ export function HolidayManagement() {
             })}
           </div>
         </div>
-
-        {/* 커스텀 휴일 추가 */}
-        <div className="pt-4 border-t border-border">
-          <h4 className="text-sm font-semibold text-foreground mb-3">
-            커스텀 휴일 추가
-          </h4>
-          <form onSubmit={addCustomHoliday} className="space-y-3">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customHolidayName}
-                onChange={(e) => setCustomHolidayName(e.target.value)}
-                placeholder="휴일명"
-                className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              />
-              <input
-                type="date"
-                value={customHolidayDate}
-                onChange={(e) => setCustomHolidayDate(e.target.value)}
-                className="px-3 py-2 text-sm border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={isLoading || !customHolidayName.trim() || !customHolidayDate}
-              className="w-full px-4 py-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              <Plus className="w-4 h-4" />
-              휴일 추가
-            </button>
-          </form>
-        </div>
       </div>
 
       {/* 오른쪽: 등록된 휴일 목록 */}
-      <div className="space-y-4">
+      <div className="flex flex-col space-y-4 h-full overflow-hidden">
         <h4 className="text-sm font-semibold text-foreground">
           등록된 휴일 ({events.filter(e => e.type === 'holiday').length}개)
         </h4>
@@ -263,7 +264,7 @@ export function HolidayManagement() {
             등록된 휴일이 없습니다.
           </p>
         ) : (
-          <div className="space-y-1 max-h-[400px] overflow-y-auto scrollbar-thin">
+          <div className="flex-1 space-y-1 overflow-y-auto scrollbar-thin min-h-0">
             {events
               .filter(e => e.type === 'holiday')
               .sort((a, b) => a.date - b.date)

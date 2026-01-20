@@ -8,7 +8,7 @@ import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Bold, Italic, List, ListOrdered, Link as LinkIcon, Heading1, Heading2, Heading3 } from 'lucide-react'
 
 interface RichTextEditorProps {
@@ -222,26 +222,29 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const [showLinkModal, setShowLinkModal] = useState(false)
 
+  // extensions 배열을 메모이제이션하여 중복 경고 방지
+  const extensions = useMemo(() => [
+    StarterKit.configure({
+      heading: {
+        levels: [1, 2, 3],
+      },
+    }),
+    Link.configure({
+      openOnClick: true,
+      autolink: true,
+      HTMLAttributes: {
+        class: 'text-primary underline hover:text-primary/80 cursor-pointer',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+      },
+    }),
+    Placeholder.configure({
+      placeholder,
+    }),
+  ], [placeholder])
+
   const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: {
-          levels: [1, 2, 3],
-        },
-      }),
-      Link.configure({
-        openOnClick: true,
-        autolink: true,
-        HTMLAttributes: {
-          class: 'text-primary underline hover:text-primary/80 cursor-pointer',
-          target: '_blank',
-          rel: 'noopener noreferrer',
-        },
-      }),
-      Placeholder.configure({
-        placeholder,
-      }),
-    ],
+    extensions,
     content,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
@@ -261,7 +264,8 @@ export function RichTextEditor({
         return false
       },
     },
-  })
+    immediatelyRender: false, // SSR 호환 및 중복 경고 방지
+  }, [])
 
   // 외부에서 content가 변경될 때 에디터 업데이트
   useEffect(() => {

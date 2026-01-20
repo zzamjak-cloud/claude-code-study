@@ -219,9 +219,9 @@ export function ProjectManagement() {
   }, [members, memberSearchQuery])
 
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid grid-cols-2 gap-6 h-full overflow-hidden">
       {/* 왼쪽: 프로젝트 추가 및 목록 */}
-      <div className="space-y-4">
+      <div className="flex flex-col space-y-4 h-full overflow-hidden">
         <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
           <FolderKanban className="w-4 h-4" />
           프로젝트 관리
@@ -285,8 +285,8 @@ export function ProjectManagement() {
           </button>
         )}
 
-        {/* 등록된 프로젝트 목록 */}
-        <div className="space-y-2 max-h-[350px] overflow-y-auto scrollbar-thin">
+        {/* 등록된 프로젝트 목록 (flex-1로 남은 공간 채움) */}
+        <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin min-h-0">
           {sortedProjects.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               등록된 프로젝트가 없습니다.
@@ -421,7 +421,7 @@ export function ProjectManagement() {
       </div>
 
       {/* 오른쪽: 프로젝트 구성원 배정 */}
-      <div className="space-y-4">
+      <div className="flex flex-col space-y-4 h-full overflow-hidden">
         <h4 className="text-sm font-semibold text-foreground">
           구성원 배정
         </h4>
@@ -459,8 +459,8 @@ export function ProjectManagement() {
               />
             </div>
 
-            {/* 구성원 체크박스 목록 */}
-            <div className="space-y-1 max-h-[300px] overflow-y-auto scrollbar-thin">
+            {/* 구성원 체크박스 목록 (flex-1로 남은 공간 채움) */}
+            <div className="flex-1 space-y-1 overflow-y-auto scrollbar-thin min-h-0">
               {filteredMembers.map((member) => {
                 const isAssigned = (selectedProject.memberIds || []).includes(member.id)
                 return (

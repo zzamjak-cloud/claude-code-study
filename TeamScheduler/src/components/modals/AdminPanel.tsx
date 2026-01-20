@@ -1,6 +1,6 @@
 // 관리자 패널 (구성원 관리 + 공휴일 관리 + 프로젝트 관리)
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Users, Settings, Calendar, FolderKanban } from 'lucide-react'
 import { TeamManagement } from './admin/TeamManagement'
 import { HolidayManagement } from './admin/HolidayManagement'
@@ -14,6 +14,14 @@ type TabType = 'team' | 'holiday' | 'project'
 
 export function AdminPanel({ onClose }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('team')
+
+  // 모달 열릴 때 배경 스크롤 방지
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [])
 
   return (
     <div
@@ -74,11 +82,13 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           </button>
         </div>
 
-        {/* 탭 컨텐츠 - 고정 높이로 탭별 크기 통일 */}
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
-          {activeTab === 'team' && <TeamManagement />}
-          {activeTab === 'project' && <ProjectManagement />}
-          {activeTab === 'holiday' && <HolidayManagement />}
+        {/* 탭 컨텐츠 - 개별 스크롤을 위해 overflow-hidden, 내부 h-full 래퍼 */}
+        <div className="flex-1 overflow-hidden p-4 min-h-0">
+          <div className="h-full">
+            {activeTab === 'team' && <TeamManagement />}
+            {activeTab === 'project' && <ProjectManagement />}
+            {activeTab === 'holiday' && <HolidayManagement />}
+          </div>
         </div>
       </div>
     </div>

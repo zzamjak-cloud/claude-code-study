@@ -177,7 +177,7 @@ export function YearSelector() {
             ) : (
               <Plus className="w-4 h-4" />
             )}
-            <span className="text-sm">+ {nextYear}</span>
+            <span className="text-sm">{nextYear}</span>
           </button>
         </div>
       )}
