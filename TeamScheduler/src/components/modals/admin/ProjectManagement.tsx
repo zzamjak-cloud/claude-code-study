@@ -16,7 +16,7 @@ const getRandomColor = () => {
 }
 
 export function ProjectManagement() {
-  const { workspaceId, projects, currentUser, members, updateProject: updateProjectLocal } = useAppStore()
+  const { workspaceId, projects, currentUser, members, updateProject: updateProjectLocal, addProject: addProjectToStore, deleteProject: deleteProjectFromStore } = useAppStore()
   const [isLoading, setIsLoading] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
   const [newProjectType, setNewProjectType] = useState<ProjectType>('project')
@@ -59,13 +59,30 @@ export function ProjectManagement() {
       const maxOrder = projects.length > 0
         ? Math.max(...projects.map(p => p.order ?? 0)) + 1
         : 0
+      const color = getRandomColor()
+      const now = Date.now()
 
-      await createProject(workspaceId, {
-        name: newProjectName.trim(),
-        color: getRandomColor(),
+      // Firebase에 추가하고 ID 반환
+      const newProjectId = await createProject(workspaceId, {
+        name: trimmedName,
+        color,
         type: newProjectType,
         order: maxOrder,
         createdBy: currentUser.uid,
+      })
+
+      // Store에 즉시 반영 (낙관적 업데이트)
+      addProjectToStore({
+        id: newProjectId,
+        name: trimmedName,
+        color,
+        type: newProjectType,
+        memberIds: [],
+        isHidden: false,
+        order: maxOrder,
+        createdBy: currentUser.uid,
+        createdAt: now,
+        updatedAt: now,
       })
 
       setNewProjectName('')
@@ -85,6 +102,8 @@ export function ProjectManagement() {
     setIsLoading(true)
     try {
       await deleteProjectFirebase(workspaceId, projectId)
+      // Store에서 즉시 삭제 (낙관적 업데이트)
+      deleteProjectFromStore(projectId)
       if (selectedProjectForMembers === projectId) {
         setSelectedProjectForMembers(null)
       }

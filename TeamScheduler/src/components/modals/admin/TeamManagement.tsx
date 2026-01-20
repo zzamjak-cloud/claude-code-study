@@ -36,7 +36,7 @@ const getRandomColor = () => {
 }
 
 export function TeamManagement() {
-  const { workspaceId, members } = useAppStore()
+  const { workspaceId, members, addMember: addMemberToStore, deleteMember: deleteMemberFromStore } = useAppStore()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [jobTitle, setJobTitle] = useState('')
@@ -154,17 +154,36 @@ export function TeamManagement() {
 
     try {
       const order = members.length
+      const color = getRandomColor()
+      const now = Date.now()
 
-      await addTeamMember(workspaceId, {
-        name: name.trim(),
-        email: email.trim(),
+      // Firebase에 추가하고 ID 반환
+      const newMemberId = await addTeamMember(workspaceId, {
+        name: trimmedName,
+        email: trimmedEmail,
         jobTitle: jobTitle.trim(),
         role: role.trim(),
         isLeader,
-        color: getRandomColor(),
+        color,
         isHidden: false,
         order,
         rowCount: 1,
+      })
+
+      // Store에 즉시 반영 (낙관적 업데이트)
+      addMemberToStore({
+        id: newMemberId,
+        name: trimmedName,
+        email: trimmedEmail,
+        jobTitle: jobTitle.trim(),
+        role: role.trim(),
+        isLeader,
+        color,
+        isHidden: false,
+        order,
+        rowCount: 1,
+        createdAt: now,
+        updatedAt: now,
       })
 
       setName('')
@@ -203,6 +222,8 @@ export function TeamManagement() {
     setIsSubmitting(true)
     try {
       await deleteTeamMember(workspaceId, deletingMember.id)
+      // Store에서 즉시 삭제 (낙관적 업데이트)
+      deleteMemberFromStore(deletingMember.id)
     } catch (error) {
       console.error('구성원 삭제 실패:', error)
       alert('구성원 삭제에 실패했습니다.')

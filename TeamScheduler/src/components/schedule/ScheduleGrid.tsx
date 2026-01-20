@@ -29,7 +29,7 @@ export function ScheduleGrid() {
     currentUser,
     selectedScheduleColor, // 사용자가 선택한 기본 색상
     globalEvents,
-    globalEventRowCount,
+    globalEventRowCounts,
     monthVisibility,
     selectedProjectId,
     projects,
@@ -37,6 +37,9 @@ export function ScheduleGrid() {
     pushHistory,
     selectedJobTitle,
   } = useAppStore()
+
+  // 현재 프로젝트의 특이사항 행 개수 (프로젝트 미선택 시 'default' 사용)
+  const globalEventRowCount = globalEventRowCounts[selectedProjectId || 'default'] || globalEventRowCounts['default'] || 1
 
   // 권한 체크 - 특이사항 입력/행 추가/제거는 구성원 이상만 가능
   const { isMember } = usePermissions()
@@ -127,14 +130,19 @@ export function ScheduleGrid() {
 
   // 스크롤 이벤트 핸들러 - 세로 스크롤 동기화
   const handleScroll = useCallback(() => {
-    if (!scrollContainerRef.current) return
+    if (!scrollContainerRef.current || !fixedColumnRef.current) return
 
-    const scrollTop = scrollContainerRef.current.scrollTop
+    const scrollContainer = scrollContainerRef.current
+    const fixedColumn = fixedColumnRef.current
+
+    // 고정 열의 최대 스크롤 가능 범위 계산
+    const maxScrollTop = fixedColumn.scrollHeight - fixedColumn.clientHeight
+
+    // 스크롤 컨테이너의 scrollTop을 고정 열의 최대값으로 제한
+    const scrollTop = Math.min(scrollContainer.scrollTop, maxScrollTop)
 
     // 세로 스크롤 동기화
-    if (fixedColumnRef.current) {
-      fixedColumnRef.current.scrollTop = scrollTop
-    }
+    fixedColumn.scrollTop = scrollTop
   }, [])
 
   // 스크롤 이벤트 리스너 등록
@@ -256,18 +264,18 @@ export function ScheduleGrid() {
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
     try {
-      await updateGlobalEventSettings(workspaceId, { rowCount: newCount })
+      await updateGlobalEventSettings(workspaceId, { rowCount: newCount, projectId: selectedProjectId })
       // 히스토리 기록
       pushHistory({
         type: 'global_row_change',
         description: '특이사항 행 추가',
-        undoData: { previousRowCount },
-        redoData: { newRowCount: newCount },
+        undoData: { previousRowCount, projectId: selectedProjectId },
+        redoData: { newRowCount: newCount, projectId: selectedProjectId },
       })
     } catch (error) {
       console.error('글로벌 행 추가 실패:', error)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, pushHistory])
+  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory])
 
   // 글로벌 행 제거 (구성원 이상)
   const removeGlobalRow = useCallback(async () => {
@@ -275,18 +283,18 @@ export function ScheduleGrid() {
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
     try {
-      await updateGlobalEventSettings(workspaceId, { rowCount: newCount })
+      await updateGlobalEventSettings(workspaceId, { rowCount: newCount, projectId: selectedProjectId })
       // 히스토리 기록
       pushHistory({
         type: 'global_row_change',
         description: '특이사항 행 제거',
-        undoData: { previousRowCount },
-        redoData: { newRowCount: newCount },
+        undoData: { previousRowCount, projectId: selectedProjectId },
+        redoData: { newRowCount: newCount, projectId: selectedProjectId },
       })
     } catch (error) {
       console.error('글로벌 행 제거 실패:', error)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, pushHistory])
+  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory])
 
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId

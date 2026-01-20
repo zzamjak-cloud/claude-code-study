@@ -5,11 +5,12 @@ import { GlobalEvent } from '../../types/globalEvent'
 export interface GlobalEventSlice {
   // 상태
   globalEvents: GlobalEvent[]
-  globalEventRowCount: number
+  globalEventRowCounts: Record<string, number>  // 프로젝트별 행 개수 (키: projectId 또는 'default')
 
   // 메서드
   setGlobalEvents: (events: GlobalEvent[]) => void
-  setGlobalEventRowCount: (count: number) => void
+  setGlobalEventRowCounts: (rowCounts: Record<string, number>) => void
+  setGlobalEventRowCount: (projectId: string | null, count: number) => void
   addGlobalEvent: (event: GlobalEvent) => void
   updateGlobalEvent: (id: string, updates: Partial<GlobalEvent>) => void
   deleteGlobalEvent: (id: string) => void
@@ -18,13 +19,22 @@ export interface GlobalEventSlice {
 export const createGlobalEventSlice = (set: any): GlobalEventSlice => ({
   // 초기 상태
   globalEvents: [],
-  globalEventRowCount: 1,
+  globalEventRowCounts: { default: 1 },  // 기본값
 
   // 글로벌 이벤트 목록 설정 (Firebase 동기화용)
   setGlobalEvents: (events) => set({ globalEvents: events }),
 
-  // 행 개수 설정
-  setGlobalEventRowCount: (count) => set({ globalEventRowCount: count }),
+  // 전체 행 개수 설정 (Firebase 동기화용)
+  setGlobalEventRowCounts: (rowCounts) => set({ globalEventRowCounts: rowCounts }),
+
+  // 특정 프로젝트의 행 개수 설정
+  setGlobalEventRowCount: (projectId, count) =>
+    set((state: GlobalEventSlice) => ({
+      globalEventRowCounts: {
+        ...state.globalEventRowCounts,
+        [projectId || 'default']: count,
+      },
+    })),
 
   // 글로벌 이벤트 추가
   addGlobalEvent: (event) =>

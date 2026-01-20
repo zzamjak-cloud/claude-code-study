@@ -54,16 +54,23 @@ export const deleteGlobalEvent = async (
 }
 
 /**
- * 글로벌 이벤트 설정 업데이트 (행 개수 등)
+ * 글로벌 이벤트 설정 업데이트 (프로젝트별 행 개수)
+ * @param workspaceId - 워크스페이스 ID
+ * @param projectId - 프로젝트 ID (null이면 'default')
+ * @param rowCount - 행 개수
  */
 export const updateGlobalEventSettings = async (
   workspaceId: string,
-  settings: { rowCount: number }
+  settings: { rowCount: number; projectId?: string | null }
 ) => {
   // Firestore 문서 참조는 짝수 세그먼트 필요: globalEventSettings/{workspaceId}
   const ref = doc(db, `globalEventSettings/${workspaceId}`)
+  const key = settings.projectId || 'default'
+
   await setDoc(ref, {
-    ...settings,
+    rowCounts: {
+      [key]: settings.rowCount,
+    },
     updatedAt: serverTimestamp(),
   }, { merge: true })
 }

@@ -21,7 +21,7 @@ import { GlobalEvent } from '../../../types/globalEvent'
  */
 export const useGlobalEventsSync = (workspaceId: string | null, currentYear: number) => {
   const setGlobalEvents = useAppStore(state => state.setGlobalEvents)
-  const setGlobalEventRowCount = useAppStore(state => state.setGlobalEventRowCount)
+  const setGlobalEventRowCounts = useAppStore(state => state.setGlobalEventRowCounts)
 
   useEffect(() => {
     if (!workspaceId) return
@@ -82,7 +82,7 @@ export const useGlobalEventsSync = (workspaceId: string | null, currentYear: num
       }
     )
 
-    // 글로벌 이벤트 설정 동기화 (행 개수)
+    // 글로벌 이벤트 설정 동기화 (프로젝트별 행 개수)
     const globalEventSettingsRef = doc(db, `globalEventSettings/${workspaceId}`)
 
     const unsubscribeGlobalEventSettings = onSnapshot(
@@ -90,12 +90,13 @@ export const useGlobalEventsSync = (workspaceId: string | null, currentYear: num
       (snapshot) => {
         if (snapshot.exists()) {
           const data = snapshot.data()
-          const rowCount = data.rowCount || 1
-          console.log('✅ 글로벌 이벤트 설정 동기화: rowCount =', rowCount)
-          setGlobalEventRowCount(rowCount)
+          // rowCounts 객체가 있으면 사용, 없으면 기존 rowCount를 default로 변환
+          const rowCounts = data.rowCounts || (data.rowCount ? { default: data.rowCount } : { default: 1 })
+          console.log('✅ 글로벌 이벤트 설정 동기화: rowCounts =', rowCounts)
+          setGlobalEventRowCounts(rowCounts)
         } else {
           console.log('✅ 글로벌 이벤트 설정 없음 - 기본값 사용')
-          setGlobalEventRowCount(1)
+          setGlobalEventRowCounts({ default: 1 })
         }
       },
       (error) => {
@@ -107,5 +108,5 @@ export const useGlobalEventsSync = (workspaceId: string | null, currentYear: num
       unsubscribeGlobalEvents()
       unsubscribeGlobalEventSettings()
     }
-  }, [workspaceId, currentYear, setGlobalEvents, setGlobalEventRowCount])
+  }, [workspaceId, currentYear, setGlobalEvents, setGlobalEventRowCounts])
 }
