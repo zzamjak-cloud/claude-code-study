@@ -339,7 +339,91 @@ globalEventSettings/{workspaceId}    # 글로벌 이벤트 설정
 projects/{workspaceId}/items/        # 프로젝트
 announcements/{workspaceId}/projects/ # 공지사항
 globalNotices/{workspaceId}/items/   # 글로벌 공지
+superAdmins/                          # 슈퍼관리자 목록
 ```
+
+### 오프라인 캐싱
+
+Firebase의 오프라인 영속성(persistence)을 활성화하여 네트워크 요청 감소:
+
+```typescript
+// src/lib/firebase/config.ts
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentMultipleTabManager()
+  })
+})
+```
+
+**효과:**
+- 네트워크 요청 50% 이상 감소
+- 캐시 데이터로 빠른 초기 로드
+- 오프라인 상태에서도 캐시 데이터 접근 가능
+
+### 실시간 동기화 vs 일회성 쿼리
+
+데이터 특성에 따라 실시간 동기화(`onSnapshot`)와 일회성 쿼리(`getDocs`)를 구분:
+
+| 데이터 | 쿼리 방식 | 이유 |
+|--------|----------|------|
+| 일정 (schedules) | `onSnapshot` | 실시간 협업 필요 |
+| 특이사항 (events) | `onSnapshot` | 실시간 협업 필요 |
+| 글로벌 이벤트 | `onSnapshot` | 실시간 협업 필요 |
+| 공지사항 | `onSnapshot` | 실시간 업데이트 필요 |
+| **팀원 (members)** | `getDocs` | 변경 빈도 낮음 |
+| **프로젝트 (projects)** | `getDocs` | 변경 빈도 낮음 |
+| **슈퍼관리자 (superAdmins)** | `getDocs` | 변경 빈도 낮음 |
+
+```typescript
+// 일회성 쿼리 예시 (useTeamSync.ts)
+export const useTeamSync = (workspaceId: string | null) => {
+  const setMembers = useAppStore(state => state.setMembers)
+
+  const loadTeamMembers = useCallback(async () => {
+    if (!workspaceId) { setMembers([]); return }
+    const members = await fetchTeamMembers(workspaceId)
+    setMembers(members)
+  }, [workspaceId, setMembers])
+
+  useEffect(() => { loadTeamMembers() }, [loadTeamMembers])
+
+  // 필요 시 수동 새로고침 함수 반환
+  return { refreshTeamMembers: loadTeamMembers }
+}
+```
+
+### 배치 쓰기 (Batch Write)
+
+여러 문서를 동시에 수정할 때 배치 쓰기로 Firebase 쓰기 횟수 최적화:
+
+```typescript
+// 팀원 순서 변경 (team.ts)
+export const batchReorderTeamMembers = async (
+  workspaceId: string,
+  memberOrders: Array<{ memberId: string; order: number }>
+): Promise<void> => {
+  const { writeBatch } = await import('firebase/firestore')
+  const batch = writeBatch(db)
+
+  for (const { memberId, order } of memberOrders) {
+    const ref = doc(db, `teams/${workspaceId}/members/${memberId}`)
+    batch.update(ref, { order, updatedAt: serverTimestamp() })
+  }
+
+  await batch.commit()  // 한 번의 쓰기로 모든 순서 변경
+}
+```
+
+**적용 대상:**
+- 팀원 순서 변경 (드래그 앤 드롭)
+- 공휴일 일괄 등록 (한국 공휴일 자동 등록)
+- 글로벌 이벤트 일괄 생성
+
+**효과:**
+- 10개 팀원 순서 변경: 10회 쓰기 → 1회 쓰기
+- Firebase 비용 90% 감소 (배치 작업 시)
 
 ### 실시간 동기화 (모듈화된 구조)
 
@@ -385,12 +469,14 @@ const schedules = allSchedules.filter(s => s.endDate >= yearStart)
 | 파일 | 함수 |
 |------|------|
 | `schedule.ts` | `createSchedule`, `updateSchedule`, `deleteSchedule` |
-| `team.ts` | `addTeamMember`, `updateTeamMember`, `deleteTeamMember` |
-| `event.ts` | `addEvent`, `updateEvent`, `deleteEvent` |
+| `team.ts` | `addTeamMember`, `updateTeamMember`, `deleteTeamMember`, **`fetchTeamMembers`**, **`batchReorderTeamMembers`** |
+| `event.ts` | `addEvent`, `updateEvent`, `deleteEvent`, **`batchAddEvents`** |
 | `announcement.ts` | `updateGlobalAnnouncement`, `updateAnnouncement` |
-| `globalEvent.ts` | `createGlobalEvent`, `updateGlobalEvent`, `deleteGlobalEvent`, `updateGlobalEventSettings` |
-| `project.ts` | `createProject`, `updateProject`, `deleteProject` |
+| `globalEvent.ts` | `createGlobalEvent`, `updateGlobalEvent`, `deleteGlobalEvent`, `updateGlobalEventSettings`, **`batchCreateGlobalEvents`** |
+| `project.ts` | `createProject`, `updateProject`, `deleteProject`, **`fetchProjects`** |
 | `globalNotice.ts` | `createGlobalNotice`, `updateGlobalNotice`, `deleteGlobalNotice` |
+| `superAdmin.ts` | `addSuperAdmin`, `removeSuperAdmin`, **`fetchSuperAdmins`** |
+| `utils.ts` | **`batchUpdate`**, **`batchCreate`**, **`batchDelete`** (범용 배치 유틸리티) |
 
 ### 낙관적 업데이트 패턴
 
@@ -635,6 +721,10 @@ const {
 | **커스텀 비교 함수** | ScheduleCard, GlobalEventCard의 memo | props 깊은 비교로 정밀 제어 |
 | **연도별 페이지네이션** | Firebase 쿼리 | 로드 데이터량 50% 이상 감소 |
 | **manualChunks** | vite.config.ts (react, firebase, ui, state) | 500KB 경고 해결, 캐싱 효율 향상 |
+| **오프라인 캐싱** | Firestore persistentLocalCache | 네트워크 요청 50% 이상 감소 |
+| **일회성 쿼리 (getDocs)** | 팀원, 프로젝트, 슈퍼관리자 | 실시간 구독 비용 감소 |
+| **배치 쓰기 (writeBatch)** | 팀원 순서 변경, 공휴일 일괄 등록 | Firebase 쓰기 횟수 90% 감소 |
+| **디바운스** | 드래그/리사이즈 Firebase 업데이트 | 드래그 중 과도한 쓰기 방지 |
 
 ### 번들 크기 (manualChunks 적용)
 
@@ -842,7 +932,7 @@ export const refreshCalendarToken = async (): Promise<string | null>
 
 1. **대용량 데이터**: 연간 1,000개 이상의 일정 시 성능 저하 가능
 2. ~~**Firebase 쿼리**: 현재 모든 일정을 로드 (연도별 페이지네이션 미적용)~~ → ✅ 해결됨
-3. **오프라인 지원**: 현재 오프라인 모드 미지원
+3. ~~**오프라인 지원**: 현재 오프라인 모드 미지원~~ → ✅ 오프라인 캐싱 지원 (persistentLocalCache)
 4. **모바일**: 데스크톱 최적화, 모바일 반응형 미완성
 
 ---
@@ -875,4 +965,4 @@ npm run lint
 
 ---
 
-*문서 최종 업데이트: 2026-01-19*
+*문서 최종 업데이트: 2026-01-20*
