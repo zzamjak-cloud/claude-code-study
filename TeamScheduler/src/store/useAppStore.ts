@@ -32,7 +32,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   ...createEventSlice(set, get),
   ...createAuthSlice(set),
   ...createAnnouncementSlice(set),
-  ...createGlobalEventSlice(set),
+  ...createGlobalEventSlice(set, get),
   ...createProjectSlice(set),
   ...createHistorySlice(set, get),
   ...createGlobalNoticeSlice(set),

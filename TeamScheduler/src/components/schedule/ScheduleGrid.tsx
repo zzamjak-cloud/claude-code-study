@@ -31,6 +31,7 @@ export function ScheduleGrid() {
     globalEvents,
     globalEventRowCounts,
     setGlobalEventRowCount,
+    setPendingRowCountUpdate,
     monthVisibility,
     selectedProjectId,
     projects,
@@ -280,6 +281,9 @@ export function ScheduleGrid() {
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
 
+    // pending 플래그 설정 (Firebase 동기화가 덮어쓰지 않도록)
+    setPendingRowCountUpdate(selectedProjectId, true)
+
     // 낙관적 업데이트 - 즉시 UI 반영
     setGlobalEventRowCount(selectedProjectId, newCount)
 
@@ -296,14 +300,22 @@ export function ScheduleGrid() {
       console.error('글로벌 행 추가 실패:', error)
       // 실패 시 롤백
       setGlobalEventRowCount(selectedProjectId, previousRowCount)
+    } finally {
+      // pending 플래그 해제 (약간의 딜레이 후 - Firebase 동기화 완료 대기)
+      setTimeout(() => {
+        setPendingRowCountUpdate(selectedProjectId, false)
+      }, 1000)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount])
+  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
 
   // 글로벌 행 제거 (구성원 이상)
   const removeGlobalRow = useCallback(async () => {
     if (!workspaceId || !isMember) return
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
+
+    // pending 플래그 설정 (Firebase 동기화가 덮어쓰지 않도록)
+    setPendingRowCountUpdate(selectedProjectId, true)
 
     // 낙관적 업데이트 - 즉시 UI 반영
     setGlobalEventRowCount(selectedProjectId, newCount)
@@ -321,8 +333,13 @@ export function ScheduleGrid() {
       console.error('글로벌 행 제거 실패:', error)
       // 실패 시 롤백
       setGlobalEventRowCount(selectedProjectId, previousRowCount)
+    } finally {
+      // pending 플래그 해제 (약간의 딜레이 후 - Firebase 동기화 완료 대기)
+      setTimeout(() => {
+        setPendingRowCountUpdate(selectedProjectId, false)
+      }, 1000)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount])
+  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
 
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId
