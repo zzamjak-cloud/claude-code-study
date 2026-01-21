@@ -158,8 +158,13 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 관리자만
-      allow update, delete: if hasAdminAccess(workspaceId);
+      // 수정: 인증된 사용자 (rowCounts만 변경하는 경우) 또는 관리자
+      allow update: if request.auth != null &&
+                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rowCounts', 'updatedAt']) ||
+                        hasAdminAccess(workspaceId));
+
+      // 삭제: 관리자만
+      allow delete: if hasAdminAccess(workspaceId);
     }
 
     // 최고 관리자 목록
