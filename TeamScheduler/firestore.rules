@@ -96,8 +96,8 @@ service cloud.firestore {
       // 생성: 인증된 사용자
       allow create: if request.auth != null;
 
-      // 수정/삭제: 관리자만
-      allow update, delete: if hasAdminAccess(workspaceId);
+      // 수정/삭제: 인증된 사용자 (프로젝트 구성원 모두 편집 가능)
+      allow update, delete: if request.auth != null;
     }
 
     // 프로젝트
