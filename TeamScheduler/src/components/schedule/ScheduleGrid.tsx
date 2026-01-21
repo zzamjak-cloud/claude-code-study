@@ -30,12 +30,14 @@ export function ScheduleGrid() {
     selectedScheduleColor, // 사용자가 선택한 기본 색상
     globalEvents,
     globalEventRowCounts,
+    setGlobalEventRowCount,
     monthVisibility,
     selectedProjectId,
     projects,
     columnWidthScale,
     pushHistory,
     selectedJobTitle,
+    updateMember,
   } = useAppStore()
 
   // 현재 프로젝트의 특이사항 행 개수 (프로젝트 미선택 시 'default' 사용)
@@ -195,10 +197,14 @@ export function ScheduleGrid() {
     const member = members.find((m) => m.id === memberId)
     const previousRowCount = member?.rowCount || memberRowCounts[memberId] || 1
     const newCount = previousRowCount + 1
+
+    // 로컬 상태 즉시 업데이트
     setMemberRowCounts((prev) => ({
       ...prev,
       [memberId]: newCount,
     }))
+    // Store도 즉시 업데이트 (낙관적 업데이트)
+    updateMember(memberId, { rowCount: newCount })
 
     // Firebase 업데이트
     if (workspaceId) {
@@ -213,9 +219,12 @@ export function ScheduleGrid() {
         })
       } catch (error) {
         console.error('행 추가 실패:', error)
+        // 실패 시 롤백
+        setMemberRowCounts((prev) => ({ ...prev, [memberId]: previousRowCount }))
+        updateMember(memberId, { rowCount: previousRowCount })
       }
     }
-  }, [members, memberRowCounts, workspaceId, pushHistory])
+  }, [members, memberRowCounts, workspaceId, pushHistory, updateMember])
 
   // 행 제거
   const removeRow = useCallback(async (memberId: string) => {
@@ -236,10 +245,14 @@ export function ScheduleGrid() {
     }
 
     const newCount = currentRowCount - 1
+
+    // 로컬 상태 즉시 업데이트
     setMemberRowCounts((prev) => ({
       ...prev,
       [memberId]: newCount,
     }))
+    // Store도 즉시 업데이트 (낙관적 업데이트)
+    updateMember(memberId, { rowCount: newCount })
 
     // Firebase 업데이트
     if (workspaceId) {
@@ -254,15 +267,22 @@ export function ScheduleGrid() {
         })
       } catch (error) {
         console.error('행 제거 실패:', error)
+        // 실패 시 롤백
+        setMemberRowCounts((prev) => ({ ...prev, [memberId]: currentRowCount }))
+        updateMember(memberId, { rowCount: currentRowCount })
       }
     }
-  }, [members, memberRowCounts, schedules, workspaceId, pushHistory])
+  }, [members, memberRowCounts, schedules, workspaceId, pushHistory, updateMember])
 
   // 글로벌 행 추가 (구성원 이상)
   const addGlobalRow = useCallback(async () => {
     if (!workspaceId || !isMember) return
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
+
+    // 낙관적 업데이트 - 즉시 UI 반영
+    setGlobalEventRowCount(selectedProjectId, newCount)
+
     try {
       await updateGlobalEventSettings(workspaceId, { rowCount: newCount, projectId: selectedProjectId })
       // 히스토리 기록
@@ -274,14 +294,20 @@ export function ScheduleGrid() {
       })
     } catch (error) {
       console.error('글로벌 행 추가 실패:', error)
+      // 실패 시 롤백
+      setGlobalEventRowCount(selectedProjectId, previousRowCount)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory])
+  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount])
 
   // 글로벌 행 제거 (구성원 이상)
   const removeGlobalRow = useCallback(async () => {
     if (!workspaceId || !isMember) return
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
+
+    // 낙관적 업데이트 - 즉시 UI 반영
+    setGlobalEventRowCount(selectedProjectId, newCount)
+
     try {
       await updateGlobalEventSettings(workspaceId, { rowCount: newCount, projectId: selectedProjectId })
       // 히스토리 기록
@@ -293,8 +319,10 @@ export function ScheduleGrid() {
       })
     } catch (error) {
       console.error('글로벌 행 제거 실패:', error)
+      // 실패 시 롤백
+      setGlobalEventRowCount(selectedProjectId, previousRowCount)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory])
+  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount])
 
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId
