@@ -2,7 +2,7 @@
 // TipTap 에디터 적용 - 링크, 헤더, 리스트, 볼드/이탤릭 지원
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Megaphone } from 'lucide-react'
+import { Megaphone, Save } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { usePermissions } from '../../lib/hooks/usePermissions'
 import { updateAnnouncement } from '../../lib/firebase/firestore'
@@ -110,16 +110,41 @@ export function Announcement() {
     setEditContent(content)
   }
 
+  // 저장되지 않은 변경사항 여부
+  const hasUnsavedChanges = editContent !== lastSavedContent.current
+
+  // 수동 저장 핸들러
+  const handleManualSave = useCallback(() => {
+    if (!hasUnsavedChanges || isSaving) return
+    saveAnnouncement(editContent)
+  }, [hasUnsavedChanges, isSaving, saveAnnouncement, editContent])
+
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-border flex-shrink-0">
         <Megaphone className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-foreground">
+        <span className="text-sm font-medium text-foreground flex-1">
           {currentProject ? `(${currentProject.name}) 공지사항` : '공지사항'}
         </span>
-        {isSaving && (
-          <span className="text-xs text-muted-foreground">저장 중...</span>
+        {/* 저장 상태 표시 및 저장 버튼 */}
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            {isSaving ? (
+              <span className="text-xs text-muted-foreground">저장 중...</span>
+            ) : hasUnsavedChanges ? (
+              <button
+                onClick={handleManualSave}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+                title="저장 (자동 저장도 1초 후 작동)"
+              >
+                <Save className="w-3 h-3" />
+                저장
+              </button>
+            ) : (
+              <span className="text-xs text-muted-foreground">저장됨</span>
+            )}
+          </div>
         )}
       </div>
 

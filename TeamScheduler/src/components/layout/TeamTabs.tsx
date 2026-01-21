@@ -154,26 +154,35 @@ export function TeamTabs() {
     const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'))
     if (sourceIndex === targetIndex || isNaN(sourceIndex)) return
 
-    // 순서 변경
-    const newMembers = [...sortedMembers]
-    const [movedMember] = newMembers.splice(sourceIndex, 1)
-    newMembers.splice(targetIndex, 0, movedMember)
+    // 순서 변경 (sortedMembers 기준)
+    const newSortedMembers = [...sortedMembers]
+    const [movedMember] = newSortedMembers.splice(sourceIndex, 1)
+    newSortedMembers.splice(targetIndex, 0, movedMember)
 
-    // 새 order 값 할당
-    const updatedMembers = newMembers.map((member, index) => ({
-      ...member,
-      order: index,
-    }))
+    // 새 order 값 할당 (표시된 멤버만)
+    const newOrderMap = new Map<string, number>()
+    newSortedMembers.forEach((member, index) => {
+      newOrderMap.set(member.id, index)
+    })
 
-    // 로컬 상태 업데이트
-    reorderMembers(updatedMembers)
+    // 전체 members 배열에서 order 업데이트 (필터링되지 않은 멤버는 기존 order 유지)
+    const updatedAllMembers = members.map((member) => {
+      const newOrder = newOrderMap.get(member.id)
+      if (newOrder !== undefined) {
+        return { ...member, order: newOrder }
+      }
+      return member
+    })
 
-    // Firebase 배치 업데이트 (한 번의 쓰기로 모든 순서 변경)
+    // 로컬 상태 업데이트 (전체 members)
+    reorderMembers(updatedAllMembers)
+
+    // Firebase 배치 업데이트 (변경된 멤버만)
     if (workspaceId) {
       try {
-        const memberOrders = updatedMembers.map(member => ({
+        const memberOrders = newSortedMembers.map((member, index) => ({
           memberId: member.id,
-          order: member.order,
+          order: index,
         }))
         await batchReorderTeamMembers(workspaceId, memberOrders)
       } catch (error) {
