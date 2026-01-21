@@ -40,13 +40,31 @@ export function Announcement() {
 
   const [editContent, setEditContent] = useState(currentAnnouncement?.content || '')
   const lastSavedContent = useRef(currentAnnouncement?.content || '')
+  const isEditingLocally = useRef(false)  // 로컬 편집 중 플래그
 
-  // 공지사항 변경 시 동기화
+  // 공지사항 변경 시 동기화 (로컬 편집 중이 아닐 때만)
+  useEffect(() => {
+    const newContent = currentAnnouncement?.content || ''
+
+    // 로컬 편집 중이거나 저장 중이면 Firebase 동기화 건너뛰기
+    if (isEditingLocally.current || isSaving) {
+      return
+    }
+
+    // 실제로 서버에서 변경된 경우에만 동기화
+    if (newContent !== lastSavedContent.current) {
+      setEditContent(newContent)
+      lastSavedContent.current = newContent
+    }
+  }, [currentAnnouncement?.content, selectedProjectId, isSaving])
+
+  // 프로젝트 변경 시 초기화
   useEffect(() => {
     const newContent = currentAnnouncement?.content || ''
     setEditContent(newContent)
     lastSavedContent.current = newContent
-  }, [currentAnnouncement?.content, selectedProjectId])
+    isEditingLocally.current = false
+  }, [selectedProjectId])
 
   // Debounce 저장 (편집 가능한 사용자만)
   const saveAnnouncement = useCallback(
@@ -61,6 +79,10 @@ export function Announcement() {
         console.error('공지사항 저장 실패:', error)
       } finally {
         setIsSaving(false)
+        // 저장 완료 후 잠시 후에 편집 플래그 해제 (Firebase 동기화 안정화)
+        setTimeout(() => {
+          isEditingLocally.current = false
+        }, 500)
       }
     },
     [workspaceId, currentUser, canEdit, selectedProjectId]
@@ -69,7 +91,11 @@ export function Announcement() {
   // Debounce 처리 (편집 가능한 사용자만)
   useEffect(() => {
     if (!canEdit || !selectedProjectId) return
-    if (editContent === lastSavedContent.current) return
+    if (editContent === lastSavedContent.current) {
+      // 변경 없으면 편집 플래그 해제
+      isEditingLocally.current = false
+      return
+    }
 
     const timer = setTimeout(() => {
       saveAnnouncement(editContent)
@@ -79,6 +105,8 @@ export function Announcement() {
   }, [editContent, saveAnnouncement, canEdit, selectedProjectId])
 
   const handleChange = (content: string) => {
+    // 편집 시작 플래그 설정
+    isEditingLocally.current = true
     setEditContent(content)
   }
 

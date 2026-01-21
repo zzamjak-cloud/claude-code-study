@@ -409,31 +409,23 @@ export function ScheduleGrid() {
       visibleMembers.forEach((m) => {
         const memberSchedules = schedules.filter((s) => s.memberId === m.id)
 
-        // 카드가 있는 행 인덱스 수집
-        const rowsWithCards = new Set<number>()
-        memberSchedules.forEach((s) => {
-          rowsWithCards.add(s.rowIndex || 0)
-        })
+        // 구성원의 rowCount 사용 (로컬 상태 또는 멤버 데이터)
+        const memberRowCount = memberRowCounts[m.id] ?? m.rowCount ?? 1
+        const totalRows = memberRowCount
 
-        // 기본 0행은 항상 포함
-        rowsWithCards.add(0)
-
-        // 정렬된 행 인덱스 배열
-        const sortedRowIndices = Array.from(rowsWithCards).sort((a, b) => a - b)
-        const totalRows = sortedRowIndices.length
-
-        sortedRowIndices.forEach((rowIdx, displayIndex) => {
+        // 모든 행 표시 (구성원의 rowCount에 맞춤)
+        for (let rowIdx = 0; rowIdx < memberRowCount; rowIdx++) {
           rowData.push({
             memberId: m.id,
             memberName: m.name,
             memberColor: m.color,
             rowIndex: rowIdx,
             schedules: memberSchedules.filter((s) => (s.rowIndex || 0) === rowIdx),
-            isFirstRow: displayIndex === 0,
-            isLastRow: displayIndex === totalRows - 1,
+            isFirstRow: rowIdx === 0,
+            isLastRow: rowIdx === totalRows - 1,
             totalRows: totalRows,
           })
-        })
+        }
       })
 
       return rowData
