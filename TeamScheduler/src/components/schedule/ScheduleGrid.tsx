@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { useAppStore } from '../../store/useAppStore'
-import { usePermissions } from '../../lib/hooks/usePermissions'
+// import { usePermissions } from '../../lib/hooks/usePermissions'
 import { YEAR_DAYS } from '../../lib/constants/grid'
 import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { DateAxis } from './DateAxis'
@@ -44,8 +44,8 @@ export function ScheduleGrid() {
   // 현재 프로젝트의 특이사항 행 개수 (프로젝트 미선택 시 'default' 사용)
   const globalEventRowCount = globalEventRowCounts[selectedProjectId || 'default'] || globalEventRowCounts['default'] || 1
 
-  // 권한 체크 - 특이사항 입력/행 추가/제거는 구성원 이상만 가능
-  const { isMember } = usePermissions()
+  // 권한 체크는 인증 여부로 대체 (Firebase 규칙과 일치)
+  // const { isMember } = usePermissions()
 
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
@@ -275,9 +275,9 @@ export function ScheduleGrid() {
     }
   }, [members, memberRowCounts, schedules, workspaceId, pushHistory, updateMember])
 
-  // 글로벌 행 추가 (구성원 이상)
+  // 글로벌 행 추가 (인증된 사용자)
   const addGlobalRow = useCallback(async () => {
-    if (!workspaceId || !isMember) return
+    if (!workspaceId || !currentUser) return
     const previousRowCount = globalEventRowCount
     const newCount = previousRowCount + 1
 
@@ -306,11 +306,11 @@ export function ScheduleGrid() {
         setPendingRowCountUpdate(selectedProjectId, false)
       }, 1000)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
+  }, [workspaceId, currentUser, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
 
-  // 글로벌 행 제거 (구성원 이상)
+  // 글로벌 행 제거 (인증된 사용자)
   const removeGlobalRow = useCallback(async () => {
-    if (!workspaceId || !isMember) return
+    if (!workspaceId || !currentUser) return
     const previousRowCount = globalEventRowCount
     const newCount = Math.max(1, previousRowCount - 1)
 
@@ -339,7 +339,7 @@ export function ScheduleGrid() {
         setPendingRowCountUpdate(selectedProjectId, false)
       }, 1000)
     }
-  }, [workspaceId, isMember, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
+  }, [workspaceId, currentUser, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
 
   // 현재 선택된 탭의 일정만 필터링
   const filteredSchedules = selectedMemberId
@@ -580,10 +580,10 @@ export function ScheduleGrid() {
     }
   }, [isCreating, createStart, createEnd, createMemberId, createRowIndex, isAnnualLeave, currentYear, selectedScheduleColor, workspaceId, currentUser, members, pushHistory, resetCreation])
 
-  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (구성원 이상)
+  // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (인증된 사용자)
   const handleGlobalMouseDown = useCallback((e: React.MouseEvent, rowIndex: number) => {
-    // 구성원 이상만 생성 가능
-    if (!isMember) return
+    // 인증된 사용자만 생성 가능
+    if (!currentUser) return
 
     // Ctrl 키가 눌려있지 않으면 무시
     const isCtrl = e.ctrlKey || e.metaKey
@@ -602,7 +602,7 @@ export function ScheduleGrid() {
     setCreateGlobalEnd(dayIndex)
 
     e.preventDefault()
-  }, [isUnifiedTab, isMember, cellWidth])
+  }, [isUnifiedTab, currentUser, cellWidth])
 
   // 글로벌 행에서 마우스 이동
   const handleGlobalMouseMove = useCallback((e: React.MouseEvent) => {
@@ -739,7 +739,7 @@ export function ScheduleGrid() {
                 <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center">
                   특이사항
                 </span>
-                {isMember && (
+                {currentUser && (
                   <button
                     onClick={addGlobalRow}
                     className="text-xs text-amber-700 dark:text-amber-400 hover:text-amber-600 transition-colors font-bold"
@@ -754,8 +754,8 @@ export function ScheduleGrid() {
               <span className="text-xs font-medium text-amber-700 dark:text-amber-400 truncate text-center px-1">
                 특이사항
               </span>
-            ) : row.isLastRow && isMember ? (
-              // 마지막 행 (다중 행일 때): +/- 버튼 (개별 탭 + 구성원만)
+            ) : row.isLastRow && currentUser ? (
+              // 마지막 행 (다중 행일 때): +/- 버튼 (인증된 사용자)
               <div className="flex items-center gap-1">
                 <button
                   onClick={addGlobalRow}
@@ -890,8 +890,8 @@ export function ScheduleGrid() {
           {/* 글로벌 특이사항 행 - 그리드 */}
           {globalRows.map((row) => {
             const globalPreview = getGlobalCreationPreview(row.rowIndex)
-            // 개별 탭 + 구성원 이상만 편집 가능 (통합 탭은 읽기 전용)
-            const isGlobalReadOnly = !isMember
+            // 인증된 사용자면 편집 가능 (Firebase 규칙과 일치)
+            const isGlobalReadOnly = !currentUser
 
             return (
               <div
