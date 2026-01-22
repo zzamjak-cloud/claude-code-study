@@ -31,7 +31,11 @@ function getAdminEmails(): string[] {
  * 참고: 리더(isLeader)는 향후 권한 조정 예정, 현재는 일반 멤버와 동일
  */
 export function usePermissions(): UserPermissionInfo {
-  const { currentUser, workspaceId, members, superAdmins } = useAppStore()
+  const currentUser = useAppStore(state => state.currentUser)
+  const workspaceId = useAppStore(state => state.workspaceId)
+  const members = useAppStore(state => state.members)
+  const superAdmins = useAppStore(state => state.superAdmins)
+  const isAdminFromStore = useAppStore(state => state.isAdmin)
 
   return useMemo(() => {
     // 1. 로그인하지 않은 경우 → guest
@@ -85,8 +89,7 @@ export function usePermissions(): UserPermissionInfo {
     }
 
     // 4. workspace.ownerId 확인 (Firestore 기반)
-    const isWorkspaceOwner = useAppStore.getState().isAdmin
-    if (isWorkspaceOwner) {
+    if (isAdminFromStore) {
       console.log('✅ Workspace ownerId 매칭')
       return {
         role: 'owner',
@@ -124,7 +127,7 @@ export function usePermissions(): UserPermissionInfo {
       isAdmin: false,
       isMember: true,
     }
-  }, [currentUser, workspaceId, members, superAdmins])
+  }, [currentUser, workspaceId, members, superAdmins, isAdminFromStore])
 }
 
 /**
