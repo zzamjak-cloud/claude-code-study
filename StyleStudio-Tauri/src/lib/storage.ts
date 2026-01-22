@@ -2,6 +2,7 @@ import { Store } from '@tauri-apps/plugin-store';
 import { save, open } from '@tauri-apps/plugin-dialog';
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 import { Session } from '../types/session';
+import { Folder, FolderData } from '../types/folder';
 import { logger } from './logger';
 import { saveImage, loadImages } from './imageStorage';
 
@@ -295,4 +296,119 @@ export async function saveWindowState(windowState: WindowState): Promise<void> {
 export async function getWindowState(): Promise<WindowState | null> {
   const store = await getStore();
   return await store.get<WindowState>('window_state') || null;
+}
+
+// ============================================
+// 폴더 관련 함수들
+// ============================================
+
+/**
+ * 폴더 목록 저장
+ */
+export async function saveFolders(folders: Folder[]): Promise<void> {
+  try {
+    const store = await getStore();
+    await store.set('folders', folders);
+    await store.save();
+    logger.debug('✅ 폴더 저장 완료:', folders.length, '개');
+  } catch (error) {
+    logger.error('❌ 폴더 저장 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 폴더 목록 불러오기
+ */
+export async function loadFolders(): Promise<Folder[]> {
+  try {
+    const store = await getStore();
+    const folders = await store.get<Folder[]>('folders');
+    logger.debug('📦 폴더 로드:', folders?.length || 0, '개');
+    return folders || [];
+  } catch (error) {
+    logger.error('❌ 폴더 로드 오류:', error);
+    return [];
+  }
+}
+
+/**
+ * 세션-폴더 매핑 저장
+ */
+export async function saveSessionFolderMap(sessionFolderMap: Record<string, string | null>): Promise<void> {
+  try {
+    const store = await getStore();
+    await store.set('session_folder_map', sessionFolderMap);
+    await store.save();
+    logger.debug('✅ 세션-폴더 매핑 저장 완료');
+  } catch (error) {
+    logger.error('❌ 세션-폴더 매핑 저장 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 세션-폴더 매핑 불러오기
+ */
+export async function loadSessionFolderMap(): Promise<Record<string, string | null>> {
+  try {
+    const store = await getStore();
+    const map = await store.get<Record<string, string | null>>('session_folder_map');
+    logger.debug('📦 세션-폴더 매핑 로드:', Object.keys(map || {}).length, '개');
+    return map || {};
+  } catch (error) {
+    logger.error('❌ 세션-폴더 매핑 로드 오류:', error);
+    return {};
+  }
+}
+
+/**
+ * 폴더 데이터 전체 저장 (폴더 + 매핑)
+ */
+export async function saveFolderData(data: FolderData): Promise<void> {
+  await saveFolders(data.folders);
+  await saveSessionFolderMap(data.sessionFolderMap);
+}
+
+/**
+ * 폴더 데이터 전체 불러오기
+ */
+export async function loadFolderData(): Promise<FolderData> {
+  const folders = await loadFolders();
+  const sessionFolderMap = await loadSessionFolderMap();
+  return { folders, sessionFolderMap };
+}
+
+// ============================================
+// 세션 저장 폴더 관련 함수들
+// ============================================
+
+/**
+ * 기본 세션 저장 폴더 경로 저장
+ */
+export async function saveDefaultSessionSavePath(path: string | null): Promise<void> {
+  try {
+    const store = await getStore();
+    await store.set('default_session_save_path', path);
+    await store.save();
+    logger.debug('✅ 기본 세션 저장 폴더 저장 완료:', path);
+  } catch (error) {
+    logger.error('❌ 기본 세션 저장 폴더 저장 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 기본 세션 저장 폴더 경로 불러오기
+ */
+export async function loadDefaultSessionSavePath(): Promise<string | null> {
+  try {
+    const store = await getStore();
+    const path = await store.get<string>('default_session_save_path');
+    logger.debug('📦 기본 세션 저장 폴더 로드:', path || '없음');
+    return path || null;
+  } catch (error) {
+    logger.error('❌ 기본 세션 저장 폴더 로드 오류:', error);
+    return null;
+  }
 }

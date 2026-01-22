@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-01-12
-> **버전**: 7.0
-> **상태**: 코드 최적화 완료 (Phase 1-4), 9가지 세션 타입 모두 Grid 지원
+> **최종 업데이트**: 2026-01-23
+> **버전**: 8.0
+> **상태**: 폴더 관리 시스템 추가, 9가지 세션 타입 모두 Grid 지원
 
 ---
 
@@ -76,7 +76,21 @@
 - **세션 로드**: 사이드바에서 선택하여 즉시 복원
 - **내보내기/가져오기**: JSON 파일로 백업 및 복원
 - **세션 재정렬**: 드래그 앤 드롭으로 순서 변경
+- **세션 이름 변경**: 더블클릭으로 인라인 이름 변경 (Enter 저장, Blur/ESC 취소)
 - **삭제 확인**: 커스텀 다이얼로그 (Tauri 환경 최적화)
+
+### 3.1 폴더 관리 시스템 (신규)
+
+- **폴더 생성**: 상단 버튼 또는 Ctrl+Shift+N / Cmd+Shift+N (Mac)
+- **폴더 네비게이션**: 폴더 더블클릭으로 내부 진입, 뒤로가기 버튼으로 상위 이동
+- **폴더 이름 변경**: 컨텍스트 메뉴에서 인라인 이름 변경 (Enter 저장, Blur/ESC 취소)
+- **폴더 삭제**: 컨텍스트 메뉴에서 삭제 (내용 함께 삭제 또는 상위로 이동 선택)
+- **드래그 앤 드롭**:
+  - 세션을 폴더로 드래그하여 이동
+  - 폴더를 다른 폴더로 드래그하여 중첩
+  - 뒤로가기 버튼에 드롭하여 상위 폴더로 이동
+- **중첩 폴더 지원**: 무제한 깊이의 폴더 구조
+- **기본 저장 폴더**: 설정에서 세션 export 시 기본 폴더 지정 가능
 
 ### 4. 이미지 생성
 
@@ -162,7 +176,7 @@
 ### SessionType
 
 ```typescript
-export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON';
+export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'UI' | 'LOGO' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON';
 ```
 
 ### Session
@@ -174,11 +188,36 @@ interface Session {
   type: SessionType;               // 세션 타입
   createdAt: string;               // ISO 8601
   updatedAt: string;               // ISO 8601
-  referenceImages: string[];       // Base64 data URL 배열
+  referenceImages: string[];       // Base64 data URL 배열 또는 IndexedDB 키 배열
+  imageKeys?: string[];            // IndexedDB 키 배열 (신규 방식)
   analysis: ImageAnalysisResult;   // 분석 결과 (영어 원본)
   koreanAnalysis?: KoreanAnalysisCache; // 번역 캐시
   imageCount: number;              // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리
+  folderId?: string | null;        // 소속 폴더 ID (null/undefined면 루트)
+}
+```
+
+### Folder (신규)
+
+```typescript
+interface Folder {
+  id: string;                      // UUID
+  name: string;                    // 폴더 이름
+  parentId: string | null;         // 부모 폴더 ID (null이면 루트)
+  createdAt: string;               // ISO 8601
+  updatedAt: string;               // ISO 8601
+  order: number;                   // 순서
+}
+
+interface FolderPath {
+  id: string;
+  name: string;
+}
+
+interface FolderData {
+  folders: Folder[];
+  sessionFolderMap: Record<string, string | null>;
 }
 ```
 
@@ -284,6 +323,7 @@ StyleStudio-Tauri/
 │   │   ├── useTranslation.ts               # 번역 로직 중앙화
 │   │   ├── useSessionPersistence.ts        # 세션 저장 + 번역 통합
 │   │   ├── useSessionManagement.ts         # 339줄 (배치 업데이트 최적화)
+│   │   ├── useFolderManagement.ts          # 폴더 관리 (CRUD, 네비게이션, 드래그앤드롭)
 │   │   ├── useImageHandling.ts
 │   │   └── useAutoSave.ts                  # 분석 카드 편집 자동 저장
 │   ├── lib/
@@ -305,6 +345,7 @@ StyleStudio-Tauri/
 │   ├── types/
 │   │   ├── analysis.ts
 │   │   ├── session.ts
+│   │   ├── folder.ts                       # 폴더 타입 정의 (Folder, FolderPath, FolderData)
 │   │   ├── constants.ts                    # 268줄 (전역 상수, Phase 4)
 │   │   ├── pixelart.ts
 │   │   └── referenceDocument.ts
@@ -539,6 +580,54 @@ Base64 변환 및 파일 처리 유틸리티:
 ---
 
 ## 최신 업데이트
+
+### 2026-01-23: 폴더 관리 시스템 구현
+
+#### 개요
+세션을 폴더로 그룹화하여 관리할 수 있는 종합적인 폴더 관리 시스템을 구현했습니다.
+
+#### 새로 추가된 파일
+- `src/types/folder.ts`: Folder, FolderPath, FolderData 타입 정의
+- `src/hooks/useFolderManagement.ts`: 폴더 CRUD, 네비게이션, 드래그앤드롭 상태 관리
+
+#### 주요 기능
+
+1. **폴더 생성/삭제/이름변경**
+   - 상단 버튼 또는 단축키 (Ctrl+Shift+N / Cmd+Shift+N)로 폴더 생성
+   - 컨텍스트 메뉴에서 이름 변경 (인라인 편집: Enter 저장, Blur/ESC 취소)
+   - 폴더 삭제 시 하위 항목 처리 옵션 (함께 삭제 / 상위로 이동)
+
+2. **폴더 네비게이션**
+   - 폴더 더블클릭으로 내부 진입 (슬라이드 애니메이션)
+   - 뒤로가기 버튼으로 상위 폴더 이동
+   - 브레드크럼 형태의 현재 경로 표시
+
+3. **드래그 앤 드롭**
+   - 세션을 폴더로 드래그하여 이동
+   - 폴더를 다른 폴더로 드래그하여 중첩
+   - 뒤로가기 버튼에 드롭하여 상위 폴더로 이동
+   - 드래그 시 시각적 피드백 (하이라이트, 크기 변화)
+
+4. **세션 인라인 이름 변경**
+   - 세션 더블클릭으로 인라인 이름 변경 모드 진입
+   - Enter: 저장, ESC/Blur: 취소
+
+5. **설정 개선**
+   - 기본 세션 저장 폴더 설정 추가 (SettingsModal)
+   - 폴더 선택 다이얼로그로 경로 지정
+   - 저장된 경로는 세션 export 시 기본값으로 사용
+
+#### 기술적 구현
+- **저장소**: Tauri Store를 사용하여 폴더 목록 및 세션-폴더 매핑 영속화
+- **상태 관리**: useFolderManagement 훅으로 모든 폴더 관련 상태 중앙 관리
+- **네비게이션 스택**: 폴더 경로를 스택으로 관리하여 뒤로가기 지원
+- **드래그 상태**: isDragging, dragOverFolder, dragOverSession 등으로 시각적 피드백
+
+#### 수정된 파일
+- `src/components/common/Sidebar.tsx`: 폴더/세션 통합 표시, 드래그앤드롭, 인라인 편집
+- `src/components/common/SettingsModal.tsx`: 기본 저장 폴더 설정 UI 추가
+- `src/lib/storage.ts`: saveFolders, loadFolders, saveDefaultSessionSavePath 등 추가
+- `src/App.tsx`: useFolderManagement 훅 통합, handleRenameSession 추가
 
 ### 2026-01-11: 전체 세션 타입 Grid 지원 완료 및 히스토리 개선 (오후)
 
@@ -883,6 +972,6 @@ if (entry.settings.pixelArtGrid) {
 
 ---
 
-**문서 버전**: 7.0
-**작성일**: 2026-01-12
+**문서 버전**: 8.0
+**작성일**: 2026-01-23
 **다음 단계**: 여러 캐릭터 세션 통합 생성 시스템

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
-import { X, Key } from 'lucide-react';
+import { X, Key, FolderOpen, Trash2 } from 'lucide-react';
+import { open } from '@tauri-apps/plugin-dialog';
+import { loadDefaultSessionSavePath, saveDefaultSessionSavePath } from '../../lib/storage';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,18 +12,55 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey);
+  const [defaultSavePath, setDefaultSavePath] = useState<string | null>(null);
+  const [saveNotification, setSaveNotification] = useState<string | null>(null);
 
   useEffect(() => {
     setApiKey(currentApiKey);
   }, [currentApiKey]);
 
-  const handleSave = () => {
+  // 설정 모달이 열릴 때 기본 저장 폴더 로드
+  useEffect(() => {
+    if (isOpen) {
+      loadDefaultSessionSavePath().then(setDefaultSavePath);
+    }
+  }, [isOpen]);
+
+  const handleSave = async () => {
     if (apiKey.trim()) {
       onSave(apiKey.trim());
-      onClose();
+      // 기본 저장 폴더도 저장
+      await saveDefaultSessionSavePath(defaultSavePath);
+      setSaveNotification('설정이 저장되었습니다');
+      setTimeout(() => {
+        setSaveNotification(null);
+        onClose();
+      }, 1500);
     } else {
       alert('API Key를 입력해주세요');
     }
+  };
+
+  // 폴더 선택 다이얼로그
+  const handleSelectFolder = async () => {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: '세션 저장 폴더 선택',
+      });
+
+      if (selected && typeof selected === 'string') {
+        setDefaultSavePath(selected);
+      }
+    } catch (error) {
+      console.error('폴더 선택 오류:', error);
+    }
+  };
+
+  // 폴더 경로 초기화
+  const handleClearFolder = () => {
+    setDefaultSavePath(null);
   };
 
   if (!isOpen) return null;
@@ -46,7 +85,8 @@ export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: Settin
         </div>
 
         {/* 본문 */}
-        <div className="p-6 space-y-4">
+        <div className="p-6 space-y-6">
+          {/* API Key 설정 */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Gemini API Key
@@ -70,7 +110,45 @@ export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: Settin
               에서 API 키를 발급받을 수 있습니다.
             </p>
           </div>
+
+          {/* 세션 저장 폴더 설정 */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              기본 세션 저장 폴더
+            </label>
+            <div className="flex gap-2">
+              <div className="flex-1 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-600 truncate">
+                {defaultSavePath || '설정되지 않음'}
+              </div>
+              <button
+                onClick={handleSelectFolder}
+                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                title="폴더 선택"
+              >
+                <FolderOpen size={20} className="text-gray-600" />
+              </button>
+              {defaultSavePath && (
+                <button
+                  onClick={handleClearFolder}
+                  className="px-3 py-2 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  title="초기화"
+                >
+                  <Trash2 size={20} className="text-red-500" />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-gray-500 mt-2">
+              세션 export 시 기본으로 사용할 폴더를 설정합니다.
+            </p>
+          </div>
         </div>
+
+        {/* 저장 알림 */}
+        {saveNotification && (
+          <div className="mx-6 mb-4 px-4 py-2 bg-green-100 text-green-700 rounded-lg text-sm text-center">
+            {saveNotification}
+          </div>
+        )}
 
         {/* 푸터 */}
         <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">

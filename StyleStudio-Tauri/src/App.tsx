@@ -17,6 +17,7 @@ import { useImageHandling } from './hooks/useImageHandling';
 import { useSessionManagement } from './hooks/useSessionManagement';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
 import { useTranslation } from './hooks/useTranslation';
+import { useFolderManagement } from './hooks/useFolderManagement';
 import {
   createNewSession,
   updateSession,
@@ -82,7 +83,55 @@ function App() {
     hasChangesToTranslate,
     translateAndUpdateCache,
   } = useTranslation();
-  
+
+  // 폴더 관리 Hook
+  const {
+    folders,
+    currentFolderId,
+    folderPath,
+    initializeFolders,
+    getCurrentFolderSessions,
+    getCurrentFolderSubfolders,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    navigateToFolder,
+    navigateBack,
+    moveSessionToFolder,
+    moveFolderToFolder,
+    reorderFolders,
+    getCurrentFolderIdForNewSession,
+  } = useFolderManagement();
+
+  // 폴더 데이터 초기화
+  useEffect(() => {
+    initializeFolders();
+  }, []);
+
+  // 현재 폴더의 세션과 하위 폴더
+  const currentFolderSessions = getCurrentFolderSessions(sessions);
+  const currentFolderSubfolders = getCurrentFolderSubfolders();
+
+  // 폴더 진입 시 첫 번째 세션 자동 선택
+  useEffect(() => {
+    // 현재 폴더의 세션 중 첫 번째 세션 선택
+    if (currentFolderSessions.length > 0) {
+      // 현재 선택된 세션이 현재 폴더에 없으면 첫 번째 세션 선택
+      const currentSessionInFolder = currentFolderSessions.find(s => s.id === currentSession?.id);
+      if (!currentSessionInFolder) {
+        setCurrentSession(currentFolderSessions[0]);
+        logger.debug('📂 폴더 진입: 첫 번째 세션 선택:', currentFolderSessions[0].name);
+      }
+    } else {
+      // 폴더에 세션이 없으면 현재 세션 해제 (초기 화면 표시)
+      if (currentSession && currentFolderId !== null) {
+        // 현재 세션이 다른 폴더에 있을 수 있으므로 null로 설정하지 않음
+        // 빈 폴더일 때만 초기 화면 표시
+        logger.debug('📂 빈 폴더 진입');
+      }
+    }
+  }, [currentFolderId]);
+
   // 세션 저장 및 지속성 관리
   const { saveProgress, saveSession } = useSessionPersistence({
     apiKey,
@@ -369,6 +418,23 @@ function App() {
     setShowSettings(true);
   }, [setShowSettings]);
 
+  // 세션 이름 변경 핸들러
+  const handleRenameSession = useCallback(async (sessionId: string, newName: string) => {
+    const sessionIndex = sessions.findIndex(s => s.id === sessionId);
+    if (sessionIndex === -1) return;
+
+    const updatedSession = { ...sessions[sessionIndex], name: newName, updatedAt: new Date().toISOString() };
+    const updatedSessions = [...sessions];
+    updatedSessions[sessionIndex] = updatedSession;
+
+    setSessions(updatedSessions);
+    if (currentSession?.id === sessionId) {
+      setCurrentSession(updatedSession);
+    }
+    await persistSessions(updatedSessions);
+    logger.info('✅ 세션 이름 변경:', newName);
+  }, [sessions, currentSession, setSessions, setCurrentSession]);
+
   const handleSaveSessionClick = useCallback(() => {
     if (!analysisResult || uploadedImages.length === 0) {
       setInfoDialog({
@@ -385,7 +451,7 @@ function App() {
     setShowNewSession(true);
   }, []);
 
-  const handleNewSession = useCallback((name: string, type: SessionType) => {
+  const handleNewSession = useCallback(async (name: string, type: SessionType) => {
     // 빈 분석 결과 생성 (임시 세션용)
     const emptyAnalysis: ImageAnalysisResult = {
       style: {
@@ -421,16 +487,24 @@ function App() {
     const newSession = createNewSession(emptyAnalysis, [], undefined, type);
     // 세션 이름 설정
     newSession.name = name;
+    // 현재 폴더 ID 설정
+    newSession.folderId = getCurrentFolderIdForNewSession();
+
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);
     persistSessions(updatedSessions);
 
+    // 세션-폴더 매핑 저장
+    if (newSession.folderId !== null) {
+      await moveSessionToFolder(newSession.id, newSession.folderId);
+    }
+
     // 상태 초기화
     setUploadedImages([]);
     setAnalysisResult(null);
     setCurrentView('analysis');
-  }, [sessions, setSessions, setCurrentSession, setUploadedImages]);
+  }, [sessions, setSessions, setCurrentSession, setUploadedImages, getCurrentFolderIdForNewSession, moveSessionToFolder]);
 
   const handleGenerateImage = async () => {
     if (!analysisResult) {
@@ -564,16 +638,33 @@ function App() {
           onSelectSession={handleSelectSession}
           onDeleteSession={handleDeleteSession}
           onExportSession={handleExportSession}
+          onRenameSession={handleRenameSession}
           onNewImage={handleReset}
           onImportSession={handleImportSession}
           onSettingsClick={handleSettingsClick}
           onReorderSessions={handleReorderSessions}
           disabled={currentView === 'generator'}
+          // 폴더 관련 props
+          folders={folders}
+          currentFolderId={currentFolderId}
+          folderPath={folderPath}
+          currentFolderSessions={currentFolderSessions}
+          currentFolderSubfolders={currentFolderSubfolders}
+          onNavigateToFolder={navigateToFolder}
+          onNavigateBack={navigateBack}
+          onCreateFolder={async (name) => { await createFolder(name); }}
+          onRenameFolder={renameFolder}
+          onDeleteFolder={async (folderId, deleteContents) => {
+            await deleteFolder(folderId, deleteContents, sessions, handleDeleteSession);
+          }}
+          onMoveSessionToFolder={moveSessionToFolder}
+          onMoveFolderToFolder={moveFolderToFolder}
+          onReorderFolders={reorderFolders}
         />
       </div>
 
       <main className={`flex flex-col overflow-hidden transition-all duration-500 ease-in-out ${
-        currentView === 'generator' ? 'ml-0 w-full' : 'ml-64 flex-1'
+        currentView === 'generator' ? 'ml-0 w-full' : 'ml-72 flex-1'
       }`}>
         {uploadedImages.length > 0 ? (
           currentView === 'analysis' ? (
