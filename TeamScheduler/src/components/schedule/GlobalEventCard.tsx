@@ -25,9 +25,11 @@ import {
 interface GlobalEventCardProps {
   event: GlobalEvent
   x: number
+  y: number // 행 인덱스 기반 y 좌표
   isReadOnly?: boolean
   totalRows?: number
   visibleWidth?: number // 월 필터링 시 클리핑된 너비
+  containerHeight: number // 전체 컨테이너 높이
 }
 
 // React.memo 비교 함수 - props가 같으면 리렌더링 스킵
@@ -47,19 +49,26 @@ const areGlobalEventCardPropsEqual = (
     prev.event.rowIndex === next.event.rowIndex &&
     prev.event.projectId === next.event.projectId &&
     prev.x === next.x &&
+    prev.y === next.y &&
     prev.isReadOnly === next.isReadOnly &&
     prev.totalRows === next.totalRows &&
-    prev.visibleWidth === next.visibleWidth
+    prev.visibleWidth === next.visibleWidth &&
+    prev.containerHeight === next.containerHeight
   )
 }
 
 export const GlobalEventCard = memo(function GlobalEventCard({
   event,
   x,
+  y,
   isReadOnly = false,
   totalRows = 1,
   visibleWidth,
+  containerHeight,
 }: GlobalEventCardProps) {
+  // containerHeight는 향후 bounds 계산에 사용 예정
+  void containerHeight
+
   // Zustand 선택적 구독
   const zoomLevel = useAppStore(state => state.zoomLevel)
   const columnWidthScale = useAppStore(state => state.columnWidthScale)
@@ -186,15 +195,17 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     if (isReadOnly) return
     setIsDragging(false)
 
+    // x 좌표 계산 (그리드 스냅)
     const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
     const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
     const duration = event.endDate - event.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
+    // y 좌표에서 새 행 인덱스 계산
     const currentRowIndex = event.rowIndex || 0
-    const rowDelta = Math.round(data.y / cellHeight)
-    const newRowIndex = Math.max(0, Math.min(totalRows - 1, currentRowIndex + rowDelta))
+    const adjustedY = data.y - CARD_MARGIN
+    const newRowIndex = Math.max(0, Math.min(totalRows - 1, Math.round(adjustedY / cellHeight)))
 
     if (newStartDate.getTime() === event.startDate && newRowIndex === currentRowIndex) {
       return
@@ -279,6 +290,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     isReadOnly,
     isHovered,
     isResizing,
+    totalRows,
   })
 
   // 카드 스타일 클래스
@@ -292,9 +304,13 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   return (
     <>
       <Rnd
-        key={`${event.id}-${event.startDate}-${event.endDate}-${event.rowIndex}`}
-        position={{ x: x + CARD_MARGIN, y: CARD_MARGIN }}
-        size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
+        key={`${event.id}-${event.rowIndex}-${event.startDate}-${event.endDate}`}
+        default={{
+          x: x + CARD_MARGIN,
+          y: y + CARD_MARGIN,
+          width: currentWidth - CARD_MARGIN * 2,
+          height: cellHeight - CARD_MARGIN * 2,
+        }}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}

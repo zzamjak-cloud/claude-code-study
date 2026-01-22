@@ -887,50 +887,66 @@ export function ScheduleGrid() {
             <DateAxis hideFixedColumn />
           </div>
 
-          {/* 글로벌 특이사항 행 - 그리드 */}
-          {globalRows.map((row) => {
-            const globalPreview = getGlobalCreationPreview(row.rowIndex)
-            // 인증된 사용자면 편집 가능 (Firebase 규칙과 일치)
+          {/* 글로벌 특이사항 영역 - 단일 컨테이너 (행간 이동 지원) */}
+          {(() => {
+            const globalContainerHeight = globalEventRowCount * cellHeight
             const isGlobalReadOnly = !currentUser
 
             return (
               <div
-                key={`grid-global-${row.rowIndex}`}
                 className="relative bg-amber-50/50 dark:bg-amber-900/10"
-                style={{ height: `${cellHeight}px` }}
-                onMouseDown={(e) => handleGlobalMouseDown(e, row.rowIndex)}
+                style={{ height: `${globalContainerHeight}px` }}
+                onMouseDown={(e) => {
+                  // 클릭 위치에서 행 인덱스 계산
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const relativeY = e.clientY - rect.top
+                  const rowIndex = Math.floor(relativeY / cellHeight)
+                  handleGlobalMouseDown(e, rowIndex)
+                }}
                 onMouseMove={handleGlobalMouseMove}
                 onMouseUp={handleGlobalMouseUp}
                 onMouseLeave={() => {
                   if (isCreatingGlobal) resetGlobalCreation()
                 }}
               >
-                {/* 그리드 셀 배경 */}
-                <div className="flex absolute inset-0">
-                  {visibleDayIndices.map((dayIndex) => (
-                    <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
-                  ))}
-                </div>
+                {/* 각 행의 그리드 셀 배경 */}
+                {globalRows.map((row) => (
+                  <div
+                    key={`grid-global-bg-${row.rowIndex}`}
+                    className="absolute left-0 right-0"
+                    style={{ top: `${row.rowIndex * cellHeight}px`, height: `${cellHeight}px` }}
+                  >
+                    <div className="flex absolute inset-0">
+                      {visibleDayIndices.map((dayIndex) => (
+                        <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
-                {/* 특이사항 하단 노란 구분선 (z-index로 셀 배경 위에 표시) */}
-                {row.isLastRow && (
-                  <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400 z-20" />
-                )}
+                {/* 특이사항 하단 노란 구분선 */}
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400 z-20" />
 
                 {/* 생성 중인 글로벌 이벤트 미리보기 */}
-                {globalPreview && (
-                  <div
-                    className="absolute top-1 rounded-md border-2 border-dashed border-amber-500 bg-amber-500/20 pointer-events-none z-30"
-                    style={{
-                      left: `${globalPreview.x}px`,
-                      width: `${globalPreview.width}px`,
-                      height: `${cellHeight - 8}px`,
-                    }}
-                  />
-                )}
+                {globalRows.map((row) => {
+                  const globalPreview = getGlobalCreationPreview(row.rowIndex)
+                  if (!globalPreview) return null
+                  return (
+                    <div
+                      key={`global-preview-${row.rowIndex}`}
+                      className="absolute rounded-md border-2 border-dashed border-amber-500 bg-amber-500/20 pointer-events-none z-30"
+                      style={{
+                        left: `${globalPreview.x}px`,
+                        top: `${row.rowIndex * cellHeight + 4}px`,
+                        width: `${globalPreview.width}px`,
+                        height: `${cellHeight - 8}px`,
+                      }}
+                    />
+                  )
+                })}
 
-                {/* 글로벌 이벤트 카드 */}
-                {row.events.map((event) => {
+                {/* 모든 글로벌 이벤트 카드 (단일 컨테이너에서 렌더링) */}
+                {filteredGlobalEvents.map((event) => {
                   // 이벤트가 표시될 세그먼트 계산
                   const segments = getVisibleScheduleSegments(
                     new Date(event.startDate),
@@ -938,7 +954,7 @@ export function ScheduleGrid() {
                     currentYear,
                     monthVisibility
                   )
-                  // 세그먼트가 없으면 (모든 날짜가 숨겨진 월에 있으면) 렌더링 안 함
+                  // 세그먼트가 없으면 렌더링 안 함
                   if (segments.length === 0) return null
 
                   // 첫 번째 표시 가능한 세그먼트 사용
@@ -947,8 +963,9 @@ export function ScheduleGrid() {
                   if (visibleStartIndex === undefined) return null
 
                   const eventX = visibleStartIndex * cellWidth
+                  const eventY = (event.rowIndex || 0) * cellHeight
 
-                  // 표시할 날짜 수 계산 (모든 표시 가능한 세그먼트의 합)
+                  // 표시할 날짜 수 계산
                   let totalVisibleDays = 0
                   for (const seg of segments) {
                     for (let d = seg.startDayIndex; d < seg.endDayIndex; d++) {
@@ -963,15 +980,17 @@ export function ScheduleGrid() {
                       key={event.id}
                       event={event}
                       x={eventX}
+                      y={eventY}
                       isReadOnly={isGlobalReadOnly}
-                      totalRows={row.totalRows}
+                      totalRows={globalEventRowCount}
                       visibleWidth={totalVisibleDays * cellWidth}
+                      containerHeight={globalContainerHeight}
                     />
                   )
                 })}
               </div>
             )
-          })}
+          })()}
 
           {/* 그리드 행 */}
           {rows.map((row) => {

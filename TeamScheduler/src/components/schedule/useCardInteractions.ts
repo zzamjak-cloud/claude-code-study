@@ -190,8 +190,9 @@ export function getRndConfig(options: {
   isReadOnly: boolean
   isHovered: boolean
   isResizing: boolean
+  totalRows?: number
 }) {
-  const { cellWidth, cellHeight, isReadOnly, isHovered, isResizing } = options
+  const { cellWidth, cellHeight, isReadOnly, isHovered, isResizing, totalRows = 1 } = options
 
   return {
     enableResizing: isReadOnly
@@ -206,12 +207,14 @@ export function getRndConfig(options: {
           bottomLeft: false,
           bottomRight: false,
         },
-    resizeGrid: [cellWidth, cellHeight] as [number, number],
+    resizeGrid: [cellWidth, 1] as [number, number],
     dragGrid: [cellWidth, cellHeight] as [number, number],
+    dragAxis: totalRows > 1 ? 'both' as const : 'x' as const,
+    bounds: 'parent' as const,
     minWidth: cellWidth - CARD_MARGIN * 2,
     resizeHandleStyles: {
-      left: { width: '6px', left: '0', cursor: 'ew-resize' },
-      right: { width: '6px', right: '0', cursor: 'ew-resize' },
+      left: { width: '12px', left: '-4px', cursor: 'ew-resize', zIndex: 50 },
+      right: { width: '12px', right: '-4px', cursor: 'ew-resize', zIndex: 50 },
     },
     resizeHandleClasses: {
       left: `transition-opacity ${isHovered || isResizing ? 'opacity-100' : 'opacity-0'}`,
