@@ -461,6 +461,85 @@ export function ScheduleGrid() {
     }
   }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
 
+  // 구성원별 그룹화 데이터 (단일 컨테이너 렌더링용)
+  const memberGroups = useMemo(() => {
+    const groups: Array<{
+      memberId: string
+      memberName: string
+      memberColor: string
+      totalRows: number
+      schedules: typeof schedules
+      rows: Array<{
+        rowIndex: number
+        isFirstRow: boolean
+        isLastRow: boolean
+      }>
+    }> = []
+
+    if (isUnifiedTab) {
+      // 통합 탭: 각 구성원별로 그룹화
+      let visibleMembers = members.filter((m) => !m.isHidden)
+
+      if (selectedProjectId) {
+        const project = projects.find((p) => p.id === selectedProjectId)
+        if (project && project.memberIds) {
+          visibleMembers = visibleMembers.filter((m) => project.memberIds.includes(m.id))
+        }
+      }
+
+      if (selectedJobTitle) {
+        visibleMembers = visibleMembers.filter((m) => m.jobTitle === selectedJobTitle)
+      }
+
+      visibleMembers.forEach((m) => {
+        const memberSchedules = schedules.filter((s) => s.memberId === m.id)
+        const totalRows = memberRowCounts[m.id] ?? m.rowCount ?? 1
+
+        const memberRows: typeof groups[0]['rows'] = []
+        for (let i = 0; i < totalRows; i++) {
+          memberRows.push({
+            rowIndex: i,
+            isFirstRow: i === 0,
+            isLastRow: i === totalRows - 1,
+          })
+        }
+
+        groups.push({
+          memberId: m.id,
+          memberName: m.name,
+          memberColor: m.color,
+          totalRows,
+          schedules: memberSchedules,
+          rows: memberRows,
+        })
+      })
+    } else {
+      // 개별 탭: 단일 구성원
+      const member = members.find((m) => m.id === selectedMemberId)
+      const totalRows = member?.rowCount || memberRowCounts[selectedMemberId] || 1
+
+      const memberRows: typeof groups[0]['rows'] = []
+      for (let i = 0; i < totalRows; i++) {
+        memberRows.push({
+          rowIndex: i,
+          isFirstRow: i === 0,
+          isLastRow: i === totalRows - 1,
+        })
+      }
+
+      groups.push({
+        memberId: selectedMemberId,
+        memberName: member?.name || '',
+        memberColor: member?.color || DEFAULT_SCHEDULE_COLOR,
+        totalRows,
+        schedules: filteredSchedules,
+        rows: memberRows,
+      })
+    }
+
+    return groups
+  }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
+
   // 생성 상태 초기화
   const resetCreation = useCallback(() => {
     setIsCreating(false)
@@ -992,48 +1071,66 @@ export function ScheduleGrid() {
             )
           })()}
 
-          {/* 그리드 행 */}
-          {rows.map((row) => {
-            const preview = getCreationPreview(row.memberId, row.rowIndex)
+          {/* 구성원별 그리드 영역 - 단일 컨테이너 (행간 이동 지원) */}
+          {memberGroups.map((group) => {
+            const containerHeight = group.totalRows * cellHeight
 
             return (
               <div
-                key={`grid-${row.memberId}-${row.rowIndex}`}
+                key={`member-container-${group.memberId}`}
                 className="relative"
-                style={{ height: `${cellHeight}px` }}
-                onMouseDown={(e) => handleMouseDown(e, row.memberId, row.rowIndex)}
+                style={{ height: `${containerHeight}px` }}
+                onMouseDown={(e) => {
+                  // 클릭 위치에서 행 인덱스 계산
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const relativeY = e.clientY - rect.top
+                  const rowIndex = Math.floor(relativeY / cellHeight)
+                  handleMouseDown(e, group.memberId, rowIndex)
+                }}
                 onMouseMove={handleMouseMove}
                 onMouseUp={handleMouseUp}
                 onMouseLeave={() => {
                   if (isCreating) resetCreation()
                 }}
               >
-                {/* 그리드 셀 배경 */}
-                <div className="flex absolute inset-0">
-                  {visibleDayIndices.map((dayIndex) => (
-                    <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
-                  ))}
-                </div>
+                {/* 각 행의 그리드 셀 배경 */}
+                {group.rows.map((row) => (
+                  <div
+                    key={`grid-bg-${group.memberId}-${row.rowIndex}`}
+                    className="absolute left-0 right-0"
+                    style={{ top: `${row.rowIndex * cellHeight}px`, height: `${cellHeight}px` }}
+                  >
+                    <div className="flex absolute inset-0">
+                      {visibleDayIndices.map((dayIndex) => (
+                        <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
 
-                {/* 통합탭 구성원 구분선 (점선, 공휴일 배경보다 위에 표시) */}
-                {row.isLastRow && (
-                  <div className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-gray-400 dark:border-gray-500 z-10" />
-                )}
+                {/* 구성원 구분선 */}
+                <div className="absolute bottom-0 left-0 right-0 border-b-2 border-dashed border-gray-400 dark:border-gray-500 z-10" />
 
                 {/* 생성 중인 일정 미리보기 */}
-                {preview && (
-                  <div
-                    className="absolute top-1 rounded-md border-2 border-dashed border-primary bg-primary/20 pointer-events-none z-30"
-                    style={{
-                      left: `${preview.x}px`,
-                      width: `${preview.width}px`,
-                      height: `${cellHeight - 8}px`,
-                    }}
-                  />
-                )}
+                {group.rows.map((row) => {
+                  const preview = getCreationPreview(group.memberId, row.rowIndex)
+                  if (!preview) return null
+                  return (
+                    <div
+                      key={`preview-${group.memberId}-${row.rowIndex}`}
+                      className="absolute rounded-md border-2 border-dashed border-primary bg-primary/20 pointer-events-none z-30"
+                      style={{
+                        left: `${preview.x}px`,
+                        top: `${row.rowIndex * cellHeight + 4}px`,
+                        width: `${preview.width}px`,
+                        height: `${cellHeight - 8}px`,
+                      }}
+                    />
+                  )
+                })}
 
-                {/* 일정 카드 */}
-                {row.schedules.map((schedule) => {
+                {/* 모든 일정 카드 (단일 컨테이너에서 렌더링) */}
+                {group.schedules.map((schedule) => {
                   // 일정이 표시될 세그먼트 계산
                   const segments = getVisibleScheduleSegments(
                     new Date(schedule.startDate),
@@ -1041,7 +1138,7 @@ export function ScheduleGrid() {
                     currentYear,
                     monthVisibility
                   )
-                  // 세그먼트가 없으면 (모든 날짜가 숨겨진 월에 있으면) 렌더링 안 함
+                  // 세그먼트가 없으면 렌더링 안 함
                   if (segments.length === 0) return null
 
                   // 첫 번째 표시 가능한 세그먼트 사용
@@ -1049,9 +1146,10 @@ export function ScheduleGrid() {
                   const visibleStartIndex = dayIndexToVisibleIndex[firstSegment.startDayIndex]
                   if (visibleStartIndex === undefined) return null
 
-                  const x = visibleStartIndex * cellWidth
+                  const scheduleX = visibleStartIndex * cellWidth
+                  const scheduleY = (schedule.rowIndex || 0) * cellHeight
 
-                  // 표시할 날짜 수 계산 (모든 표시 가능한 세그먼트의 합)
+                  // 표시할 날짜 수 계산
                   let totalVisibleDays = 0
                   for (const seg of segments) {
                     for (let d = seg.startDayIndex; d < seg.endDayIndex; d++) {
@@ -1065,13 +1163,11 @@ export function ScheduleGrid() {
                     <ScheduleCard
                       key={schedule.id}
                       schedule={schedule}
-                      x={x}
+                      x={scheduleX}
+                      y={scheduleY}
                       isReadOnly={false}
-                      totalRows={row.totalRows}
+                      totalRows={group.totalRows}
                       visibleWidth={totalVisibleDays * cellWidth}
-                      onRowChange={async (_newRowIndex) => {
-                        // 행 변경 로직은 ScheduleCard에서 처리
-                      }}
                     />
                   )
                 })}

@@ -28,11 +28,11 @@ import {
 interface ScheduleCardProps {
   schedule: Schedule
   x: number
+  y: number // 행 인덱스 기반 y 좌표
   isReadOnly?: boolean
   totalRows?: number
   visibleWidth?: number // 월 필터링 시 클리핑된 너비
   onCollisionChange?: (isColliding: boolean) => void
-  onRowChange?: (newRowIndex: number) => void
 }
 
 // React.memo 비교 함수 - props가 같으면 리렌더링 스킵
@@ -53,6 +53,7 @@ const areScheduleCardPropsEqual = (
     prev.schedule.memberId === next.schedule.memberId &&
     prev.schedule.projectId === next.schedule.projectId &&
     prev.x === next.x &&
+    prev.y === next.y &&
     prev.isReadOnly === next.isReadOnly &&
     prev.totalRows === next.totalRows &&
     prev.visibleWidth === next.visibleWidth
@@ -62,6 +63,7 @@ const areScheduleCardPropsEqual = (
 export const ScheduleCard = memo(function ScheduleCard({
   schedule,
   x,
+  y,
   isReadOnly = false,
   totalRows = 1,
   visibleWidth,
@@ -271,15 +273,17 @@ export const ScheduleCard = memo(function ScheduleCard({
     setIsDragging(false)
     setDragging(false)
 
+    // x 좌표 계산 (그리드 스냅)
     const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
     const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
     const duration = schedule.endDate - schedule.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
+    // y 좌표에서 새 행 인덱스 계산
     const currentRowIndex = schedule.rowIndex || 0
-    const rowDelta = Math.round(data.y / cellHeight)
-    const newRowIndex = Math.max(0, Math.min(totalRows - 1, currentRowIndex + rowDelta))
+    const adjustedY = data.y - CARD_MARGIN
+    const newRowIndex = Math.max(0, Math.min(totalRows - 1, Math.round(adjustedY / cellHeight)))
 
     if (newStartDate.getTime() === schedule.startDate && newRowIndex === currentRowIndex) {
       return
@@ -372,6 +376,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     isReadOnly,
     isHovered,
     isResizing,
+    totalRows,
   })
 
   // 카드 스타일 클래스
@@ -388,7 +393,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     <>
       <Rnd
         key={`${schedule.id}-${schedule.startDate}-${schedule.endDate}-${schedule.rowIndex}`}
-        position={{ x: x + CARD_MARGIN, y: CARD_MARGIN }}
+        position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}

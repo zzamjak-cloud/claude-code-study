@@ -1,6 +1,6 @@
 // 글로벌 이벤트 카드 컴포넌트 (통합 탭에서만 편집 가능)
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { ExternalLink } from 'lucide-react'
 import { GlobalEvent } from '../../types/globalEvent'
@@ -103,6 +103,9 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     handleMouseEnter,
     handleMouseLeave,
   } = useCardInteractions({ isReadOnly })
+
+  // 충돌 상태
+  const [isColliding, setIsColliding] = useState(false)
 
   // 현재 위치/크기 계산
   const calculatedWidth = dateRangeToWidth(
@@ -208,10 +211,14 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     const newRowIndex = Math.max(0, Math.min(totalRows - 1, Math.round(adjustedY / cellHeight)))
 
     if (newStartDate.getTime() === event.startDate && newRowIndex === currentRowIndex) {
+      setIsColliding(false)
       return
     }
 
-    if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), newRowIndex)) {
+    const colliding = checkCollision(newStartDate.getTime(), newEndDate.getTime(), newRowIndex)
+    setIsColliding(colliding)
+
+    if (colliding) {
       return
     }
 
@@ -259,7 +266,10 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
     const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
 
-    if (checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)) {
+    const colliding = checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)
+    setIsColliding(colliding)
+
+    if (colliding) {
       return
     }
 
@@ -268,6 +278,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
       endDate: newEndDate.getTime(),
     }
 
+    setIsColliding(false)
     const { updateGlobalEvent } = useAppStore.getState()
     updateGlobalEvent(event.id, updates)
 
@@ -299,18 +310,15 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     isSelected,
     isDragging,
     isResizing,
+    isColliding,
   })
 
   return (
     <>
       <Rnd
         key={`${event.id}-${event.rowIndex}-${event.startDate}-${event.endDate}`}
-        default={{
-          x: x + CARD_MARGIN,
-          y: y + CARD_MARGIN,
-          width: currentWidth - CARD_MARGIN * 2,
-          height: cellHeight - CARD_MARGIN * 2,
-        }}
+        position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
+        size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}

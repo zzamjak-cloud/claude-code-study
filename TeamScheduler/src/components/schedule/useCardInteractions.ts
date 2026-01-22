@@ -193,6 +193,8 @@ export function getRndConfig(options: {
   totalRows?: number
 }) {
   const { cellWidth, cellHeight, isReadOnly, isHovered, isResizing, totalRows = 1 } = options
+  // cellHeight는 드래그 후 행 계산에 사용됨 (각 카드 컴포넌트에서)
+  void cellHeight
 
   return {
     enableResizing: isReadOnly
@@ -208,9 +210,8 @@ export function getRndConfig(options: {
           bottomRight: false,
         },
     resizeGrid: [cellWidth, 1] as [number, number],
-    dragGrid: [cellWidth, cellHeight] as [number, number],
+    dragGrid: [cellWidth, 1] as [number, number],
     dragAxis: totalRows > 1 ? 'both' as const : 'x' as const,
-    bounds: 'parent' as const,
     minWidth: cellWidth - CARD_MARGIN * 2,
     resizeHandleStyles: {
       left: { width: '12px', left: '-4px', cursor: 'ew-resize', zIndex: 50 },
