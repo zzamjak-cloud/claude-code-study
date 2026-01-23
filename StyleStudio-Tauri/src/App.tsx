@@ -113,25 +113,27 @@ function App() {
   const currentFolderSessions = getCurrentFolderSessions(sessions);
   const currentFolderSubfolders = getCurrentFolderSubfolders();
 
-  // 폴더 진입 시 첫 번째 세션 자동 선택
+  // 폴더 진입 시 첫 번째 세션 또는 폴더 자동 선택
   useEffect(() => {
     // 현재 폴더의 세션 중 첫 번째 세션 선택
     if (currentFolderSessions.length > 0) {
       // 현재 선택된 세션이 현재 폴더에 없으면 첫 번째 세션 선택
       const currentSessionInFolder = currentFolderSessions.find(s => s.id === currentSession?.id);
       if (!currentSessionInFolder) {
+        setSelectedFolderId(null);
         setCurrentSession(currentFolderSessions[0]);
         logger.debug('📂 폴더 진입: 첫 번째 세션 선택:', currentFolderSessions[0].name);
       }
+    } else if (currentFolderSubfolders.length > 0) {
+      // 세션이 없고 하위 폴더가 있으면 첫 번째 폴더 선택 (폴더 도움말 표시)
+      setSelectedFolderId(currentFolderSubfolders[0].id);
+      logger.debug('📂 폴더 진입: 첫 번째 하위 폴더 선택:', currentFolderSubfolders[0].name);
     } else {
-      // 폴더에 세션이 없으면 현재 세션 해제 (초기 화면 표시)
-      if (currentSession && currentFolderId !== null) {
-        // 현재 세션이 다른 폴더에 있을 수 있으므로 null로 설정하지 않음
-        // 빈 폴더일 때만 초기 화면 표시
-        logger.debug('📂 빈 폴더 진입');
-      }
+      // 세션도 폴더도 없으면 빈 상태
+      setSelectedFolderId(null);
+      logger.debug('📂 빈 폴더 진입');
     }
-  }, [currentFolderId]);
+  }, [currentFolderId, currentFolderSessions.length, currentFolderSubfolders.length]);
 
   // 세션 저장 및 지속성 관리
   const { saveProgress, saveSession } = useSessionPersistence({
