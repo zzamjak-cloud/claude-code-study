@@ -49,6 +49,7 @@ function App() {
   const [damagedSessionsWarning, setDamagedSessionsWarning] = useState<string | null>(null);
   const [errorDialog, setErrorDialog] = useState<{ title: string; message: string } | null>(null);
   const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null);
+  const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage, showLimitWarning, setShowLimitWarning } =
@@ -435,6 +436,29 @@ function App() {
     logger.info('✅ 세션 이름 변경:', newName);
   }, [sessions, currentSession, setSessions, setCurrentSession]);
 
+  // 세션 선택 핸들러 (폴더 선택 해제)
+  const handleSelectSessionWithFolderDeselect = useCallback((session: Session) => {
+    setSelectedFolderId(null);
+    handleSelectSession(session);
+  }, [handleSelectSession]);
+
+  // 폴더 선택 핸들러
+  const handleSelectFolder = useCallback((folderId: string | null) => {
+    setSelectedFolderId(folderId);
+  }, []);
+
+  // 폴더 진입 핸들러 (폴더 선택 해제)
+  const handleNavigateToFolder = useCallback((folderId: string | null) => {
+    setSelectedFolderId(null);
+    navigateToFolder(folderId);
+  }, [navigateToFolder]);
+
+  // 폴더 뒤로가기 핸들러 (폴더 선택 해제)
+  const handleNavigateBack = useCallback(() => {
+    setSelectedFolderId(null);
+    navigateBack();
+  }, [navigateBack]);
+
   const handleSaveSessionClick = useCallback(() => {
     if (!analysisResult || uploadedImages.length === 0) {
       setInfoDialog({
@@ -635,7 +659,7 @@ function App() {
         <Sidebar
           sessions={sessions}
           currentSessionId={currentSession?.id}
-          onSelectSession={handleSelectSession}
+          onSelectSession={handleSelectSessionWithFolderDeselect}
           onDeleteSession={handleDeleteSession}
           onExportSession={handleExportSession}
           onRenameSession={handleRenameSession}
@@ -650,8 +674,10 @@ function App() {
           folderPath={folderPath}
           currentFolderSessions={currentFolderSessions}
           currentFolderSubfolders={currentFolderSubfolders}
-          onNavigateToFolder={navigateToFolder}
-          onNavigateBack={navigateBack}
+          selectedFolderId={selectedFolderId}
+          onSelectFolder={handleSelectFolder}
+          onNavigateToFolder={handleNavigateToFolder}
+          onNavigateBack={handleNavigateBack}
           onCreateFolder={async (name) => { await createFolder(name); }}
           onRenameFolder={renameFolder}
           onDeleteFolder={async (folderId, deleteContents) => {
@@ -666,7 +692,57 @@ function App() {
       <main className={`flex flex-col overflow-hidden transition-all duration-500 ease-in-out ${
         currentView === 'generator' ? 'ml-0 w-full' : 'ml-72 flex-1'
       }`}>
-        {uploadedImages.length > 0 ? (
+        {selectedFolderId ? (
+          // 폴더 선택 시 도움말 표시
+          <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+            <div className="max-w-md p-8 bg-white rounded-2xl shadow-lg border border-gray-200">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 bg-yellow-100 rounded-full flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-bold text-gray-800 mb-2">📁 폴더 기능</h2>
+                <p className="text-gray-600 text-sm">폴더를 사용하여 세션을 체계적으로 관리하세요</p>
+              </div>
+              <div className="space-y-4 text-sm">
+                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  <span className="text-lg">⌨️</span>
+                  <div>
+                    <p className="font-semibold text-gray-800">Enter 키</p>
+                    <p className="text-gray-600">선택한 폴더 이름 편집</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  <span className="text-lg">🖱️</span>
+                  <div>
+                    <p className="font-semibold text-gray-800">더블 클릭</p>
+                    <p className="text-gray-600">폴더 안으로 이동</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  <span className="text-lg">📁</span>
+                  <div>
+                    <p className="font-semibold text-gray-800">폴더 중첩</p>
+                    <p className="text-gray-600">폴더 안에 하위 폴더 생성 가능</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
+                  <span className="text-lg">✋</span>
+                  <div>
+                    <p className="font-semibold text-gray-800">드래그 & 드롭</p>
+                    <p className="text-gray-600">세션을 폴더로 드래그하여 이동</p>
+                  </div>
+                </div>
+              </div>
+              <div className="mt-6 pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-500 text-center">
+                  💡 세션을 선택하면 이미지 분석 화면으로 돌아갑니다
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : uploadedImages.length > 0 ? (
           currentView === 'analysis' ? (
             <AnalysisPanel
               images={uploadedImages}

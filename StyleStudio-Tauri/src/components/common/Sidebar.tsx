@@ -54,6 +54,8 @@ interface SidebarProps {
   folderPath: FolderPath[];
   currentFolderSessions: Session[];
   currentFolderSubfolders: FolderType[];
+  selectedFolderId?: string | null;
+  onSelectFolder?: (folderId: string | null) => void;
   onNavigateToFolder: (folderId: string | null) => void;
   onNavigateBack: () => void;
   onCreateFolder: (name: string) => Promise<void>;
@@ -83,6 +85,8 @@ export function Sidebar({
   folders,
   currentFolderId,
   folderPath,
+  selectedFolderId,
+  onSelectFolder,
   currentFolderSessions,
   currentFolderSubfolders,
   onNavigateToFolder,
@@ -302,18 +306,59 @@ export function Sidebar({
     }
   }, [folderContextMenu]);
 
-  // Ctrl+Shift+N 또는 Cmd+Shift+N 단축키로 폴더 생성 (Mac 지원)
+  // 키보드 단축키 핸들러
+  // - Ctrl+Shift+N / Cmd+Shift+N: 폴더 생성
+  // - Enter: 선택된 세션/폴더 이름 변경
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 이미 인라인 편집 중이면 무시
+      if (inlineEditFolderId || inlineEditSessionId) return;
+
+      // Ctrl+Shift+N 또는 Cmd+Shift+N: 폴더 생성
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'N') {
         e.preventDefault();
         handleCreateFolderWithDefaultName();
+        return;
+      }
+
+      // Enter: 선택된 세션 또는 폴더 이름 변경
+      if (e.key === 'Enter' && !disabled) {
+        // 다른 입력 필드에서의 Enter는 무시
+        const activeElement = document.activeElement;
+        if (activeElement && (
+          activeElement.tagName === 'INPUT' ||
+          activeElement.tagName === 'TEXTAREA' ||
+          (activeElement as HTMLElement).isContentEditable
+        )) {
+          return;
+        }
+
+        e.preventDefault();
+
+        // 폴더가 선택된 경우
+        if (selectedFolderId) {
+          const folder = folders.find(f => f.id === selectedFolderId);
+          if (folder) {
+            setInlineEditFolderId(selectedFolderId);
+            setInlineEditValue(folder.name);
+          }
+          return;
+        }
+
+        // 세션이 선택된 경우
+        if (currentSessionId && onRenameSession) {
+          const session = sessions.find(s => s.id === currentSessionId);
+          if (session) {
+            setInlineEditSessionId(currentSessionId);
+            setInlineEditValue(session.name);
+          }
+        }
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [disabled, currentFolderSubfolders]);
+  }, [disabled, currentFolderSubfolders, currentSessionId, selectedFolderId, sessions, folders, onRenameSession, inlineEditFolderId, inlineEditSessionId]);
 
   // 인라인 편집 시 자동 포커스 및 선택
   useEffect(() => {
@@ -335,9 +380,17 @@ export function Sidebar({
     e.preventDefault();
   };
 
+  // 폴더 클릭 → 폴더 선택
+  const handleFolderClick = (folderId: string) => {
+    if (disabled) return;
+    onSelectFolder?.(folderId);
+  };
+
   // 폴더 더블클릭 → 폴더 내부 이동
   const handleFolderDoubleClick = (folderId: string) => {
     if (disabled) return;
+    // 폴더 진입 시 폴더 선택 해제 (첫 번째 세션이 자동 선택됨)
+    onSelectFolder?.(null);
     onNavigateToFolder(folderId);
   };
 
@@ -555,6 +608,7 @@ export function Sidebar({
             if (type === 'folder') {
               const folder = item as FolderType;
               const isInlineEditing = inlineEditFolderId === folder.id;
+              const isFolderSelected = selectedFolderId === folder.id;
 
               return (
                 <div
@@ -563,10 +617,13 @@ export function Sidebar({
                   data-item-type="folder"
                   data-item-id={folder.id}
                   onMouseDown={(e) => !isInlineEditing && handleMouseDown(e, index, 'folder')}
+                  onClick={() => !isDragging && !disabled && !isInlineEditing && handleFolderClick(folder.id)}
                   onDoubleClick={() => !isInlineEditing && handleFolderDoubleClick(folder.id)}
                   className={`group rounded-lg p-2 transition-all relative select-none cursor-pointer ${
                     isDropTarget
                       ? 'ring-2 ring-purple-500 bg-purple-500/20'
+                      : isFolderSelected
+                      ? 'bg-gray-800 border border-yellow-500'
                       : disabled
                       ? 'opacity-50 cursor-not-allowed'
                       : 'hover:bg-gray-800 border border-transparent'
@@ -584,6 +641,7 @@ export function Sidebar({
                         value={inlineEditValue}
                         onChange={(e) => setInlineEditValue(e.target.value)}
                         onKeyDown={(e) => {
+                          e.stopPropagation();
                           if (e.key === 'Enter') handleInlineFolderRename();
                           if (e.key === 'Escape') cancelInlineFolderEdit();
                         }}
@@ -592,12 +650,8 @@ export function Sidebar({
                         onClick={(e) => e.stopPropagation()}
                       />
                     ) : (
-                      <div className="flex-1 min-w-0 group/tooltip relative">
+                      <div className="flex-1 min-w-0">
                         <span className="text-xs font-medium text-white truncate block">{folder.name}</span>
-                        {/* 툴팁 - 위에 표시 */}
-                        <div className="absolute bottom-full left-0 mb-1 hidden group-hover/tooltip:block z-50 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg border border-gray-700">
-                          {folder.name}
-                        </div>
                       </div>
                     )}
                     {/* 폴더 액션 버튼 */}
@@ -652,6 +706,7 @@ export function Sidebar({
                       value={inlineEditValue}
                       onChange={(e) => setInlineEditValue(e.target.value)}
                       onKeyDown={(e) => {
+                        e.stopPropagation();
                         if (e.key === 'Enter') handleInlineSessionRename();
                         if (e.key === 'Escape') cancelInlineSessionEdit();
                       }}
@@ -660,12 +715,8 @@ export function Sidebar({
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
-                    <div className="flex-1 min-w-0 group/tooltip relative">
+                    <div className="flex-1 min-w-0">
                       <span className="text-xs font-medium text-white truncate block">{session.name}</span>
-                      {/* 툴팁 - 위에 표시 */}
-                      <div className="absolute bottom-full left-0 mb-1 hidden group-hover/tooltip:block z-50 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap shadow-lg border border-gray-700">
-                        {session.name}
-                      </div>
                     </div>
                   )}
                   {/* 세션 액션 버튼 */}

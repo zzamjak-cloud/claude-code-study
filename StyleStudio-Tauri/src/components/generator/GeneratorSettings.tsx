@@ -1,4 +1,5 @@
-import { Languages, Wand2, Dices, HelpCircle, X, Award } from 'lucide-react';
+import { useState } from 'react';
+import { Languages, Wand2, Dices, HelpCircle, X, Award, AlertTriangle } from 'lucide-react';
 import { SessionType } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
 import { ReferenceDocument } from '../../types/referenceDocument';
@@ -92,10 +93,56 @@ export function GeneratorSettings({
   onDocumentDelete,
   containsKorean,
 }: GeneratorSettingsProps) {
+  // 비용 경고 팝업 상태
+  const [costWarning, setCostWarning] = useState<{ size: '2K' | '4K' } | null>(null);
+
+  // 이미지 크기 변경 핸들러 (비용 경고 포함)
+  const handleImageSizeClick = (size: '1K' | '2K' | '4K') => {
+    if (size === '2K' || size === '4K') {
+      setCostWarning({ size });
+    } else {
+      onImageSizeChange(size);
+    }
+  };
+
+  // 비용 경고 확인 후 크기 변경
+  const confirmImageSizeChange = () => {
+    if (costWarning) {
+      onImageSizeChange(costWarning.size);
+      setCostWarning(null);
+    }
+  };
+
   return (
     <div className="w-96 bg-white border-r border-gray-200 flex flex-col">
-      {/* 고정 영역: 생성 버튼 */}
-      <div className="p-6 pb-4 border-b border-gray-200 bg-white">
+      {/* 고정 영역: 추가 프롬프트 + 생성 버튼 */}
+      <div className="p-6 pb-4 border-b border-gray-200 bg-white space-y-4">
+        {/* 추가 프롬프트 입력 (선택사항) - 고정 영역 */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-semibold text-gray-700">
+              추가 프롬프트 (선택)
+            </label>
+            {containsKorean(additionalPrompt) && (
+              <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs text-blue-700">
+                <Languages size={14} />
+                <span>한→영 자동 변환</span>
+              </div>
+            )}
+          </div>
+          <textarea
+            value={additionalPrompt}
+            onChange={(e) => onAdditionalPromptChange(e.target.value)}
+            placeholder={getPromptPlaceholder(sessionType)}
+            rows={3}
+            className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            한글/영어 모두 입력 가능 (한글은 자동으로 영어로 번역됩니다)
+          </p>
+        </div>
+
+        {/* 이미지 생성 버튼 */}
         <button
           onClick={onGenerate}
           disabled={isGenerating}
@@ -132,31 +179,6 @@ export function GeneratorSettings({
               </p>
             </div>
           )}
-
-          {/* 추가 프롬프트 입력 (선택사항) */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-semibold text-gray-700">
-                추가 프롬프트 (선택)
-              </label>
-              {containsKorean(additionalPrompt) && (
-                <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs text-blue-700">
-                  <Languages size={14} />
-                  <span>한→영 자동 변환</span>
-                </div>
-              )}
-            </div>
-            <textarea
-              value={additionalPrompt}
-              onChange={(e) => onAdditionalPromptChange(e.target.value)}
-              placeholder={getPromptPlaceholder(sessionType)}
-              rows={4}
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              한글/영어 모두 입력 가능 (한글은 자동으로 영어로 번역됩니다)
-            </p>
-          </div>
 
           {/* UI 세션 전용: 참조 문서 */}
           {sessionType === 'UI' && (
@@ -263,7 +285,7 @@ export function GeneratorSettings({
               {(['1K', '2K', '4K'] as const).map((size) => (
                 <button
                   key={size}
-                  onClick={() => onImageSizeChange(size)}
+                  onClick={() => handleImageSizeClick(size)}
                   className={`px-4 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
                     imageSize === size
                       ? 'bg-purple-600 text-white border-purple-700 shadow-lg'
@@ -274,7 +296,9 @@ export function GeneratorSettings({
                 </button>
               ))}
             </div>
-            <p className="text-xs text-gray-500 mt-1">크기가 클수록 생성 시간이 길어집니다</p>
+            <p className="text-xs text-gray-500 mt-1">
+              <span className="text-green-600 font-medium">1K 권장</span> · 2K/4K는 비용이 크게 증가합니다
+            </p>
           </div>
 
           {/* 참조 이미지 사용 여부 (스타일 세션에서만) */}
@@ -297,16 +321,25 @@ export function GeneratorSettings({
 
           {/* 고급 설정 */}
           <div>
-            <button
-              onClick={() => onShowAdvancedChange(!showAdvanced)}
-              className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Award size={16} className="text-gray-600" />
-                <span className="text-sm font-semibold text-gray-700">고급 설정</span>
-              </div>
-              <span className="text-xs text-gray-500">{showAdvanced ? '▲ 접기' : '▼ 펼치기'}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onShowAdvancedChange(!showAdvanced)}
+                className="flex-1 flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Award size={16} className="text-gray-600" />
+                  <span className="text-sm font-semibold text-gray-700">고급 설정</span>
+                </div>
+                <span className="text-xs text-gray-500">{showAdvanced ? '▲ 접기' : '▼ 펼치기'}</span>
+              </button>
+              <button
+                onClick={() => onShowHelpChange(true)}
+                className="p-3 bg-gray-50 hover:bg-purple-100 rounded-lg transition-colors"
+                title="고급 설정 도움말"
+              >
+                <HelpCircle size={16} className="text-purple-600" />
+              </button>
+            </div>
 
             {showAdvanced && (
               <div className="mt-3 space-y-4 p-4 bg-gray-50 rounded-lg">
@@ -447,10 +480,22 @@ export function GeneratorSettings({
               <div>
                 <h4 className="font-semibold text-gray-800 mb-2">📐 이미지 크기</h4>
                 <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
-                  <li>1K - 빠른 테스트용</li>
-                  <li>2K - 일반 작업 (권장)</li>
-                  <li>4K - 고품질 출력 (시간 소요)</li>
+                  <li><span className="text-green-600 font-medium">1K - 일반 생성에 권장 (비용 효율적)</span></li>
+                  <li>2K - 고화질 필요 시 (비용 증가)</li>
+                  <li>4K - 최고 품질 (비용 크게 증가, 신중히 선택)</li>
                 </ul>
+              </div>
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-2">⚙️ 고급 설정</h4>
+                <ul className="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                  <li><span className="font-medium">Seed</span> - 동일한 값으로 같은 결과 재현 가능</li>
+                  <li><span className="font-medium">Temperature</span> - 낮을수록 일관적, 높을수록 창의적 (기본: 1.0)</li>
+                  <li><span className="font-medium">Top-K</span> - 샘플링할 토큰 수 (기본: 40)</li>
+                  <li><span className="font-medium">Top-P</span> - 누적 확률 임계값 (기본: 0.95)</li>
+                </ul>
+                <p className="text-xs text-gray-500 mt-2">
+                  💡 일반적으로 기본값을 사용하는 것을 권장합니다. 결과가 너무 비슷하면 Temperature를 높이고, 너무 다양하면 낮추세요.
+                </p>
               </div>
             </div>
             <div className="sticky bottom-0 bg-gray-50 px-6 py-4 border-t border-gray-200">
@@ -459,6 +504,67 @@ export function GeneratorSettings({
                 className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
               >
                 확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 비용 경고 팝업 */}
+      {costWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-3 bg-amber-100 rounded-full">
+                  <AlertTriangle size={28} className="text-amber-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800">비용 경고</h3>
+              </div>
+              <div className="space-y-3 text-gray-700">
+                <p className="font-semibold text-lg text-amber-700">
+                  ⚠️ {costWarning.size} 이미지는 비용이 크게 증가합니다!
+                </p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600">•</span>
+                      <span>
+                        <span className="font-medium">일반적인 용도</span>에서는{' '}
+                        <span className="text-green-600 font-bold">1K 이미지로 충분</span>합니다.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600">•</span>
+                      <span>
+                        {costWarning.size === '2K' ? '2K는 1K 대비 약 4배' : '4K는 1K 대비 약 16배'}의 비용이 발생할 수 있습니다.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-amber-600">•</span>
+                      <span>
+                        <span className="font-medium">실제로 고화질이 필요한 경우</span>에만 선택적으로 사용하세요.
+                      </span>
+                    </li>
+                  </ul>
+                </div>
+                <p className="text-sm text-gray-600 mt-2">
+                  💡 먼저 1K로 테스트하고, 마음에 드는 결과물만 고화질로 다시 생성하는 것을 권장합니다.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3 p-4 bg-gray-50 rounded-b-xl border-t border-gray-200">
+              <button
+                onClick={() => setCostWarning(null)}
+                className="flex-1 px-4 py-2.5 bg-white border border-gray-300 hover:bg-gray-100 rounded-lg font-medium transition-colors text-gray-700"
+              >
+                취소 (1K 유지)
+              </button>
+              <button
+                onClick={confirmImageSizeChange}
+                className="flex-1 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors"
+              >
+                {costWarning.size} 사용
               </button>
             </div>
           </div>
