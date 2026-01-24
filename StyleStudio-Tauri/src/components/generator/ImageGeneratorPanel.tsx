@@ -20,6 +20,294 @@ import {
   HISTORY_PANEL,
 } from '../../types/constants';
 
+// 흰색 배경 제거 대상 세션 타입
+const TRANSPARENT_BACKGROUND_SESSION_TYPES: SessionType[] = [
+  'CHARACTER',
+  'PIXELART_CHARACTER',
+  'ICON',
+  'PIXELART_ICON',
+  'LOGO',
+];
+
+/**
+ * 이미지에서 흰색/밝은 배경을 투명하게 변환 (Flood Fill + Defringe 알고리즘)
+ * 이미지 가장자리에서 시작하여 연결된 흰색 영역만 제거합니다.
+ * 캐릭터 내부의 흰색(눈 하이라이트, 빛 반사 등)은 보존됩니다.
+ * Defringe 처리로 외곽의 화이트 매트(white matte)를 제거합니다.
+ *
+ * @param imageDataUrl - Base64 이미지 Data URL
+ * @param threshold - 흰색으로 간주할 RGB 임계값 (기본 240)
+ * @returns 투명 배경이 적용된 PNG Data URL
+ */
+async function removeWhiteBackground(imageDataUrl: string, threshold: number = 240): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        // Canvas 생성
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+
+        if (!ctx) {
+          reject(new Error('Canvas 2D context를 생성할 수 없습니다'));
+          return;
+        }
+
+        // 이미지 그리기
+        ctx.drawImage(img, 0, 0);
+
+        // 픽셀 데이터 가져오기
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // 픽셀이 흰색인지 확인하는 함수
+        const isWhitePixel = (index: number): boolean => {
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          return r > threshold && g > threshold && b > threshold;
+        };
+
+        // 좌표를 1차원 인덱스로 변환
+        const getIndex = (x: number, y: number): number => (y * width + x) * 4;
+
+        // 방문 여부 추적 (투명하게 만들 픽셀)
+        const toMakeTransparent = new Set<number>();
+
+        // BFS (Breadth-First Search)를 사용한 Flood Fill
+        // 이미지 가장자리의 모든 흰색 픽셀에서 시작
+        const queue: [number, number][] = [];
+        const visited = new Set<string>();
+
+        // 가장자리 픽셀들을 시작점으로 추가
+        // 상단 및 하단 가장자리
+        for (let x = 0; x < width; x++) {
+          if (isWhitePixel(getIndex(x, 0))) {
+            queue.push([x, 0]);
+            visited.add(`${x},0`);
+          }
+          if (isWhitePixel(getIndex(x, height - 1))) {
+            queue.push([x, height - 1]);
+            visited.add(`${x},${height - 1}`);
+          }
+        }
+        // 좌측 및 우측 가장자리
+        for (let y = 1; y < height - 1; y++) {
+          if (isWhitePixel(getIndex(0, y))) {
+            queue.push([0, y]);
+            visited.add(`0,${y}`);
+          }
+          if (isWhitePixel(getIndex(width - 1, y))) {
+            queue.push([width - 1, y]);
+            visited.add(`${width - 1},${y}`);
+          }
+        }
+
+        // BFS 실행
+        const directions = [
+          [-1, 0], [1, 0], [0, -1], [0, 1], // 상하좌우
+          [-1, -1], [-1, 1], [1, -1], [1, 1] // 대각선 (더 정밀한 경계 처리)
+        ];
+
+        while (queue.length > 0) {
+          const [x, y] = queue.shift()!;
+          const index = getIndex(x, y);
+
+          // 이 픽셀을 투명하게 만들 목록에 추가
+          toMakeTransparent.add(index);
+
+          // 인접 픽셀 확인
+          for (const [dx, dy] of directions) {
+            const nx = x + dx;
+            const ny = y + dy;
+            const key = `${nx},${ny}`;
+
+            // 범위 체크
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            // 이미 방문한 픽셀 건너뛰기
+            if (visited.has(key)) continue;
+
+            const nIndex = getIndex(nx, ny);
+
+            // 흰색 픽셀이면 큐에 추가
+            if (isWhitePixel(nIndex)) {
+              visited.add(key);
+              queue.push([nx, ny]);
+            }
+          }
+        }
+
+        // 1단계: 연결된 흰색 배경 픽셀을 투명하게 처리
+        for (const index of toMakeTransparent) {
+          data[index + 3] = 0; // Alpha를 0으로 설정 (완전 투명)
+        }
+
+        // 2단계: 거리 맵 생성 (각 픽셀이 투명 영역에서 얼마나 떨어져 있는지)
+        const distanceMap = new Map<number, number>(); // index -> distance
+
+        // BFS로 거리 계산 (투명 영역에서 시작)
+        const distanceQueue: [number, number, number][] = []; // [x, y, distance]
+        const distanceVisited = new Set<string>();
+
+        // 투명 영역과 인접한 불투명 픽셀을 시작점으로
+        for (const transparentIndex of toMakeTransparent) {
+          const pixelIndex = transparentIndex / 4;
+          const x = pixelIndex % width;
+          const y = Math.floor(pixelIndex / width);
+
+          for (const [dx, dy] of directions) {
+            const nx = x + dx;
+            const ny = y + dy;
+            const key = `${nx},${ny}`;
+
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            if (distanceVisited.has(key)) continue;
+
+            const nIndex = getIndex(nx, ny);
+            if (data[nIndex + 3] > 0 && !toMakeTransparent.has(nIndex)) {
+              distanceVisited.add(key);
+              distanceQueue.push([nx, ny, 1]);
+              distanceMap.set(nIndex, 1);
+            }
+          }
+        }
+
+        // 거리 전파 (feather 범위만큼)
+        const featherRadius = 6; // Feather 반경 (픽셀)
+        while (distanceQueue.length > 0) {
+          const [x, y, dist] = distanceQueue.shift()!;
+
+          if (dist >= featherRadius) continue;
+
+          for (const [dx, dy] of directions.slice(0, 4)) { // 4방향
+            const nx = x + dx;
+            const ny = y + dy;
+            const key = `${nx},${ny}`;
+
+            if (nx < 0 || nx >= width || ny < 0 || ny >= height) continue;
+            if (distanceVisited.has(key)) continue;
+
+            const nIndex = getIndex(nx, ny);
+            if (data[nIndex + 3] > 0 && !toMakeTransparent.has(nIndex)) {
+              distanceVisited.add(key);
+              distanceQueue.push([nx, ny, dist + 1]);
+              distanceMap.set(nIndex, dist + 1);
+            }
+          }
+        }
+
+        // 3단계: Defringe + Feather 처리
+        for (const [index, distance] of distanceMap) {
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          const a = data[index + 3];
+
+          if (a === 0) continue;
+
+          // 흰색 성분 계산
+          const minRGB = Math.min(r, g, b);
+          const whiteness = minRGB / 255;
+          const brightness = (r + g + b) / 3 / 255;
+
+          // 거리에 따른 처리 강도 (가까울수록 강하게)
+          const distanceFactor = 1 - (distance - 1) / featherRadius;
+
+          // === 흰색 매트 제거 (Defringe) ===
+          if (whiteness > 0.3) {
+            // 흰색 성분 제거 강도 (거리와 밝기에 비례)
+            const removalStrength = distanceFactor * Math.min(1, whiteness * 1.5);
+            const whiteToRemove = minRGB * removalStrength * 0.9;
+
+            data[index] = Math.max(0, Math.round(r - whiteToRemove));
+            data[index + 1] = Math.max(0, Math.round(g - whiteToRemove));
+            data[index + 2] = Math.max(0, Math.round(b - whiteToRemove));
+          }
+
+          // === Feather 효과 (부드러운 투명 경계) ===
+          if (distance === 1) {
+            // 가장 바깥쪽 (1픽셀): 매우 강한 투명 처리
+            if (brightness > 0.6) {
+              data[index + 3] = Math.round(a * 0.05); // 거의 완전 투명
+            } else if (brightness > 0.4) {
+              data[index + 3] = Math.round(a * 0.15);
+            } else {
+              data[index + 3] = Math.round(a * 0.35);
+            }
+          } else if (distance === 2) {
+            // 2번째 픽셀: 강한 투명 처리
+            if (brightness > 0.6) {
+              data[index + 3] = Math.round(a * 0.2);
+            } else if (brightness > 0.4) {
+              data[index + 3] = Math.round(a * 0.4);
+            } else {
+              data[index + 3] = Math.round(a * 0.6);
+            }
+          } else if (distance === 3) {
+            // 3번째 픽셀: 중간 투명 처리
+            if (brightness > 0.6) {
+              data[index + 3] = Math.round(a * 0.5);
+            } else if (brightness > 0.4) {
+              data[index + 3] = Math.round(a * 0.7);
+            } else {
+              data[index + 3] = Math.round(a * 0.85);
+            }
+          } else if (distance === 4) {
+            // 4번째 픽셀: 약한 투명 처리
+            if (brightness > 0.6) {
+              data[index + 3] = Math.round(a * 0.75);
+            } else {
+              data[index + 3] = Math.round(a * 0.9);
+            }
+          } else if (distance === 5) {
+            // 5번째 픽셀: 미세한 투명 처리
+            if (brightness > 0.6) {
+              data[index + 3] = Math.round(a * 0.9);
+            }
+          }
+          // distance >= 6: 원본 유지
+        }
+
+        // 4단계: 추가 경계 정리 (아직 남은 밝은 외곽 픽셀 처리)
+        for (const [index, distance] of distanceMap) {
+          if (distance !== 1) continue;
+
+          const r = data[index];
+          const g = data[index + 1];
+          const b = data[index + 2];
+          const a = data[index + 3];
+
+          // 이미 투명해진 픽셀 건너뛰기
+          if (a < 50) continue;
+
+          // 아직 밝은 픽셀이면 추가 처리
+          const brightness = (r + g + b) / 3;
+          if (brightness > 180) {
+            data[index + 3] = Math.round(a * 0.3);
+          }
+        }
+
+        // 수정된 데이터 적용
+        ctx.putImageData(imageData, 0, 0);
+
+        // PNG로 변환 (투명도 지원)
+        const pngDataUrl = canvas.toDataURL('image/png');
+        resolve(pngDataUrl);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = () => {
+      reject(new Error('이미지 로드에 실패했습니다'));
+    };
+    img.src = imageDataUrl;
+  });
+}
+
 interface ImageGeneratorPanelProps {
   apiKey: string;
   analysis: ImageAnalysisResult;
@@ -280,7 +568,23 @@ export function ImageGeneratorPanel({
             logger.debug('📊 진행:', message);
           },
           onComplete: async (imageBase64) => {
-            const dataUrl = `data:image/png;base64,${imageBase64}`;
+            let dataUrl = `data:image/png;base64,${imageBase64}`;
+
+            // 흰색 배경 제거 대상 세션 타입인지 확인
+            const shouldRemoveBackground = TRANSPARENT_BACKGROUND_SESSION_TYPES.includes(sessionType);
+
+            if (shouldRemoveBackground) {
+              setProgressMessage('배경 제거 중...');
+              logger.debug('🎨 흰색 배경 제거 시작...');
+              try {
+                dataUrl = await removeWhiteBackground(dataUrl, 240);
+                logger.debug('✅ 배경 제거 완료');
+              } catch (bgError) {
+                logger.error('❌ 배경 제거 실패:', bgError);
+                // 배경 제거 실패해도 원본 이미지 사용
+              }
+            }
+
             setGeneratedImage(dataUrl);
             setZoomLevel('fit'); // 이미지 생성 시 줌을 '화면에 맞춤'으로 리셋
             setIsGenerating(false);
@@ -288,9 +592,9 @@ export function ImageGeneratorPanel({
             setProgressMessage('');
             logger.debug('✅ 생성 완료');
 
-            // 자동 저장
+            // 자동 저장 (배경 제거 대상은 PNG, 그 외는 JPG)
             try {
-              const savedPath = await autoSaveImage(dataUrl);
+              const savedPath = await autoSaveImage(dataUrl, shouldRemoveBackground);
               logger.debug('💾 자동 저장 완료:', savedPath);
             } catch (error) {
               logger.error('❌ 자동 저장 실패:', error);
@@ -362,8 +666,8 @@ export function ImageGeneratorPanel({
     }
   };
 
-  // 자동 저장 함수 (Gemini API가 JPEG로 반환하므로 .jpg로 저장)
-  const autoSaveImage = async (imageDataUrl: string) => {
+  // 자동 저장 함수 (세션 타입에 따라 PNG 또는 JPG로 저장)
+  const autoSaveImage = async (imageDataUrl: string, saveAsPng: boolean = false) => {
     try {
       // Data URL 형식 검증
       if (!imageDataUrl || !imageDataUrl.startsWith('data:')) {
@@ -455,9 +759,10 @@ export function ImageGeneratorPanel({
         }
       }
 
-      // 파일명 생성 (.jpg 확장자 사용 - Gemini가 JPEG 반환)
+      // 파일명 생성 (투명 배경 이미지는 PNG, 그 외는 JPG)
       const timestamp = Date.now();
-      const fileName = `style-studio-${timestamp}.jpg`;
+      const fileExtension = saveAsPng ? 'png' : 'jpg';
+      const fileName = `style-studio-${timestamp}.${fileExtension}`;
       const fullPath = await join(savePath, fileName);
 
       logger.debug('💾 자동 저장 시작:', fullPath);
@@ -511,6 +816,9 @@ export function ImageGeneratorPanel({
       alert('이미지 다운로드에 실패했습니다.\n\n이미지 데이터가 손상되었습니다. 세션을 다시 import하거나 이미지를 새로 생성해주세요.');
       return;
     }
+
+    // 투명 배경 이미지인지 확인 (세션 타입 기반)
+    const shouldSaveAsPng = TRANSPARENT_BACKGROUND_SESSION_TYPES.includes(sessionType);
 
     try {
       // 폴백 경로 (기본 경로) 미리 계산
@@ -588,15 +896,21 @@ export function ImageGeneratorPanel({
         }
       }
 
-      // 기본 파일명 생성
+      // 기본 파일명 생성 (투명 배경 이미지는 PNG, 그 외는 JPG)
       const timestamp = Date.now();
-      const defaultFileName = `style-studio-${timestamp}.jpg`;
+      const fileExtension = shouldSaveAsPng ? 'png' : 'jpg';
+      const defaultFileName = `style-studio-${timestamp}.${fileExtension}`;
       const defaultFilePath = await join(defaultPath, defaultFileName);
 
       // Tauri의 save 다이얼로그 사용 (OS 네이티브, 덮어쓰기 자동 확인)
       const selectedPath = await save({
         defaultPath: defaultFilePath,
-        filters: [
+        filters: shouldSaveAsPng ? [
+          {
+            name: 'PNG Image',
+            extensions: ['png'],
+          },
+        ] : [
           {
             name: 'JPEG Image',
             extensions: ['jpg', 'jpeg'],

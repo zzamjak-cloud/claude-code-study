@@ -80,6 +80,10 @@ function generateCharacterPrompt(params: PromptGenerationParams): string {
 ✓ Keep all distinctive features (accessories, patterns, colors) identical
 ✓ Same art style and rendering technique across all poses
 
+🖼️ BACKGROUND: Pure white background (#FFFFFF) for all cells. No gradients, no patterns, no other colors.
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. Each cell must seamlessly blend with adjacent white backgrounds. The grid layout is purely conceptual for arranging poses - there should be NO visible grid structure in the final image.
+
 🤸 POSE VARIATIONS (${frameCount} different poses):
 ${basePrompt || 'Various action poses and expressions'}
 
@@ -91,6 +95,8 @@ Generate the ${gridLayout} grid of character pose variations now.`;
 
   // 단일 포즈 (1x1)
   return `Maintain the exact same character design (face, hair, outfit, proportions, colors) from the reference images.
+
+BACKGROUND: Pure white background (#FFFFFF). No gradients, no patterns, no other colors.
 
 New pose: ${basePrompt}
 
@@ -114,6 +120,8 @@ function generateBackgroundPrompt(params: PromptGenerationParams): string {
 ✓ Keep the same color palette and rendering technique
 ✓ Maintain consistent atmosphere and mood
 ✓ Use similar composition principles
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
 
 🌄 SCENE VARIATIONS (${frameCount} different environments):
 ${basePrompt || 'Various background environments'}
@@ -147,6 +155,10 @@ function generateIconPrompt(params: PromptGenerationParams): string {
 ✓ Similar complexity level
 ✓ Centered composition
 
+🖼️ BACKGROUND: Pure white background (#FFFFFF) for all cells. No gradients, no patterns, no other colors.
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. Each cell must seamlessly blend with adjacent white backgrounds. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
+
 🎲 ICON VARIATIONS (${frameCount} different icons):
 ${basePrompt || 'Various game icons'}
 
@@ -154,6 +166,8 @@ Generate ${frameCount} icons in consistent style.`;
   }
 
   return `Create an icon matching the style from reference images.
+
+BACKGROUND: Pure white background (#FFFFFF). No gradients, no patterns, no other colors.
 
 Icon: ${basePrompt}
 
@@ -177,6 +191,8 @@ function generateStylePrompt(params: PromptGenerationParams): string {
 ✓ Keep rendering technique consistent
 ✓ Use similar color palette
 ✓ Maintain consistent quality level
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
 
 ✨ CONTENT VARIATIONS (${frameCount} different images):
 ${basePrompt || 'Various artistic compositions'}
@@ -215,7 +231,9 @@ function generateUIPrompt(params: PromptGenerationParams): string {
 ✓ Match UI style from reference images
 ✓ Consistent design system (buttons, colors, fonts)
 ✓ Similar layout principles
-✓ Cohesive visual hierarchy${documentContext}
+✓ Cohesive visual hierarchy
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.${documentContext}
 
 📱 SCREEN VARIATIONS (${frameCount} different UI screens):
 ${basePrompt || 'Various UI screens'}
@@ -249,6 +267,10 @@ function generateLogoPrompt(params: PromptGenerationParams): string {
 ✓ Similar material/texture style
 ✓ Coherent color vibrancy
 
+🖼️ BACKGROUND: Pure white background (#FFFFFF) for all cells. No gradients, no patterns, no other colors.
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. Each cell must seamlessly blend with adjacent white backgrounds. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
+
 🔤 LOGO VARIATIONS (${frameCount} different versions):
 ${basePrompt || 'Logo title variations'}
 
@@ -258,6 +280,8 @@ Generate ${frameCount} logo variations in consistent style.`;
   }
 
   return `Create a logo matching the style from reference images.
+
+BACKGROUND: Pure white background (#FFFFFF). No gradients, no patterns, no other colors.
 
 Logo: ${basePrompt}
 
@@ -286,7 +310,10 @@ function generatePixelArtCharacterPrompt(params: PromptGenerationParams): string
 ✓ Consistent character design across all frames
 ✓ Same color palette (limited colors)
 ✓ Crisp pixel edges (no anti-aliasing)
-✓ Centered in each cell with WHITE background (never transparent or checkered)
+
+🖼️ BACKGROUND: Pure white background (#FFFFFF) for all cells. No gradients, no patterns, no checkered pattern, no transparency.
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. Each cell must seamlessly blend with adjacent white backgrounds. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
 
 🤸 ANIMATION SEQUENCE (${frameCount} frames):
 ${basePrompt || 'Character animation frames'}
@@ -301,7 +328,7 @@ Animation: ${basePrompt}
 Resolution: ${resolution}x${resolution}px
 Match the pixel art style, color palette, and character design.
 
-IMPORTANT: Use WHITE background only (never transparent or checkered background, even if reference images have transparent areas).`;
+BACKGROUND: Pure white background (#FFFFFF) only. No gradients, no patterns, no checkered pattern, no transparency.`;
 }
 
 /**
@@ -324,6 +351,8 @@ function generatePixelArtBackgroundPrompt(params: PromptGenerationParams): strin
 ✓ Consistent art style across scenes
 ✓ Same color palette approach
 ✓ Crisp pixel edges (no anti-aliasing)
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
 
 🌄 SCENE VARIATIONS (${frameCount} backgrounds):
 ${basePrompt || 'Background scene variations'}
@@ -359,7 +388,11 @@ function generatePixelArtIconPrompt(params: PromptGenerationParams): string {
 ✓ Consistent icon style
 ✓ Same color palette
 ✓ Crisp pixel edges (no anti-aliasing)
-✓ Centered with transparent background
+✓ Centered composition
+
+🖼️ BACKGROUND: Pure white background (#FFFFFF) for all cells. No gradients, no patterns, no checkered pattern, no transparency.
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. Each cell must seamlessly blend with adjacent white backgrounds. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
 
 🎲 ICON VARIATIONS (${frameCount} items):
 ${basePrompt || 'Game item icons'}
@@ -372,5 +405,7 @@ Generate ${frameCount} pixel art icons in ${gridLayout} grid.`;
 Icon: ${basePrompt}
 
 Resolution: ${resolution}x${resolution}px
-Match the pixel art style and color palette.`;
+Match the pixel art style and color palette.
+
+BACKGROUND: Pure white background (#FFFFFF) only. No gradients, no patterns, no checkered pattern, no transparency.`;
 }

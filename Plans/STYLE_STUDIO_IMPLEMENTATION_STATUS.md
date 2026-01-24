@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-01-23
-> **버전**: 8.0
-> **상태**: 폴더 관리 시스템 추가, 9가지 세션 타입 모두 Grid 지원
+> **최종 업데이트**: 2026-01-24
+> **버전**: 8.2
+> **상태**: 투명 배경 PNG 고급 처리 (Feather 효과 강화) + Grid 라인 방지
 
 ---
 
@@ -581,6 +581,83 @@ Base64 변환 및 파일 처리 유틸리티:
 
 ## 최신 업데이트
 
+### 2026-01-24: 투명 배경 PNG 저장 기능
+
+#### 개요
+특정 세션 타입에서 생성된 이미지의 흰색 배경을 자동으로 제거하고 투명 PNG로 저장하는 기능을 추가했습니다.
+
+#### 적용 대상 세션 타입
+- **CHARACTER**: 캐릭터
+- **PIXELART_CHARACTER**: 픽셀 캐릭터
+- **ICON**: 아이콘
+- **PIXELART_ICON**: 픽셀 아이콘
+- **LOGO**: 로고
+
+#### 구현 내용
+
+1. **프롬프트 수정** (`sessionPrompts.ts`)
+   - 5개 세션 타입의 프롬프트에 흰색 배경(#FFFFFF) 생성 지시 추가
+   - Grid 레이아웃과 단일 이미지 모두 적용
+
+2. **배경 제거 함수** (`ImageGeneratorPanel.tsx`)
+   - `removeWhiteBackground()` 함수 추가
+   - Canvas API를 사용하여 흰색/밝은 픽셀(RGB > 240)을 투명으로 변환
+   - 이미지 생성 완료 후 자동 적용
+
+3. **파일 저장 형식 분기**
+   - 투명 배경 대상 세션: `.png` 확장자로 저장
+   - 그 외 세션: `.jpg` 확장자로 저장 (기존 동작 유지)
+   - 자동 저장 및 수동 저장 모두 적용
+
+#### 기술적 세부사항
+- **알고리즘**: Flood Fill (BFS) + Distance Map + Defringe + Feather
+  - 1단계: 이미지 가장자리에서 시작하여 연결된 흰색 영역 제거 (Flood Fill BFS)
+  - 2단계: 투명 영역으로부터의 거리 맵 생성 (Distance Map)
+  - 3단계: 경계 픽셀에서 흰색 성분 제거 (Defringe, 3패스 처리)
+  - 4단계: 거리 기반 점진적 투명도 적용 (Feather 효과)
+- **Feather 효과** (v8.2 강화):
+  - `featherRadius`: 6픽셀 (v8.1: 4픽셀)
+  - 거리별 투명도 (밝기 > 0.6 기준):
+    - distance 1: alpha 5% (매우 투명)
+    - distance 2: alpha 20%
+    - distance 3: alpha 50%
+    - distance 4: alpha 75%
+    - distance 5: alpha 90%
+    - distance 6+: 원본 유지
+  - 밝기가 낮을수록 덜 투명하게 처리 (캐릭터 외곽선 보존)
+- **임계값**: RGB 각 채널이 240 초과 시 흰색으로 판단
+- **처리 방식**: JavaScript Canvas API 사용 (프론트엔드 처리)
+- **성능**: 이미지 생성 후 즉시 처리, 사용자 체감 지연 없음
+- **내부 흰색 보존**: 눈 하이라이트, 빛 반사, 흰색 의상 등 캐릭터 내부의 흰색은 유지됨
+- **화이트 매트 제거**: 안티앨리어싱된 외곽 픽셀에서 흰색 프린지 제거
+
+#### 사용자 경험
+1. 이미지 생성 버튼 클릭
+2. "배경 제거 중..." 메시지 표시 (대상 세션 타입만)
+3. 투명 배경 PNG로 자동 저장
+4. 히스토리에 투명 배경 이미지 저장
+
+#### Grid 라인 방지 (v8.2 추가)
+Grid 레이아웃(2x2, 4x4, 6x6, 8x8) 이미지 생성 시 가끔 검은색 구분선이 그려지는 문제를 방지합니다.
+
+**적용 대상**: 모든 9개 세션 타입의 Grid 프롬프트
+- CHARACTER, BACKGROUND, ICON, STYLE, UI, LOGO
+- PIXELART_CHARACTER, PIXELART_BACKGROUND, PIXELART_ICON
+
+**프롬프트 추가 내용** (`sessionPrompts.ts`):
+```
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells.
+Each cell must seamlessly blend with adjacent white backgrounds.
+The grid layout is purely conceptual for arranging poses - there should be NO visible grid structure in the final image.
+```
+
+**효과**:
+- Grid 셀 간 경계선 없음
+- 인접한 셀이 자연스럽게 연결
+- Grid는 개념적 배치 도구로만 사용
+
+---
+
 ### 2026-01-23: 폴더 관리 시스템 구현
 
 #### 개요
@@ -903,6 +980,14 @@ if (entry.settings.pixelArtGrid) {
 
 - ✅ Tauri 2.x 프로젝트 구조
 - ✅ 9가지 세션 타입 (STYLE, CHARACTER, BACKGROUND, ICON, UI, LOGO, PIXELART_CHARACTER, PIXELART_BACKGROUND, PIXELART_ICON)
+- ✅ **투명 배경 PNG 저장** (CHARACTER, PIXELART_CHARACTER, ICON, PIXELART_ICON, LOGO)
+  - 흰색 배경 자동 제거 후 투명 PNG 저장
+  - Canvas API 기반 실시간 처리
+  - Flood Fill + Distance Map + Defringe + Feather 알고리즘
+  - 6픽셀 Feather 반경으로 부드러운 외곽 처리
+- ✅ **Grid 라인 방지** (전체 9개 세션 타입)
+  - Grid 레이아웃 이미지 생성 시 셀 간 구분선 방지
+  - 프롬프트에 명시적 지시 추가
 - ✅ 이미지 분석 (Gemini 2.5 Flash)
   - 픽셀아트 전용 분석 프롬프트
   - 현대 픽셀아트 음영 기법 (Hue shifting, Color banding)
@@ -972,6 +1057,6 @@ if (entry.settings.pixelArtGrid) {
 
 ---
 
-**문서 버전**: 8.0
-**작성일**: 2026-01-23
+**문서 버전**: 8.2
+**작성일**: 2026-01-24
 **다음 단계**: 여러 캐릭터 세션 통합 생성 시스템
