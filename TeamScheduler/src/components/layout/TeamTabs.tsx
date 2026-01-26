@@ -304,7 +304,7 @@ export function TeamTabs() {
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
         >
-          {tabs.map((tab, tabIndex) => {
+          {tabs.map((tab) => {
             const isSelected = tab.id === selectedMemberId
             const isUnified = tab.id === null
             const memberIndex = 'memberIndex' in tab ? tab.memberIndex : -1
