@@ -36,6 +36,7 @@ export const fetchProjects = async (workspaceId: string): Promise<Project[]> => 
       type: data.type || 'project',
       description: data.description,
       memberIds: data.memberIds || [],
+      memberOrder: data.memberOrder || undefined,  // 프로젝트 내 구성원 순서
       isHidden: data.isHidden || false,
       order: data.order ?? 0,
       createdBy: data.createdBy,
@@ -89,6 +90,7 @@ export const updateProject = async (
     type?: 'organization' | 'project'
     description?: string
     memberIds?: string[]
+    memberOrder?: string[]  // 프로젝트 내 구성원 순서
     isHidden?: boolean
     order?: number
   }

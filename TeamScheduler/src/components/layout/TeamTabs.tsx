@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Users, EyeOff, Archive } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { usePermissions } from '../../lib/hooks/usePermissions'
-import { batchReorderTeamMembers, updateTeamMember } from '../../lib/firebase/firestore'
+import { batchReorderTeamMembers, updateTeamMember, updateProject as updateProjectFirebase } from '../../lib/firebase/firestore'
 import { TeamMember } from '../../types/team'
 import { HiddenMembersModal } from '../modals/HiddenMembersModal'
 
@@ -18,13 +18,14 @@ export function TeamTabs() {
   const selectedProjectId = useAppStore(state => state.selectedProjectId)
   const projects = useAppStore(state => state.projects)
   const selectedJobTitle = useAppStore(state => state.selectedJobTitle)
+  const updateProjectStore = useAppStore(state => state.updateProject)
 
   // 최고 관리자 권한 확인
   const { isOwner } = usePermissions()
 
   // 드래그 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+  const [insertPosition, setInsertPosition] = useState<number | null>(null)  // 삽입될 위치 (해당 인덱스 앞에 삽입)
 
   // 우클릭 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{
@@ -86,17 +87,20 @@ export function TeamTabs() {
     }
   }
 
+  // 현재 선택된 프로젝트
+  const selectedProject = useMemo(() => {
+    if (!selectedProjectId) return null
+    return projects.find((p) => p.id === selectedProjectId) || null
+  }, [selectedProjectId, projects])
+
   // order 기준으로 정렬된 구성원 목록 (숨긴 구성원 제외 + 프로젝트 필터링 + 직군 필터링)
   const sortedMembers = useMemo(() => {
     // 숨긴 구성원 제외
     let filtered = members.filter((m) => !m.isHidden)
 
     // 선택된 프로젝트가 있으면 해당 프로젝트에 속한 구성원만 표시
-    if (selectedProjectId) {
-      const project = projects.find((p) => p.id === selectedProjectId)
-      if (project && project.memberIds) {
-        filtered = filtered.filter((m) => project.memberIds.includes(m.id))
-      }
+    if (selectedProject && selectedProject.memberIds) {
+      filtered = filtered.filter((m) => selectedProject.memberIds.includes(m.id))
     }
 
     // 선택된 직군이 있으면 해당 직군만 표시
@@ -104,9 +108,23 @@ export function TeamTabs() {
       filtered = filtered.filter((m) => m.jobTitle === selectedJobTitle)
     }
 
-    // order 기준 정렬
+    // 프로젝트가 선택되어 있고 memberOrder가 있으면 프로젝트 순서 사용
+    if (selectedProject && selectedProject.memberOrder && selectedProject.memberOrder.length > 0) {
+      const orderMap = new Map<string, number>()
+      selectedProject.memberOrder.forEach((id, index) => {
+        orderMap.set(id, index)
+      })
+      // memberOrder에 있는 구성원은 해당 순서로, 없는 구성원은 뒤로 (member.order 기준)
+      return filtered.sort((a, b) => {
+        const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 10000 + (a.order || 0)
+        const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 10000 + (b.order || 0)
+        return orderA - orderB
+      })
+    }
+
+    // 프로젝트 선택 안됨 또는 memberOrder 없음: 기존 member.order 사용
     return filtered.sort((a, b) => (a.order || 0) - (b.order || 0))
-  }, [members, selectedProjectId, projects, selectedJobTitle])
+  }, [members, selectedProject, selectedJobTitle])
 
   // 숨긴 구성원 수
   const hiddenCount = members.filter((m) => m.isHidden).length
@@ -131,58 +149,131 @@ export function TeamTabs() {
     setDraggedIndex(memberIndex)
   }
 
-  // 드래그 오버 (드롭 허용)
+  // 드래그 오버 (드롭 허용) - 마우스 위치에 따라 삽입 위치 결정
   const handleDragOver = (e: React.DragEvent, memberIndex: number) => {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    if (memberIndex !== draggedIndex) {
-      setDragOverIndex(memberIndex)
+
+    if (draggedIndex === null) return
+
+    // 현재 요소의 중심점 기준으로 왼쪽/오른쪽 판단
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const centerX = rect.left + rect.width / 2
+    const isLeftHalf = e.clientX < centerX
+
+    // 삽입 위치 계산
+    let newInsertPosition: number
+    if (isLeftHalf) {
+      newInsertPosition = memberIndex  // 이 탭 앞에 삽입
+    } else {
+      newInsertPosition = memberIndex + 1  // 이 탭 뒤에 삽입
     }
+
+    // 드래그 중인 요소와 같은 위치면 무시
+    if (newInsertPosition === draggedIndex || newInsertPosition === draggedIndex + 1) {
+      setInsertPosition(null)
+      return
+    }
+
+    setInsertPosition(newInsertPosition)
   }
 
   // 드래그 리브
-  const handleDragLeave = () => {
-    setDragOverIndex(null)
+  const handleDragLeave = (e: React.DragEvent) => {
+    // 자식 요소로 이동할 때는 무시
+    const relatedTarget = e.relatedTarget as HTMLElement
+    if (e.currentTarget.contains(relatedTarget)) return
+    setInsertPosition(null)
+  }
+
+  // 컨테이너 드래그 리브 (탭 영역을 완전히 벗어날 때)
+  const handleContainerDragLeave = (e: React.DragEvent) => {
+    const relatedTarget = e.relatedTarget as HTMLElement
+    if (e.currentTarget.contains(relatedTarget)) return
+    setInsertPosition(null)
   }
 
   // 드롭
-  const handleDrop = async (e: React.DragEvent, targetIndex: number) => {
+  const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
-    setDragOverIndex(null)
-    setDraggedIndex(null)
 
     const sourceIndex = parseInt(e.dataTransfer.getData('text/plain'))
-    if (sourceIndex === targetIndex || isNaN(sourceIndex)) return
+    const targetPosition = insertPosition
+
+    setInsertPosition(null)
+    setDraggedIndex(null)
+
+    if (targetPosition === null || isNaN(sourceIndex)) return
+
+    // 실제 삽입될 인덱스 계산
+    let targetIndex = targetPosition
+    if (sourceIndex < targetPosition) {
+      targetIndex = targetPosition - 1  // 원본이 앞에 있으면 제거 후 인덱스 조정
+    }
+
+    if (sourceIndex === targetIndex) return
 
     // 순서 변경 (sortedMembers 기준)
     const newSortedMembers = [...sortedMembers]
     const [movedMember] = newSortedMembers.splice(sourceIndex, 1)
     newSortedMembers.splice(targetIndex, 0, movedMember)
 
-    // 새 order 값 할당 (표시된 멤버만)
-    const newOrderMap = new Map<string, number>()
-    newSortedMembers.forEach((member, index) => {
-      newOrderMap.set(member.id, index)
-    })
+    // 새 순서의 ID 배열
+    const newMemberOrder = newSortedMembers.map(m => m.id)
 
-    // 전체 members 배열에서 order 업데이트 (필터링되지 않은 멤버는 기존 order 유지)
-    const updatedAllMembers = members.map((member) => {
-      const newOrder = newOrderMap.get(member.id)
-      if (newOrder !== undefined) {
-        return { ...member, order: newOrder }
+    // 프로젝트가 선택된 경우: 프로젝트의 memberOrder만 업데이트
+    if (selectedProject && workspaceId) {
+      // 로컬 상태 업데이트
+      updateProjectStore(selectedProject.id, { memberOrder: newMemberOrder })
+
+      // Firebase 업데이트
+      try {
+        await updateProjectFirebase(workspaceId, selectedProject.id, { memberOrder: newMemberOrder })
+      } catch (error) {
+        console.error('프로젝트 구성원 순서 변경 실패:', error)
       }
-      return member
-    })
+      return
+    }
+
+    // 프로젝트 미선택: 기존 로직 (전역 member.order 업데이트)
+    // 필터링된 구성원 ID Set
+    const filteredMemberIds = new Set(sortedMembers.map(m => m.id))
+
+    // 전체 members를 기존 order 기준으로 정렬
+    const allMembersSorted = [...members].sort((a, b) => (a.order || 0) - (b.order || 0))
+
+    // 전체 정렬 목록에서 필터링된 구성원들의 새 순서를 반영
+    // 1. 필터링되지 않은 구성원들의 위치 유지
+    // 2. 필터링된 구성원들을 새 순서대로 끼워넣기
+    const finalSortedMembers: typeof members = []
+    let filteredIndex = 0
+
+    for (const member of allMembersSorted) {
+      if (filteredMemberIds.has(member.id)) {
+        // 필터링된 구성원은 새 순서의 구성원으로 대체
+        finalSortedMembers.push(newSortedMembers[filteredIndex])
+        filteredIndex++
+      } else {
+        // 필터링되지 않은 구성원은 그대로 유지
+        finalSortedMembers.push(member)
+      }
+    }
+
+    // 전체 members에 대해 0부터 순차적으로 order 재할당
+    const updatedAllMembers = finalSortedMembers.map((member, index) => ({
+      ...member,
+      order: index,
+    }))
 
     // 로컬 상태 업데이트 (전체 members)
     reorderMembers(updatedAllMembers)
 
-    // Firebase 배치 업데이트 (변경된 멤버만)
+    // Firebase 배치 업데이트 (전체 구성원의 order 업데이트)
     if (workspaceId) {
       try {
-        const memberOrders = newSortedMembers.map((member, index) => ({
+        const memberOrders = updatedAllMembers.map((member) => ({
           memberId: member.id,
-          order: index,
+          order: member.order,
         }))
         await batchReorderTeamMembers(workspaceId, memberOrders)
       } catch (error) {
@@ -194,58 +285,79 @@ export function TeamTabs() {
   // 드래그 종료
   const handleDragEnd = () => {
     setDraggedIndex(null)
-    setDragOverIndex(null)
+    setInsertPosition(null)
   }
+
+  // 삽입 인디케이터 컴포넌트
+  const InsertIndicator = () => (
+    <div className="flex items-center h-full py-1">
+      <div className="w-0.5 h-8 bg-primary rounded-full animate-pulse" />
+    </div>
+  )
 
   return (
     <>
       <div className="bg-card border-b border-border px-6 overflow-x-auto scrollbar-thin">
-        <div className="flex gap-2 py-2">
-          {tabs.map((tab) => {
+        <div
+          className="flex gap-1 py-2"
+          onDragLeave={handleContainerDragLeave}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+        >
+          {tabs.map((tab, tabIndex) => {
             const isSelected = tab.id === selectedMemberId
             const isUnified = tab.id === null
             const memberIndex = 'memberIndex' in tab ? tab.memberIndex : -1
             const isDragging = draggedIndex === memberIndex
-            const isDragOver = dragOverIndex === memberIndex
+            // 이 탭 앞에 인디케이터 표시 여부 (구성원 탭만, 통합 탭은 제외)
+            const showInsertBefore = !isUnified && insertPosition === memberIndex
+            // 마지막 탭 뒤에 인디케이터 표시 (구성원 탭이 있고, 마지막 구성원 탭인 경우)
+            const isLastMemberTab = memberIndex === sortedMembers.length - 1
+            const showInsertAfter = isLastMemberTab && insertPosition === sortedMembers.length
 
             return (
-              <div
-                key={tab.id || 'unified'}
-                draggable={tab.draggable}
-                onDragStart={tab.draggable ? (e) => handleDragStart(e, memberIndex) : undefined}
-                onDragOver={tab.draggable ? (e) => handleDragOver(e, memberIndex) : undefined}
-                onDragLeave={tab.draggable ? handleDragLeave : undefined}
-                onDrop={tab.draggable ? (e) => handleDrop(e, memberIndex) : undefined}
-                onDragEnd={tab.draggable ? handleDragEnd : undefined}
-                onContextMenu={tab.member ? (e) => handleContextMenu(e, tab.member) : undefined}
-                className={`
-                  flex items-center transition-all
-                  ${isDragging ? 'opacity-50' : ''}
-                  ${isDragOver ? 'ring-2 ring-primary ring-offset-2 rounded-md' : ''}
-                `}
-              >
-                <button
-                  onClick={() => selectMember(tab.id)}
+              <div key={tab.id || 'unified'} className="flex items-center">
+                {/* 이 탭 앞의 삽입 인디케이터 */}
+                {showInsertBefore && <InsertIndicator />}
+
+                <div
+                  draggable={tab.draggable}
+                  onDragStart={tab.draggable ? (e) => handleDragStart(e, memberIndex) : undefined}
+                  onDragOver={tab.draggable ? (e) => handleDragOver(e, memberIndex) : undefined}
+                  onDragLeave={tab.draggable ? handleDragLeave : undefined}
+                  onDragEnd={tab.draggable ? handleDragEnd : undefined}
+                  onContextMenu={tab.member ? (e) => handleContextMenu(e, tab.member) : undefined}
                   className={`
-                    flex items-center gap-2 px-4 py-2 rounded-t-md transition-colors font-medium
-                    ${
-                      isSelected
-                        ? 'bg-background text-foreground border-t border-x border-border'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    }
+                    flex items-center transition-all
+                    ${isDragging ? 'opacity-50' : ''}
                   `}
-                  style={
-                    !isUnified && 'color' in tab
-                      ? {
-                          borderBottomColor: isSelected ? tab.color : undefined,
-                          borderBottomWidth: isSelected ? '2px' : undefined,
-                        }
-                      : undefined
-                  }
                 >
-                  {isUnified && tab.icon}
-                  <span className="whitespace-nowrap">{tab.name}</span>
-                </button>
+                  <button
+                    onClick={() => selectMember(tab.id)}
+                    className={`
+                      flex items-center gap-2 px-4 py-2 rounded-t-md transition-colors font-medium
+                      ${
+                        isSelected
+                          ? 'bg-background text-foreground border-t border-x border-border'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                      }
+                    `}
+                    style={
+                      !isUnified && 'color' in tab
+                        ? {
+                            borderBottomColor: isSelected ? tab.color : undefined,
+                            borderBottomWidth: isSelected ? '2px' : undefined,
+                          }
+                        : undefined
+                    }
+                  >
+                    {isUnified && tab.icon}
+                    <span className="whitespace-nowrap">{tab.name}</span>
+                  </button>
+                </div>
+
+                {/* 마지막 탭 뒤의 삽입 인디케이터 */}
+                {showInsertAfter && <InsertIndicator />}
               </div>
             )
           })}

@@ -406,6 +406,27 @@ export function ScheduleGrid() {
         visibleMembers = visibleMembers.filter((m) => m.jobTitle === selectedJobTitle)
       }
 
+      // 현재 선택된 프로젝트
+      const selectedProject = selectedProjectId
+        ? projects.find((p) => p.id === selectedProjectId)
+        : null
+
+      // 프로젝트가 선택되어 있고 memberOrder가 있으면 프로젝트 순서 사용
+      if (selectedProject && selectedProject.memberOrder && selectedProject.memberOrder.length > 0) {
+        const orderMap = new Map<string, number>()
+        selectedProject.memberOrder.forEach((id, index) => {
+          orderMap.set(id, index)
+        })
+        visibleMembers = visibleMembers.sort((a, b) => {
+          const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 10000 + (a.order || 0)
+          const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 10000 + (b.order || 0)
+          return orderA - orderB
+        })
+      } else {
+        // 프로젝트 선택 안됨 또는 memberOrder 없음: 기존 member.order 사용
+        visibleMembers = visibleMembers.sort((a, b) => (a.order || 0) - (b.order || 0))
+      }
+
       visibleMembers.forEach((m) => {
         const memberSchedules = schedules.filter((s) => s.memberId === m.id)
 
@@ -480,15 +501,34 @@ export function ScheduleGrid() {
       // 통합 탭: 각 구성원별로 그룹화
       let visibleMembers = members.filter((m) => !m.isHidden)
 
-      if (selectedProjectId) {
-        const project = projects.find((p) => p.id === selectedProjectId)
-        if (project && project.memberIds) {
-          visibleMembers = visibleMembers.filter((m) => project.memberIds.includes(m.id))
-        }
+      // 현재 선택된 프로젝트
+      const selectedProject = selectedProjectId
+        ? projects.find((p) => p.id === selectedProjectId)
+        : null
+
+      if (selectedProject && selectedProject.memberIds) {
+        visibleMembers = visibleMembers.filter((m) => selectedProject.memberIds.includes(m.id))
       }
 
       if (selectedJobTitle) {
         visibleMembers = visibleMembers.filter((m) => m.jobTitle === selectedJobTitle)
+      }
+
+      // 프로젝트가 선택되어 있고 memberOrder가 있으면 프로젝트 순서 사용
+      if (selectedProject && selectedProject.memberOrder && selectedProject.memberOrder.length > 0) {
+        const orderMap = new Map<string, number>()
+        selectedProject.memberOrder.forEach((id, index) => {
+          orderMap.set(id, index)
+        })
+        // memberOrder에 있는 구성원은 해당 순서로, 없는 구성원은 뒤로 (member.order 기준)
+        visibleMembers = visibleMembers.sort((a, b) => {
+          const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 10000 + (a.order || 0)
+          const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 10000 + (b.order || 0)
+          return orderA - orderB
+        })
+      } else {
+        // 프로젝트 선택 안됨 또는 memberOrder 없음: 기존 member.order 사용
+        visibleMembers = visibleMembers.sort((a, b) => (a.order || 0) - (b.order || 0))
       }
 
       visibleMembers.forEach((m) => {
