@@ -7,7 +7,7 @@ TeamScheduler는 팀 일정 관리를 위한 웹 애플리케이션입니다. �
 ### 주요 기능
 
 - **타임라인 기반 일정 관리**: 연간 달력 형태로 일정 시각화
-- **드래그 앤 드롭**: 일정 이동 및 기간 조절 (리사이즈)
+- **드래그 앤 드롭**: 일정 이동 및 기간 조절 (리사이즈), 구성원 탭 순서 변경
 - **구성원 관리**: 팀원 추가/수정/삭제, 직군 관리, 숨김 처리
 - **프로젝트 관리**: 프로젝트/조직 단위로 구성원 그룹화
 - **공휴일 관리**: 한국 공휴일 자동 등록 및 커스텀 휴일 추가
@@ -213,14 +213,20 @@ interface Project {
   color: string
   description?: string
   type: ProjectType
-  memberIds: string[]   // 참여 구성원 ID 배열
-  isHidden: boolean     // 숨김 여부 (종료된 프로젝트)
+  memberIds: string[]     // 참여 구성원 ID 배열
+  memberOrder?: string[]  // 프로젝트 내 구성원 표시 순서 (구성원 ID 배열)
+  isHidden: boolean       // 숨김 여부 (종료된 프로젝트)
   order: number
   createdBy: string
   createdAt: number
   updatedAt: number
 }
 ```
+
+**memberOrder 필드 설명:**
+- 각 프로젝트는 독립적인 구성원 표시 순서를 가짐
+- `memberOrder`가 없으면 전역 `member.order` 기준으로 정렬
+- TeamTabs, ScheduleGrid.rows, ScheduleGrid.memberGroups 3곳에서 동기화된 정렬 적용
 
 ### GlobalEvent (글로벌 이벤트)
 ```typescript
@@ -620,6 +626,73 @@ storage.setString(STORAGE_KEYS.ZOOM_LEVEL, level.toString())
 
 ## 주요 컴포넌트 상세
 
+### TeamTabs (구성원 탭)
+
+구성원 탭 컴포넌트로 드래그 앤 드롭 순서 변경을 지원합니다.
+
+**주요 기능:**
+- 구성원 탭 렌더링 (통합 탭 + 개별 구성원 탭)
+- 드래그 앤 드롭으로 탭 순서 변경
+- 프로젝트별 독립적인 순서 관리 (`project.memberOrder`)
+- 삽입 위치 표시 (탭 사이 세로 라인 인디케이터)
+
+**드래그 앤 드롭 구현:**
+```typescript
+// 삽입 위치 상태 (탭 사이)
+const [insertPosition, setInsertPosition] = useState<number | null>(null)
+
+// 드래그 오버 시 삽입 위치 계산 (탭의 왼쪽/오른쪽 절반 감지)
+const handleDragOver = (e: React.DragEvent, memberIndex: number) => {
+  const rect = e.currentTarget.getBoundingClientRect()
+  const midX = rect.left + rect.width / 2
+  setInsertPosition(e.clientX < midX ? memberIndex : memberIndex + 1)
+}
+
+// 드롭 시 project.memberOrder 업데이트
+const handleDrop = async () => {
+  if (selectedProjectId && insertPosition !== null) {
+    const newOrder = [...sortedMembers.map(m => m.id)]
+    // 드래그된 항목 이동
+    newOrder.splice(fromIndex, 1)
+    newOrder.splice(toIndex, 0, draggedMemberId)
+
+    await updateProject(workspaceId, selectedProjectId, { memberOrder: newOrder })
+  }
+}
+```
+
+**삽입 인디케이터 컴포넌트:**
+```typescript
+const InsertIndicator = () => (
+  <div className="flex items-center h-full py-1">
+    <div className="w-0.5 h-8 bg-primary rounded-full animate-pulse" />
+  </div>
+)
+```
+
+**정렬 동기화:**
+- `TeamTabs.sortedMembers`: 탭 표시용
+- `ScheduleGrid.rows`: 그리드 행 데이터용
+- `ScheduleGrid.memberGroups`: 통합 탭 구성원 이름용
+
+세 곳 모두 동일한 정렬 로직을 적용하여 일관성 유지:
+
+```typescript
+// 프로젝트가 선택되어 있고 memberOrder가 있으면 프로젝트 순서 사용
+if (selectedProject && selectedProject.memberOrder?.length > 0) {
+  const orderMap = new Map(selectedProject.memberOrder.map((id, i) => [id, i]))
+  return members.sort((a, b) => {
+    const orderA = orderMap.has(a.id) ? orderMap.get(a.id)! : 10000 + (a.order || 0)
+    const orderB = orderMap.has(b.id) ? orderMap.get(b.id)! : 10000 + (b.order || 0)
+    return orderA - orderB
+  })
+}
+// 그렇지 않으면 전역 order 사용
+return members.sort((a, b) => (a.order || 0) - (b.order || 0))
+```
+
+---
+
 ### ScheduleGrid
 
 타임라인의 메인 그리드 컴포넌트 (~1,000줄).
@@ -965,4 +1038,4 @@ npm run lint
 
 ---
 
-*문서 최종 업데이트: 2026-01-20*
+*문서 최종 업데이트: 2026-01-26*
