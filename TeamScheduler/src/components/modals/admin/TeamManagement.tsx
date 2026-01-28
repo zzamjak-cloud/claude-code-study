@@ -3,28 +3,12 @@
 import { useState, useMemo } from 'react'
 import { Plus, Users, Check, Trash2, Pencil, Filter, Search, Crown, X, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../../../store/useAppStore'
-import { addTeamMember, updateTeamMember, deleteTeamMember } from '../../../lib/firebase/firestore'
+import { addTeamMember, updateTeamMember, deleteTeamMember, updateCustomJobTitles } from '../../../lib/firebase/firestore'
 import { ConfirmDialog } from '../../common/ConfirmDialog'
 import { MemberStatus } from '../../../types/team'
-import { storage, STORAGE_KEYS } from '../../../lib/utils/storage'
 
 // 기본 직군 카테고리
 const DEFAULT_JOB_TITLES = ['기획', '기술', '아트', 'QA', '사업', '마케팅', '경영진']
-
-// localStorage에서 커스텀 직군 로드
-const getCustomJobTitles = (): string[] => {
-  if (typeof window !== 'undefined') {
-    return storage.get<string[]>(STORAGE_KEYS.CUSTOM_JOB_TITLES, [])
-  }
-  return []
-}
-
-// 커스텀 직군 저장
-const saveCustomJobTitles = (titles: string[]) => {
-  if (typeof window !== 'undefined') {
-    storage.set(STORAGE_KEYS.CUSTOM_JOB_TITLES, titles)
-  }
-}
 
 // 랜덤 색상 생성
 const getRandomColor = () => {
@@ -36,7 +20,15 @@ const getRandomColor = () => {
 }
 
 export function TeamManagement() {
-  const { workspaceId, members, addMember: addMemberToStore, deleteMember: deleteMemberFromStore } = useAppStore()
+  const {
+    workspaceId,
+    members,
+    customJobTitles,
+    addMember: addMemberToStore,
+    deleteMember: deleteMemberFromStore,
+    addCustomJobTitle,
+    removeCustomJobTitle,
+  } = useAppStore()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [jobTitle, setJobTitle] = useState('')
@@ -46,8 +38,7 @@ export function TeamManagement() {
   const [filterJobTitle, setFilterJobTitle] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // 커스텀 직군 관리
-  const [customJobTitles, setCustomJobTitles] = useState<string[]>(getCustomJobTitles)
+  // 커스텀 직군 UI 상태
   const [showAddJobTitle, setShowAddJobTitle] = useState(false)
   const [newJobTitle, setNewJobTitle] = useState('')
 
@@ -56,29 +47,52 @@ export function TeamManagement() {
     return [...DEFAULT_JOB_TITLES, ...customJobTitles]
   }, [customJobTitles])
 
-  // 커스텀 직군 추가
-  const handleAddJobTitle = () => {
+  // 커스텀 직군 추가 (Firebase 동기화)
+  const handleAddJobTitle = async () => {
     const trimmed = newJobTitle.trim()
-    if (!trimmed) return
+    if (!trimmed || !workspaceId) return
     if (allJobTitles.includes(trimmed)) {
       alert('이미 존재하는 직군입니다.')
       return
     }
-    const updated = [...customJobTitles, trimmed]
-    setCustomJobTitles(updated)
-    saveCustomJobTitles(updated)
+
+    // 새 배열을 먼저 계산 (상태 업데이트 전에)
+    const updatedTitles = [...customJobTitles, trimmed]
+
+    // UI 상태 업데이트
     setNewJobTitle('')
     setShowAddJobTitle(false)
     setJobTitle(trimmed) // 새로 추가한 직군 자동 선택
+
+    // Firebase에 먼저 저장
+    try {
+      await updateCustomJobTitles(workspaceId, updatedTitles)
+      // 성공하면 로컬 상태 업데이트
+      addCustomJobTitle(trimmed)
+    } catch (error) {
+      console.error('커스텀 직군 저장 실패:', error)
+      alert('직군 추가에 실패했습니다.')
+      setJobTitle('')
+    }
   }
 
-  // 커스텀 직군 삭제
-  const handleRemoveJobTitle = (title: string) => {
-    if (DEFAULT_JOB_TITLES.includes(title)) return // 기본 직군은 삭제 불가
-    const updated = customJobTitles.filter(t => t !== title)
-    setCustomJobTitles(updated)
-    saveCustomJobTitles(updated)
-    if (jobTitle === title) setJobTitle('')
+  // 커스텀 직군 삭제 (Firebase 동기화)
+  const handleRemoveJobTitle = async (title: string) => {
+    if (DEFAULT_JOB_TITLES.includes(title) || !workspaceId) return // 기본 직군은 삭제 불가
+
+    // 새 배열을 먼저 계산
+    const updatedTitles = customJobTitles.filter(t => t !== title)
+
+    // Firebase에 먼저 저장
+    try {
+      await updateCustomJobTitles(workspaceId, updatedTitles)
+      // 성공하면 로컬 상태 업데이트
+      removeCustomJobTitle(title)
+      if (jobTitle === title) setJobTitle('')
+    } catch (error) {
+      console.error('커스텀 직군 삭제 실패:', error)
+      alert('직군 삭제에 실패했습니다.')
+    }
   }
 
   // 편집 상태 (선택된 구성원 ID, 상태는 수정 모드에서만)

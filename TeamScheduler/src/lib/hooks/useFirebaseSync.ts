@@ -9,6 +9,7 @@ import { useProjectsSync } from './firebase/useProjectsSync'
 import { useAnnouncementsSync } from './firebase/useAnnouncementsSync'
 import { useGlobalNoticesSync } from './firebase/useGlobalNoticesSync'
 import { useSuperAdminsSync } from './firebase/useSuperAdminsSync'
+import { useWorkspaceSettingsSync } from './firebase/useWorkspaceSettingsSync'
 
 /**
  * Firebase Firestore 실시간 동기화 통합 훅
@@ -53,11 +54,15 @@ export const useFirebaseSync = (workspaceId: string | null, currentYear: number)
   // 최고 관리자 동기화 - 일회성 조회 (getDocs)
   const { refreshSuperAdmins } = useSuperAdminsSync(workspaceId)
 
+  // 워크스페이스 설정 동기화 - 일회성 조회 (getDocs)
+  const { refreshWorkspaceSettings } = useWorkspaceSettingsSync(workspaceId)
+
   // 새로고침 함수들 반환 (CRUD 작업 후 데이터 갱신에 사용)
   return {
     refreshTeamMembers,
     refreshProjects,
     refreshSuperAdmins,
+    refreshWorkspaceSettings,
   }
 }
 
@@ -71,4 +76,5 @@ export {
   useAnnouncementsSync,
   useGlobalNoticesSync,
   useSuperAdminsSync,
+  useWorkspaceSettingsSync,
 }

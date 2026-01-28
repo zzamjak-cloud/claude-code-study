@@ -39,5 +39,12 @@ export {
   initializePrimarySuperAdmin,
 } from './superAdmin'
 
+// 워크스페이스 설정
+export {
+  fetchWorkspaceSettings,
+  updateCustomJobTitles,
+} from './workspaceSettings'
+export type { WorkspaceSettings } from './workspaceSettings'
+
 // 유틸리티
 export { timestampToNumber, batchUpdate, batchCreate, batchDelete } from './utils'

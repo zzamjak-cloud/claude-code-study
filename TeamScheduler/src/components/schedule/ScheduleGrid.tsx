@@ -1032,7 +1032,7 @@ export function ScheduleGrid() {
                 {globalRows.map((row) => (
                   <div
                     key={`grid-global-bg-${row.rowIndex}`}
-                    className="absolute left-0 right-0"
+                    className="absolute left-0 right-0 pointer-events-none"
                     style={{ top: `${row.rowIndex * cellHeight}px`, height: `${cellHeight}px` }}
                   >
                     <div className="flex absolute inset-0">

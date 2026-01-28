@@ -167,6 +167,21 @@ service cloud.firestore {
       allow delete: if hasAdminAccess(workspaceId);
     }
 
+    // 워크스페이스 설정 (커스텀 직군 등)
+    match /workspaceSettings/{workspaceId} {
+      // 읽기: 인증된 사용자
+      allow read: if request.auth != null;
+
+      // 생성: 인증된 사용자
+      allow create: if request.auth != null;
+
+      // 수정: 관리자만
+      allow update: if hasAdminAccess(workspaceId);
+
+      // 삭제: 관리자만
+      allow delete: if hasAdminAccess(workspaceId);
+    }
+
     // 최고 관리자 목록
     match /superAdmins/{workspaceId}/admins/{adminId} {
       // 읽기: 인증된 사용자 (권한 확인용)

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { X, Plus, Trash2, Shield, Crown } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 import { addSuperAdmin, deleteSuperAdmin } from '../../lib/firebase/firestore'
+import { useSuperAdminsSync } from '../../lib/hooks/useFirebaseSync'
 
 interface SuperAdminManagerModalProps {
   onClose: () => void
@@ -17,6 +18,9 @@ const PRIMARY_ADMIN_EMAIL = (import.meta.env.VITE_ADMIN_EMAILS || '')
 
 export default function SuperAdminManagerModal({ onClose }: SuperAdminManagerModalProps) {
   const { workspaceId, currentUser, superAdmins } = useAppStore()
+
+  // 최고 관리자 새로고침 함수 (일회성 조회 방식이므로 CRUD 후 수동 갱신 필요)
+  const { refreshSuperAdmins } = useSuperAdminsSync(workspaceId)
 
   // 입력 상태
   const [name, setName] = useState('')
@@ -59,6 +63,7 @@ export default function SuperAdminManagerModal({ onClose }: SuperAdminManagerMod
 
     try {
       await addSuperAdmin(workspaceId, { name: trimmedName, email: trimmedEmail }, currentUser.uid)
+      await refreshSuperAdmins() // 목록 즉시 갱신
       setName('')
       setEmail('')
     } catch (err) {
@@ -75,6 +80,7 @@ export default function SuperAdminManagerModal({ onClose }: SuperAdminManagerMod
 
     try {
       await deleteSuperAdmin(workspaceId, adminId)
+      await refreshSuperAdmins() // 목록 즉시 갱신
       setDeleteConfirm(null)
     } catch (err) {
       console.error('최고 관리자 삭제 실패:', err)

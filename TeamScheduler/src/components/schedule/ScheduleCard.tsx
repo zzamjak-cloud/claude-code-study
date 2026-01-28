@@ -386,7 +386,6 @@ export const ScheduleCard = memo(function ScheduleCard({
     isDragging,
     isResizing,
     isColliding,
-    isPast,
   })
 
   return (

@@ -40,5 +40,12 @@ export {
   initializePrimarySuperAdmin,
 } from './firestore/superAdmin'
 
+// 워크스페이스 설정
+export {
+  fetchWorkspaceSettings,
+  updateCustomJobTitles,
+} from './firestore/workspaceSettings'
+export type { WorkspaceSettings } from './firestore/workspaceSettings'
+
 // 유틸리티 및 배치 작업
 export { timestampToNumber, batchUpdate, batchCreate, batchDelete } from './firestore/utils'

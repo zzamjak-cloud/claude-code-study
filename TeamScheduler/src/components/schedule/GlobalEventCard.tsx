@@ -332,13 +332,9 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   return (
     <>
       <Rnd
-        key={`${event.id}-${x}-${y}-${currentWidth}-${snapKey}`}
-        default={{
-          x: x + CARD_MARGIN,
-          y: y + CARD_MARGIN,
-          width: currentWidth - CARD_MARGIN * 2,
-          height: cellHeight - CARD_MARGIN * 2,
-        }}
+        key={`${event.id}-${snapKey}`}
+        position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
+        size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}
@@ -355,6 +351,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
             backgroundColor: event.color || '#f59e0b',
             color: event.textColor || '#ffffff',
           }}
+          onMouseDown={(e) => e.stopPropagation()}
           onDoubleClick={handleDoubleClick}
           onClick={handleClick}
           onContextMenu={handleContextMenu}

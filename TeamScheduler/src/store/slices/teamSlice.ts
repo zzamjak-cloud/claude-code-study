@@ -16,6 +16,7 @@ export interface TeamSlice {
   members: TeamMember[]
   selectedMemberId: string | null  // 현재 선택된 탭 (null = 통합 탭)
   hiddenMembers: TeamMember[]      // 숨겨진 팀원 (보관함)
+  customJobTitles: string[]        // 커스텀 직군 목록 (Firebase 동기화)
 
   // 메서드
   setMembers: (members: TeamMember[]) => void
@@ -26,6 +27,9 @@ export interface TeamSlice {
   updateMember: (memberId: string, updates: Partial<TeamMember>) => void
   reorderMembers: (reorderedMembers: TeamMember[]) => void
   selectMember: (memberId: string | null) => void
+  setCustomJobTitles: (titles: string[]) => void
+  addCustomJobTitle: (title: string) => void
+  removeCustomJobTitle: (title: string) => void
 }
 
 export const createTeamSlice = (set: any): TeamSlice => ({
@@ -33,6 +37,7 @@ export const createTeamSlice = (set: any): TeamSlice => ({
   members: [],
   selectedMemberId: getInitialSelectedMemberId(),  // localStorage에서 로드
   hiddenMembers: [],
+  customJobTitles: [],  // Firebase에서 로드
 
   // 팀원 목록 설정 (Firebase 동기화용)
   setMembers: (members) => set({ members }),
@@ -98,4 +103,19 @@ export const createTeamSlice = (set: any): TeamSlice => ({
     }
     set({ selectedMemberId: memberId })
   },
+
+  // 커스텀 직군 목록 설정 (Firebase 동기화용)
+  setCustomJobTitles: (titles) => set({ customJobTitles: titles }),
+
+  // 커스텀 직군 추가
+  addCustomJobTitle: (title) =>
+    set((state: TeamSlice) => ({
+      customJobTitles: [...state.customJobTitles, title],
+    })),
+
+  // 커스텀 직군 삭제
+  removeCustomJobTitle: (title) =>
+    set((state: TeamSlice) => ({
+      customJobTitles: state.customJobTitles.filter((t: string) => t !== title),
+    })),
 })

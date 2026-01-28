@@ -231,15 +231,13 @@ export function getCardClassName(options: {
   isDragging: boolean
   isResizing: boolean
   isColliding?: boolean
-  isPast?: boolean
 }) {
-  const { isReadOnly, isSelected, isDragging, isResizing, isColliding = false, isPast = false } = options
+  const { isReadOnly, isSelected, isDragging, isResizing, isColliding = false } = options
 
   return `h-full rounded-md border-2 transition-all select-none relative overflow-hidden
     ${isReadOnly ? 'cursor-default' : 'cursor-move'}
     ${isColliding ? 'border-red-500 shadow-lg shadow-red-500/30' : ''}
     ${isSelected ? 'border-white ring-2 ring-primary' : 'border-transparent hover:border-white/30'}
     ${isDragging || isResizing ? 'opacity-90 shadow-xl scale-[1.02]' : ''}
-    ${isPast ? 'opacity-60' : ''}
   `
 }
