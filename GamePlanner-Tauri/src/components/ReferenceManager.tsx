@@ -88,7 +88,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
         unlisten()
       }
     }
-  }, [referenceFiles, sessionId, sessions])
+  }, [sessionId]) // sessionId만 의존성으로 유지 (리스너 중복 등록 방지)
 
   // 파일 경로 배열을 처리하여 참조 파일 추가 (공통 로직)
   const processFiles = async (filePaths: string[]) => {
@@ -96,12 +96,17 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
 
     const newFiles: ReferenceFile[] = []
 
+    // 최신 상태를 직접 가져옴 (클로저 문제 방지)
+    const currentSession = useAppStore.getState().sessions.find(s => s.id === sessionId)
+    const currentReferenceFiles = currentSession?.referenceFiles || []
+
     for (const filePath of filePaths) {
       try {
         const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
 
-        // 이미 등록된 파일인지 확인
-        if (referenceFiles.some(f => f.filePath === filePath)) {
+        // 이미 등록된 파일인지 확인 (최신 상태 사용)
+        if (currentReferenceFiles.some(f => f.filePath === filePath) ||
+            newFiles.some(f => f.filePath === filePath)) {
           alert(`파일 "${fileName}"은(는) 이미 등록되어 있습니다.`)
           continue
         }
@@ -153,12 +158,14 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
     }
 
     if (newFiles.length > 0) {
-      const updatedFiles = [...referenceFiles, ...newFiles]
+      // 최신 상태 다시 가져옴 (비동기 처리 중 변경 가능성)
+      const latestSession = useAppStore.getState().sessions.find(s => s.id === sessionId)
+      const latestReferenceFiles = latestSession?.referenceFiles || []
+      const updatedFiles = [...latestReferenceFiles, ...newFiles]
       setReferenceFiles(updatedFiles)
 
       // 세션 업데이트
-      const session = sessions.find(s => s.id === sessionId)
-      if (session) {
+      if (latestSession) {
         updateSession(sessionId, {
           referenceFiles: updatedFiles,
         })
