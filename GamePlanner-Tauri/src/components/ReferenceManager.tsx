@@ -19,21 +19,19 @@ interface ReferenceManagerProps {
 export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
   const { sessions, updateSession } = useAppStore()
   const [isAdding, setIsAdding] = useState(false)
+  const [processingFileName, setProcessingFileName] = useState<string | null>(null) // 현재 처리 중인 파일명
   const [showHelpModal, setShowHelpModal] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [summaryViewFile, setSummaryViewFile] = useState<ReferenceFile | null>(null)
-  const [referenceFiles, setReferenceFiles] = useState<ReferenceFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
 
   // Google Spreadsheet URL 입력 모달 상태
   const [showUrlModal, setShowUrlModal] = useState(false)
   const [sheetUrl, setSheetUrl] = useState('')
 
-  // 세션에서 참조 파일 목록 가져오기
-  useEffect(() => {
-    const session = sessions.find(s => s.id === sessionId)
-    setReferenceFiles(session?.referenceFiles || [])
-  }, [sessions, sessionId])
+  // store에서 직접 참조 파일 목록 가져오기 (로컬 state 제거로 동기화 문제 해결)
+  const session = sessions.find(s => s.id === sessionId)
+  const referenceFiles = session?.referenceFiles || []
 
   // Tauri 드래그 앤 드롭 이벤트 리스너 설정
   useEffect(() => {
@@ -104,7 +102,10 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
       try {
         const fileName = filePath.split(/[/\\]/).pop() || 'unknown'
 
-        // 이미 등록된 파일인지 확인 (최신 상태 사용)
+        // 현재 처리 중인 파일명 표시
+        setProcessingFileName(fileName)
+
+        // 이미 등록된 파일인지 확인 (최신 상태 + 이번에 추가된 파일 모두 확인)
         if (currentReferenceFiles.some(f => f.filePath === filePath) ||
             newFiles.some(f => f.filePath === filePath)) {
           alert(`파일 "${fileName}"은(는) 이미 등록되어 있습니다.`)
@@ -162,9 +163,8 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
       const latestSession = useAppStore.getState().sessions.find(s => s.id === sessionId)
       const latestReferenceFiles = latestSession?.referenceFiles || []
       const updatedFiles = [...latestReferenceFiles, ...newFiles]
-      setReferenceFiles(updatedFiles)
 
-      // 세션 업데이트
+      // 세션 업데이트 (store만 업데이트, 로컬 state 제거됨)
       if (latestSession) {
         updateSession(sessionId, {
           referenceFiles: updatedFiles,
@@ -174,6 +174,7 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
       }
     }
 
+    setProcessingFileName(null)
     setIsAdding(false)
   }
 
@@ -251,12 +252,13 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
   const confirmDelete = async () => {
     if (!deleteConfirm) return
 
-    const updatedFiles = referenceFiles.filter(f => f.id !== deleteConfirm)
-    setReferenceFiles(updatedFiles)
+    // 최신 상태에서 필터링
+    const currentSession = useAppStore.getState().sessions.find(s => s.id === sessionId)
+    const currentReferenceFiles = currentSession?.referenceFiles || []
+    const updatedFiles = currentReferenceFiles.filter(f => f.id !== deleteConfirm)
 
-    // 세션 업데이트
-    const session = sessions.find(s => s.id === sessionId)
-    if (session) {
+    // 세션 업데이트 (store만 업데이트)
+    if (currentSession) {
       updateSession(sessionId, {
         referenceFiles: updatedFiles,
       })
@@ -304,6 +306,24 @@ export function ReferenceManager({ sessionId }: ReferenceManagerProps) {
           <div className="bg-card border-2 border-primary border-dashed rounded-lg px-6 py-4">
             <p className="text-lg font-semibold text-primary">파일을 여기에 드롭하세요</p>
             <p className="text-sm text-muted-foreground mt-1">PDF, Excel, CSV, Markdown, Text 파일 지원</p>
+          </div>
+        </div>
+      )}
+
+      {/* 파일 처리 중 오버레이 */}
+      {isAdding && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/80 rounded-lg z-10">
+          <div className="bg-card border border-border rounded-lg px-6 py-4 shadow-lg text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-3" />
+            <p className="text-sm font-medium">파일 처리 중...</p>
+            {processingFileName && (
+              <p className="text-xs text-muted-foreground mt-1 max-w-48 truncate">
+                {processingFileName}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-2">
+              AI가 파일을 분석하고 요약을 생성하고 있습니다
+            </p>
           </div>
         </div>
       )}
