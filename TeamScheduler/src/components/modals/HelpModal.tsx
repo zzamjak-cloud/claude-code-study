@@ -171,7 +171,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
             </h3>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>화면 최상단의 "특이사항" 행은 모든 구성원에게 공유되는 일정입니다.</p>
-              <p>관리자만 통합 탭에서 편집할 수 있으며, 구성원 탭에서는 읽기 전용으로 표시됩니다.</p>
+              <p>각 프로젝트에 귀속되어 관리되며, 모든 구성원이 특이사항을 편집할 수 있습니다.</p>
             </div>
           </section>
         </div>

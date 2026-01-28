@@ -75,9 +75,15 @@ export function ScheduleEditPopup({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSave()
+      e.stopPropagation()
+      // 현재 입력 필드의 최신 값으로 저장
+      if (projectIdValue) {
+        setLastSelectedProjectId(projectIdValue)
+      }
+      onSave(titleValue, commentValue, linkValue, projectIdValue || undefined)
     } else if (e.key === 'Escape') {
       e.preventDefault()
+      e.stopPropagation()
       onCancel()
     } else if (e.key === 'Tab') {
       // 탭 키로 다음 필드로 이동
@@ -130,6 +136,7 @@ export function ScheduleEditPopup({
           <select
             value={projectIdValue}
             onChange={(e) => setProjectIdValue(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
             <option value="">프로젝트 선택 안함</option>

@@ -68,12 +68,44 @@ export function useCardInteractions({
   // 편집 팝업 상태
   const [editPopup, setEditPopup] = useState<{ x: number; y: number } | null>(null)
 
-  // Delete 키 이벤트 핸들러
+  // 키보드 이벤트 핸들러
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Delete/Backspace 키로 삭제
       if (isSelected && (e.key === 'Delete' || e.key === 'Backspace') && !editPopup) {
         e.preventDefault()
         setShowDeleteConfirm(true)
+      }
+      // Enter 키로 편집 팝업 열기
+      if (isSelected && e.key === 'Enter' && !editPopup && !isReadOnly) {
+        e.preventDefault()
+        const rect = cardRef.current?.getBoundingClientRect()
+        if (rect) {
+          // 스마트 포지셔닝: 화면 크기 기반 위치 계산
+          const POPUP_HEIGHT = 320
+          const POPUP_WIDTH = 300
+          const MARGIN = 8
+
+          const viewportHeight = window.innerHeight
+          const viewportWidth = window.innerWidth
+
+          let x = rect.left
+          let y = rect.bottom + MARGIN
+
+          // 하단 공간 부족 시 카드 위로 표시
+          if (y + POPUP_HEIGHT > viewportHeight) {
+            y = rect.top - POPUP_HEIGHT - MARGIN
+          }
+          if (y < 0) y = MARGIN
+
+          // 좌우 경계 체크
+          if (x + POPUP_WIDTH > viewportWidth) {
+            x = viewportWidth - POPUP_WIDTH - MARGIN
+          }
+          if (x < 0) x = MARGIN
+
+          setEditPopup({ x, y })
+        }
       }
       // Escape 키로 선택 해제
       if (e.key === 'Escape') {
@@ -89,7 +121,7 @@ export function useCardInteractions({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isSelected, editPopup])
+  }, [isSelected, editPopup, isReadOnly])
 
   // 카드 외부 클릭 시 선택 해제
   useEffect(() => {
@@ -108,17 +140,37 @@ export function useCardInteractions({
     }
   }, [isSelected])
 
-  // 더블 클릭: 편집 팝업 표시
+  // 더블 클릭: 편집 팝업 표시 (스마트 포지셔닝)
   const handleDoubleClick = (e: React.MouseEvent) => {
     if (isReadOnly) return
     e.stopPropagation()
 
     const rect = cardRef.current?.getBoundingClientRect()
     if (rect) {
-      setEditPopup({
-        x: rect.left,
-        y: rect.bottom + 8,
-      })
+      // 스마트 포지셔닝: 화면 크기 기반 위치 계산
+      const POPUP_HEIGHT = 320
+      const POPUP_WIDTH = 300
+      const MARGIN = 8
+
+      const viewportHeight = window.innerHeight
+      const viewportWidth = window.innerWidth
+
+      let x = rect.left
+      let y = rect.bottom + MARGIN
+
+      // 하단 공간 부족 시 카드 위로 표시
+      if (y + POPUP_HEIGHT > viewportHeight) {
+        y = rect.top - POPUP_HEIGHT - MARGIN
+      }
+      if (y < 0) y = MARGIN
+
+      // 좌우 경계 체크
+      if (x + POPUP_WIDTH > viewportWidth) {
+        x = viewportWidth - POPUP_WIDTH - MARGIN
+      }
+      if (x < 0) x = MARGIN
+
+      setEditPopup({ x, y })
     }
   }
 
