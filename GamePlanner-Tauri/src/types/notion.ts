@@ -81,6 +81,24 @@ export interface NotionDividerBlock extends NotionBlock {
   divider: Record<string, never>
 }
 
+// 테이블 블록 타입
+export interface NotionTableBlock extends NotionBlock {
+  type: 'table'
+  table: {
+    table_width: number
+    has_column_header: boolean
+    has_row_header: boolean
+    children: NotionTableRowBlock[]
+  }
+}
+
+export interface NotionTableRowBlock extends NotionBlock {
+  type: 'table_row'
+  table_row: {
+    cells: NotionRichText[][]
+  }
+}
+
 export interface NotionPage {
   id: string
   object: 'page'

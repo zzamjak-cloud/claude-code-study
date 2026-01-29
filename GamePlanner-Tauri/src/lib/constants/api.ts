@@ -4,7 +4,7 @@ export const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1
 
 export const GEMINI_MODELS = {
   FLASH: 'gemini-2.5-flash',
-  FLASH_EXP: 'gemini-2.0-flash-exp',
+  FLASH_EXP: 'gemini-2.0-flash', // gemini-2.0-flash-exp → gemini-2.0-flash (Google Search Grounding 지원)
   PRO: 'gemini-2.0-pro',
 } as const
 

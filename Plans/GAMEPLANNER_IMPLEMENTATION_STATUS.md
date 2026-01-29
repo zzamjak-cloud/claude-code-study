@@ -2,8 +2,8 @@
 
 > **AI를 위한 프로젝트 가이드**: 이 문서는 AI가 프로젝트를 빠르게 이해하고 작업할 수 있도록 핵심 정보를 정리한 것입니다.
 >
-> **최종 업데이트**: 2026-01-07
-> **구현 상태**: Phase 3.6 완료 (안정화 완료)
+> **최종 업데이트**: 2026-01-29
+> **구현 상태**: Phase 3.7 완료 (Notion 테이블 지원)
 
 ---
 
@@ -20,7 +20,7 @@
    - 참조 파일 등록 (PDF, Excel, CSV, Markdown, Text)
 
 2. **게임 분석** (ANALYSIS 세션)
-   - Gemini 2.0 Flash Exp 사용 (Google Search Grounding)
+   - Gemini 2.0 Flash 사용 (Google Search Grounding)
    - 최신 게임 정보 자동 수집
    - 시장 분석, 수익화 전략 등
 
@@ -38,7 +38,7 @@
    - 체크리스트 관리
 
 6. **Notion 연동**
-   - 마크다운 → Notion 블록 변환
+   - 마크다운 → Notion 블록 변환 (테이블 지원)
    - 기획서/분석 보고서 자동 저장
 
 ---
@@ -53,7 +53,7 @@
 | **State** | Zustand | Slice 패턴 사용 |
 | **Storage** | Tauri Plugin Store | `settings.json`로 관리 |
 | **AI (기획)** | Gemini 2.5 Flash | 스트리밍 API |
-| **AI (분석)** | Gemini 2.0 Flash Exp | Google Search Grounding |
+| **AI (분석)** | Gemini 2.0 Flash | Google Search Grounding |
 | **Markdown** | React Markdown | 실시간 렌더링 |
 | **Editor** | Tiptap | 템플릿 에디터 |
 
@@ -404,8 +404,8 @@ GamePlanner-Tauri/
 
 ### 1. Gemini API 제약
 
-- 토큰 제한: `maxOutputTokens: 8192`
-- Google Search Grounding: 베타 기능
+- 토큰 제한: `maxOutputTokens: 32768`
+- Google Search Grounding 지원
 
 ### 2. Notion API 제약
 
@@ -413,6 +413,7 @@ GamePlanner-Tauri/
 - API 속도 제한: 초당 3회 요청
 - 중첩 리스트: 2단계까지만 지원
 - 헤더 제한: h3 이하 지원하지 않음
+- 테이블: 마크다운 테이블 → Notion 테이블 블록 변환 지원
 
 ### 3. 로컬 저장소
 

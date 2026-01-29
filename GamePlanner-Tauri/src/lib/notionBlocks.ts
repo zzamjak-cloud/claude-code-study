@@ -3,7 +3,7 @@
  */
 
 import { fetch } from '@tauri-apps/plugin-http'
-import { NotionBlock, NotionRichText, NotionBulletedListItemBlock } from '../types/notion'
+import { NotionBlock, NotionRichText, NotionBulletedListItemBlock, NotionTableBlock, NotionTableRowBlock } from '../types/notion'
 import { devLog } from './utils/logger'
 
 /**
@@ -133,6 +133,14 @@ function processLines(lines: string[], startIdx: number, endIdx: number, current
         })
       }
       i++
+    }
+    // 마크다운 테이블 (| 로 시작하는 행)
+    else if (isTableRow(trimmedLine)) {
+      const result = processTable(lines, i, endIdx)
+      if (result.block) {
+        blocks.push(result.block)
+      }
+      i = result.nextIdx
     }
     // 일반 문단
     else {
@@ -264,6 +272,117 @@ function processListItem(lines: string[], startIdx: number, endIdx: number, curr
   }
 
   return { block, nextIdx: i }
+}
+
+/**
+ * 테이블 행인지 확인 (| 로 시작하고 | 로 끝나는 행)
+ */
+function isTableRow(line: string): boolean {
+  const trimmed = line.trim()
+  return trimmed.startsWith('|') && trimmed.endsWith('|')
+}
+
+/**
+ * 테이블 구분선인지 확인 (|---|---| 또는 |:---|:---| 등)
+ */
+function isTableSeparator(line: string): boolean {
+  const trimmed = line.trim()
+  if (!trimmed.startsWith('|') || !trimmed.endsWith('|')) {
+    return false
+  }
+  // | 사이에 -, :, 공백만 있는지 확인
+  const inner = trimmed.slice(1, -1)
+  return /^[\s\-:|]+$/.test(inner)
+}
+
+/**
+ * 테이블 행을 셀 배열로 파싱
+ */
+function parseTableCells(line: string): string[] {
+  const trimmed = line.trim()
+  // 앞뒤 | 제거 후 | 로 분리
+  const inner = trimmed.slice(1, -1)
+  return inner.split('|').map(cell => cell.trim())
+}
+
+/**
+ * 마크다운 테이블을 Notion 테이블 블록으로 변환
+ */
+function processTable(lines: string[], startIdx: number, endIdx: number): { block: NotionBlock | null, nextIdx: number } {
+  const tableRows: string[][] = []
+  let i = startIdx
+  let hasHeader = false
+
+  // 테이블 행 수집
+  while (i < endIdx) {
+    const line = lines[i]
+    const trimmedLine = line.trim()
+
+    // 빈 줄이면 테이블 종료
+    if (!trimmedLine) {
+      break
+    }
+
+    // 테이블 행이 아니면 종료
+    if (!isTableRow(trimmedLine)) {
+      break
+    }
+
+    // 구분선인지 확인
+    if (isTableSeparator(trimmedLine)) {
+      hasHeader = true
+      i++
+      continue
+    }
+
+    // 셀 파싱
+    const cells = parseTableCells(trimmedLine)
+    if (cells.length > 0) {
+      tableRows.push(cells)
+    }
+    i++
+  }
+
+  // 유효한 테이블인지 확인 (최소 1행 필요)
+  if (tableRows.length === 0) {
+    return { block: null, nextIdx: i }
+  }
+
+  // 열 개수 (가장 많은 셀 개수 기준)
+  const tableWidth = Math.max(...tableRows.map(row => row.length))
+
+  // Notion 테이블 행 생성
+  const notionRows: NotionTableRowBlock[] = tableRows.map(row => {
+    // 모든 행의 셀 개수를 tableWidth에 맞추기
+    const cells: NotionRichText[][] = []
+    for (let j = 0; j < tableWidth; j++) {
+      const cellText = row[j] || ''
+      const truncatedCell = cellText.length > 2000 ? cellText.substring(0, 1997) + '...' : cellText
+      cells.push(parseInlineFormatting(truncatedCell))
+    }
+
+    return {
+      object: 'block' as const,
+      type: 'table_row' as const,
+      table_row: {
+        cells,
+      },
+    }
+  })
+
+  // Notion 테이블 블록 생성
+  const tableBlock: NotionTableBlock = {
+    object: 'block',
+    type: 'table',
+    table: {
+      table_width: tableWidth,
+      has_column_header: hasHeader,
+      has_row_header: false,
+      children: notionRows,
+    },
+  }
+
+  return { block: tableBlock, nextIdx: i }
 }
 
 /**
