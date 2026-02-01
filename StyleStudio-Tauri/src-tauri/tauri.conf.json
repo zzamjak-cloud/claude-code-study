@@ -45,7 +45,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI2ODUwRDZEQzQxMzEyMkEKUldRcUVoUEViUTJGdHJFZmVXM1RqL2dZMFFXN3JrRzBGWG4wTXR3Z0VwUGpUc1dqNVdHME5VbVQK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI0Q0I4OEM0QUY4M0RERUUKUldUdTNZT3Z4SWpMSk85bTI5TW1YcllLVzBoMnlZbFdzUHQ2QUJlK2V6VTdvcDUyMDFkUjYrWk8K",
       "endpoints": [
         "https://github.com/zzamjak-cloud/claude-code-study/releases/download/stylestudio-latest/latest.json"
       ],
