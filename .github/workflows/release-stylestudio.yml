@@ -53,12 +53,27 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # Base64로 인코딩된 키를 디코딩하여 환경 변수로 설정
+      - name: Decode signing key (macOS/Linux)
+        if: matrix.platform != 'windows-latest'
+        run: |
+          echo "${{ secrets.STYLESTUDIO_SIGNING_KEY_BASE64 }}" | base64 --decode > /tmp/signing_key.txt
+          echo "TAURI_SIGNING_PRIVATE_KEY=$(cat /tmp/signing_key.txt)" >> $GITHUB_ENV
+        working-directory: .
+
+      - name: Decode signing key (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("${{ secrets.STYLESTUDIO_SIGNING_KEY_BASE64 }}"))
+          echo "TAURI_SIGNING_PRIVATE_KEY=$key" >> $env:GITHUB_ENV
+        working-directory: .
+
       - name: Build and Release (macOS without Apple signing)
         if: matrix.platform == 'macos-latest'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.STYLESTUDIO_SIGNING_KEY }}
           # Apple 코드 서명 비활성화 (인증서 없음)
           APPLE_SIGNING_IDENTITY: "-"
         with:
@@ -85,7 +100,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.STYLESTUDIO_SIGNING_KEY }}
         with:
           projectPath: ./StyleStudio-Tauri
           tagName: ${{ github.ref_name }}
