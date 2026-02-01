@@ -161,6 +161,36 @@ export function ScheduleGrid() {
     }
   }, [handleScroll])
 
+  // 초기 로드 시 오늘 날짜로 스크롤 (컴포넌트 마운트 시 1회만 실행)
+  const hasScrolledToToday = useRef(false)
+  useEffect(() => {
+    if (hasScrolledToToday.current) return
+    if (!scrollContainerRef.current) return
+    if (visibleDayIndices.length === 0) return
+
+    const today = new Date()
+    const todayYear = today.getFullYear()
+
+    // 현재 연도가 오늘이 속한 연도일 때만 스크롤
+    if (currentYear !== todayYear) return
+
+    const yearStart = new Date(currentYear, 0, 1)
+    const todayDayIndex = Math.floor((today.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
+
+    // 오늘 날짜가 표시 가능한 인덱스에 있는지 확인
+    const todayVisibleIndex = dayIndexToVisibleIndex[todayDayIndex]
+    if (todayVisibleIndex === undefined) return
+
+    // 오늘 날짜를 화면 중앙에 배치하도록 스크롤 위치 계산
+    const container = scrollContainerRef.current
+    const todayPixelX = todayVisibleIndex * cellWidth
+    const scrollTarget = todayPixelX - (container.clientWidth / 2) + (cellWidth / 2)
+
+    // 스크롤 위치는 0 이상이어야 함
+    container.scrollLeft = Math.max(0, scrollTarget)
+    hasScrolledToToday.current = true
+  }, [currentYear, visibleDayIndices, dayIndexToVisibleIndex, cellWidth])
+
   // 하단 패널 리사이즈 핸들러
   const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
