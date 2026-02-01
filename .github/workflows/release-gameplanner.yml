@@ -53,24 +53,21 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      # Base64로 인코딩된 키를 디코딩하여 환경 변수로 설정 (멀티라인 지원)
+      # Base64로 인코딩된 키를 파일로 저장 후 경로 전달
       - name: Decode signing key (macOS/Linux)
         if: matrix.platform != 'windows-latest'
         run: |
-          echo "${{ secrets.GAMEPLANNER_SIGNING_KEY_BASE64 }}" | base64 --decode > /tmp/signing_key.txt
-          echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $GITHUB_ENV
-          cat /tmp/signing_key.txt >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "${{ secrets.GAMEPLANNER_SIGNING_KEY_BASE64 }}" | base64 --decode > /tmp/tauri_signing_key
+          echo "TAURI_SIGNING_PRIVATE_KEY=/tmp/tauri_signing_key" >> $GITHUB_ENV
         working-directory: .
 
       - name: Decode signing key (Windows)
         if: matrix.platform == 'windows-latest'
         shell: pwsh
         run: |
-          $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String("${{ secrets.GAMEPLANNER_SIGNING_KEY_BASE64 }}"))
-          echo "TAURI_SIGNING_PRIVATE_KEY<<EOF" >> $env:GITHUB_ENV
-          echo $key >> $env:GITHUB_ENV
-          echo "EOF" >> $env:GITHUB_ENV
+          $keyBytes = [System.Convert]::FromBase64String("${{ secrets.GAMEPLANNER_SIGNING_KEY_BASE64 }}")
+          [System.IO.File]::WriteAllBytes("$env:TEMP\tauri_signing_key", $keyBytes)
+          echo "TAURI_SIGNING_PRIVATE_KEY=$env:TEMP\tauri_signing_key" >> $env:GITHUB_ENV
         working-directory: .
 
       - name: Build and Release (macOS without Apple signing)
