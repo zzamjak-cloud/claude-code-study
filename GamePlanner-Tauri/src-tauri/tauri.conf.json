@@ -45,7 +45,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY2N0U2MjUyMDkzRDU1MkMKUldRc1ZUMEpVbUorOWd5VTEwcTI2azdKNmFFVUdNVmw1NzgxQ0Mxc2dINTRUUTcyb3RkTUNhNUwK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU5REUyNDY0MzIxOUYwRTIKUldUaThCa3laQ1RlV1N6Z2hxYmNhR3Izd0YzUEdPVlZ0ZkZ1ditQL2txaHFXcUs0NzJUTXRsdWYK",
       "endpoints": [
         "https://github.com/zzamjak-cloud/claude-code-study/releases/download/gameplanner-latest/latest.json"
       ],
