@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import { AuthGuard } from "./components/common/AuthGuard";
 import "./index.css";
 import { listAvailableModels } from "./utils/checkGeminiModels";
 import { loadApiKey } from "./lib/storage";
@@ -23,6 +24,8 @@ console.log('💡 팁: 콘솔에서 listGeminiModels()를 실행하여 사용 �
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
+    <AuthGuard appName="Style Studio">
+      <App />
+    </AuthGuard>
   </React.StrictMode>,
 );

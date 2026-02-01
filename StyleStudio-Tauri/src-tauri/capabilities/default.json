@@ -16,6 +16,8 @@
     "store:allow-get",
     "store:allow-set",
     "store:allow-save",
+    "store:allow-load",
+    "store:allow-delete",
     "store:allow-clear",
     "dialog:default",
     "dialog:allow-open",
@@ -45,11 +47,19 @@
     "fs:allow-download-write-recursive",
     "http:default",
     "http:allow-fetch",
+    "updater:default",
+    "process:default",
     {
       "identifier": "http:default",
       "allow": [
         {
           "url": "https://generativelanguage.googleapis.com/*"
+        },
+        {
+          "url": "https://oauth2.googleapis.com/*"
+        },
+        {
+          "url": "https://accounts.google.com/*"
         }
       ]
     }

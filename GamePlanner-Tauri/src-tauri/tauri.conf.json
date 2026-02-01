@@ -31,12 +31,32 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEY2N0U2MjUyMDkzRDU1MkMKUldRc1ZUMEpVbUorOWd5VTEwcTI2azdKNmFFVUdNVmw1NzgxQ0Mxc2dINTRUUTcyb3RkTUNhNUwK",
+      "endpoints": [
+        "https://github.com/zzamjak-cloud/claude-code-study/releases/download/gameplanner-latest/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["gameplanner"]
+      }
+    }
   }
 }

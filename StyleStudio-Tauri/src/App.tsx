@@ -8,8 +8,10 @@ import { ImageGeneratorPanel } from './components/generator/ImageGeneratorPanel'
 import { SettingsModal } from './components/common/SettingsModal';
 import { SaveSessionModal } from './components/common/SaveSessionModal';
 import { NewSessionModal } from './components/common/NewSessionModal';
+import { UpdateModal } from './components/common/UpdateModal';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
+import { useAutoUpdate } from './hooks/useAutoUpdate';
 import { ProgressIndicator } from './components/common/ProgressIndicator';
 import { ImageAnalysisResult } from './types/analysis';
 import { Session, SessionType } from './types/session';
@@ -103,6 +105,16 @@ function App() {
     reorderFolders,
     getCurrentFolderIdForNewSession,
   } = useFolderManagement();
+
+  // 자동 업데이트
+  const {
+    status: updateStatus,
+    update,
+    progress: updateProgress,
+    error: updateError,
+    downloadAndInstall,
+    dismissUpdate,
+  } = useAutoUpdate();
 
   // 폴더 데이터 초기화
   useEffect(() => {
@@ -1026,6 +1038,16 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* 자동 업데이트 모달 */}
+      <UpdateModal
+        status={updateStatus}
+        update={update}
+        progress={updateProgress}
+        error={updateError}
+        onDownload={downloadAndInstall}
+        onDismiss={dismissUpdate}
+      />
       </div>
     </ErrorBoundary>
   );

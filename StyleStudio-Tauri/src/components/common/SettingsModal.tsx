@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { X, Key, FolderOpen, Trash2 } from 'lucide-react';
+import { X, Key, FolderOpen, Trash2, LogOut, User } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { loadDefaultSessionSavePath, saveDefaultSessionSavePath } from '../../lib/storage';
+import { useAuth } from '../../hooks/useAuth';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -14,10 +15,28 @@ export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: Settin
   const [apiKey, setApiKey] = useState(currentApiKey);
   const [defaultSavePath, setDefaultSavePath] = useState<string | null>(null);
   const [saveNotification, setSaveNotification] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     setApiKey(currentApiKey);
   }, [currentApiKey]);
+
+  // 로그아웃 처리
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      console.log('[Settings] 로그아웃 시작');
+      await logout();
+      console.log('[Settings] 로그아웃 완료');
+      // 강제로 페이지 새로고침하여 로그인 화면으로 전환
+      window.location.reload();
+    } catch (error) {
+      console.error('[Settings] 로그아웃 실패:', error);
+      alert('로그아웃에 실패했습니다.');
+      setIsLoggingOut(false);
+    }
+  };
 
   // 설정 모달이 열릴 때 기본 저장 폴더 로드
   useEffect(() => {
@@ -140,6 +159,39 @@ export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: Settin
             <p className="text-xs text-gray-500 mt-2">
               세션 export 시 기본으로 사용할 폴더를 설정합니다.
             </p>
+          </div>
+
+          {/* 계정 정보 및 로그아웃 */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              <div className="flex items-center gap-2">
+                <User size={16} />
+                로그인 계정
+              </div>
+            </label>
+            <div className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-gray-50">
+              <div className="flex items-center gap-3">
+                {user?.picture && (
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{user?.name || '알 수 없음'}</p>
+                  <p className="text-xs text-gray-500">{user?.email || ''}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <LogOut size={16} />
+                {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
+              </button>
+            </div>
           </div>
         </div>
 

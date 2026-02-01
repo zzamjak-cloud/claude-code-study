@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Style Studio - 다운로드</title>
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a href="index.html" style="color: #94a3b8; text-decoration: none; font-size: 0.9rem;">← 목록으로</a>
+      <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: 1rem;">
+        <div class="app-icon" style="width: 80px; height: 80px; font-size: 3rem;">🎨</div>
+        <div>
+          <h1 style="font-size: 2rem;">Style Studio</h1>
+          <p class="subtitle">AI 기반 이미지 분석 및 생성 도구</p>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- 다운로드 섹션 -->
+      <section class="app-card" style="flex-direction: column; text-align: center;">
+        <h2 style="margin-bottom: 1.5rem;">다운로드</h2>
+        <div class="download-buttons" style="justify-content: center; max-width: none;">
+          <a href="https://github.com/Loadcomplete/stylestudio/releases/latest/download/StyleStudio_universal.dmg"
+             class="download-btn macos" id="stylestudio-macos" style="max-width: 220px;">
+            <span class="icon">🍎</span>
+            <span class="text">
+              <span class="platform">macOS</span>
+              <span class="size">Apple Silicon & Intel</span>
+            </span>
+          </a>
+          <a href="https://github.com/Loadcomplete/stylestudio/releases/latest/download/StyleStudio_x64-setup.exe"
+             class="download-btn windows" id="stylestudio-windows" style="max-width: 220px;">
+            <span class="icon">🪟</span>
+            <span class="text">
+              <span class="platform">Windows</span>
+              <span class="size">64-bit</span>
+            </span>
+          </a>
+        </div>
+
+        <div class="windows-warning" style="max-width: 500px; margin: 1rem auto 0;">
+          <strong>⚠️ Windows 사용자 안내</strong><br>
+          SmartScreen 경고가 표시될 수 있습니다. "추가 정보" → "실행"을 클릭하세요.
+        </div>
+      </section>
+
+      <!-- 기능 소개 -->
+      <section class="app-card" style="flex-direction: column;">
+        <h2>주요 기능</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 1.5rem;">
+          <div>
+            <h3 style="color: #a855f7; margin-bottom: 0.5rem;">🔍 이미지 분석</h3>
+            <p class="description">Gemini 2.5 Flash를 활용한 이미지 스타일, 캐릭터, 구도 분석. 상세 프롬프트 추출.</p>
+          </div>
+          <div>
+            <h3 style="color: #3b82f6; margin-bottom: 0.5rem;">✨ 이미지 생성</h3>
+            <p class="description">Gemini 3 Pro Image로 분석 결과 기반 이미지 생성. Grid 레이아웃 지원.</p>
+          </div>
+          <div>
+            <h3 style="color: #10b981; margin-bottom: 0.5rem;">🎭 9가지 세션 타입</h3>
+            <p class="description">스타일, 캐릭터, 배경, 아이콘, UI, 로고, 픽셀아트(캐릭터/배경/아이콘) 지원.</p>
+          </div>
+          <div>
+            <h3 style="color: #f59e0b; margin-bottom: 0.5rem;">📁 폴더 관리</h3>
+            <p class="description">무제한 깊이의 폴더 구조로 세션 정리. 드래그앤드롭 지원.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 세션 타입 -->
+      <section class="app-card" style="flex-direction: column;">
+        <h2>세션 타입</h2>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem;">
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎨</div>
+            <div style="font-weight: 600;">Style</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">스타일 복제</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🧑‍🎤</div>
+            <div style="font-weight: 600;">Character</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">캐릭터 포즈</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌄</div>
+            <div style="font-weight: 600;">Background</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">배경 스타일</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">⭐</div>
+            <div style="font-weight: 600;">Icon</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">아이콘 생성</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📱</div>
+            <div style="font-weight: 600;">UI</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">게임/앱 UI</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏷️</div>
+            <div style="font-weight: 600;">Logo</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">로고 디자인</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">👾</div>
+            <div style="font-weight: 600;">Pixel Character</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">픽셀아트 캐릭터</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏔️</div>
+            <div style="font-weight: 600;">Pixel Background</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">픽셀아트 배경</div>
+          </div>
+          <div class="feature" style="padding: 1rem; text-align: center;">
+            <div style="font-size: 2rem; margin-bottom: 0.5rem;">💎</div>
+            <div style="font-weight: 600;">Pixel Icon</div>
+            <div style="font-size: 0.8rem; color: #94a3b8;">픽셀아트 아이콘</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 설치 가이드 -->
+      <section class="install-guide">
+        <h3>설치 가이드</h3>
+
+        <h4 style="margin-top: 1rem; color: #e0e0e0;">macOS</h4>
+        <ol>
+          <li><code>.dmg</code> 파일을 다운로드합니다.</li>
+          <li>다운로드된 파일을 더블클릭하여 엽니다.</li>
+          <li>Style Studio 아이콘을 Applications 폴더로 드래그합니다.</li>
+          <li>처음 실행 시 "확인되지 않은 개발자" 경고가 표시되면:
+            <ul>
+              <li>시스템 설정 → 개인정보 보호 및 보안으로 이동</li>
+              <li>"확인 없이 열기" 클릭</li>
+            </ul>
+          </li>
+        </ol>
+
+        <h4 style="margin-top: 1.5rem; color: #e0e0e0;">Windows</h4>
+        <ol>
+          <li><code>.exe</code> 또는 <code>.msi</code> 파일을 다운로드합니다.</li>
+          <li>다운로드된 설치 파일을 실행합니다.</li>
+          <li>SmartScreen 경고가 표시되면:
+            <ul>
+              <li>"추가 정보" 클릭</li>
+              <li>"실행" 클릭</li>
+            </ul>
+          </li>
+          <li>설치 마법사의 안내에 따라 설치를 완료합니다.</li>
+        </ol>
+      </section>
+
+      <!-- 시작하기 -->
+      <section class="app-card" style="flex-direction: column;">
+        <h2>시작하기</h2>
+        <ol style="padding-left: 1.5rem; margin-top: 1rem;">
+          <li style="margin-bottom: 1rem;">
+            <strong>Gemini API Key 발급</strong>
+            <p class="description">
+              <a href="https://aistudio.google.com/apikey" target="_blank" style="color: #a855f7;">
+                Google AI Studio
+              </a>에서 무료로 API Key를 발급받습니다.
+            </p>
+          </li>
+          <li style="margin-bottom: 1rem;">
+            <strong>앱 설정</strong>
+            <p class="description">앱 실행 후 설정(⚙️)에서 API Key를 입력합니다.</p>
+          </li>
+          <li style="margin-bottom: 1rem;">
+            <strong>이미지 분석</strong>
+            <p class="description">새 세션을 만들고 참조 이미지를 업로드하면 AI가 스타일을 분석합니다.</p>
+          </li>
+          <li style="margin-bottom: 1rem;">
+            <strong>이미지 생성</strong>
+            <p class="description">분석 결과를 기반으로 새로운 이미지를 생성합니다.</p>
+          </li>
+        </ol>
+      </section>
+    </main>
+
+    <footer>
+      <p class="copyright">© 2025 Loadcomplete. All rights reserved.</p>
+      <p class="note">이 앱은 Loadcomplete.com 조직 구성원만 사용할 수 있습니다.</p>
+    </footer>
+  </div>
+
+  <script src="assets/download.js"></script>
+</body>
+</html>

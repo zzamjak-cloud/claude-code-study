@@ -1,0 +1,144 @@
+# StyleStudio 릴리스 워크플로우
+# 버전 태그 푸시 시 macOS/Windows 빌드 및 GitHub Releases 업로드
+
+name: Release StyleStudio
+
+on:
+  push:
+    tags:
+      - 'stylestudio-v*'  # stylestudio-v1.0.0 형식의 태그에 반응
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS (Apple Silicon + Intel Universal)
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+          # Windows
+          - platform: windows-latest
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+
+    defaults:
+      run:
+        working-directory: ./StyleStudio-Tauri
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: StyleStudio-Tauri/package-lock.json
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (macOS)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build and Release (macOS with signing)
+        if: matrix.platform == 'macos-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.STYLESTUDIO_SIGNING_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.STYLESTUDIO_SIGNING_KEY_PASSWORD }}
+          # Apple 코드 서명 (선택적)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: ./StyleStudio-Tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: 'StyleStudio ${{ github.ref_name }}'
+          releaseBody: |
+            ## StyleStudio 업데이트
+
+            새 버전이 출시되었습니다. 자세한 변경 사항은 아래를 참조하세요.
+
+            ### 설치 방법
+            - **macOS**: `.dmg` 파일을 다운로드하여 Applications 폴더에 드래그
+            - **Windows**: `.msi` 파일을 다운로드하여 실행
+
+            ---
+            _자동 생성된 릴리스입니다._
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+      - name: Build and Release (Windows)
+        if: matrix.platform == 'windows-latest'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.STYLESTUDIO_SIGNING_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.STYLESTUDIO_SIGNING_KEY_PASSWORD }}
+        with:
+          projectPath: ./StyleStudio-Tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: 'StyleStudio ${{ github.ref_name }}'
+          releaseBody: |
+            ## StyleStudio 업데이트
+
+            새 버전이 출시되었습니다.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  # 롤링 릴리스 업데이트 (자동 업데이트용 고정 URL)
+  update-latest:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download latest.json from versioned release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 버전 릴리스에서 latest.json 다운로드
+          gh release download "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --pattern "latest.json" \
+            --dir ./artifacts
+
+      - name: Update rolling release (stylestudio-latest)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 기존 롤링 릴리스 삭제 (있으면)
+          gh release delete stylestudio-latest \
+            --repo "${{ github.repository }}" \
+            --yes || true
+
+          # 기존 태그 삭제 (있으면)
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/stylestudio-latest" || true
+
+          # 새 롤링 릴리스 생성
+          gh release create stylestudio-latest \
+            --repo "${{ github.repository }}" \
+            --title "StyleStudio Latest (Auto-Update)" \
+            --notes "자동 업데이트용 릴리스입니다. 직접 다운로드하지 마세요. 최신 버전: ${{ github.ref_name }}" \
+            --prerelease \
+            ./artifacts/latest.json

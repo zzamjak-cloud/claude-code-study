@@ -6,10 +6,12 @@ import { MarkdownPreview } from './components/MarkdownPreview'
 import { SettingsModal } from './components/SettingsModal'
 import { Resizer } from './components/Resizer'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { UpdateModal } from './components/UpdateModal'
 import { useAppStore } from './store/useAppStore'
 import { useAppInitialization } from './hooks/useAppInitialization'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useMessageHandler } from './hooks/useMessageHandler'
+import { useAutoUpdate } from './hooks/useAutoUpdate'
 import { CHAT_PANEL_WIDTH } from './lib/constants/ui'
 
 function App() {
@@ -24,6 +26,16 @@ function App() {
   const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null)
   // sessions 구독 제거 - 렉 방지 (필요할 때만 getState()로 가져옴)
   const { apiKey, currentSessionId, createVersion, setActivePreviewTab } = useAppStore()
+
+  // 자동 업데이트
+  const {
+    status: updateStatus,
+    update,
+    progress: updateProgress,
+    error: updateError,
+    downloadAndInstall,
+    dismissUpdate,
+  } = useAutoUpdate()
 
   // 앱 초기화
   useAppInitialization({
@@ -296,6 +308,16 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* 자동 업데이트 모달 */}
+        <UpdateModal
+          status={updateStatus}
+          update={update}
+          progress={updateProgress}
+          error={updateError}
+          onDownload={downloadAndInstall}
+          onDismiss={dismissUpdate}
+        />
       </div>
     </ErrorBoundary>
   )

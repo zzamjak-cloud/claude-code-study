@@ -31,12 +31,32 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIwMzgyQUE3NTdGNjBFQzkKUldUSkR2WlhweW80SUJtK3paVGVTc0N4a3BDbWhXRldCVS9qOWliQyswUWtBdE96NXczdlEyZVYK",
+      "endpoints": [
+        "https://github.com/zzamjak-cloud/claude-code-study/releases/download/stylestudio-latest/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": ["stylestudio"]
+      }
+    }
   }
 }

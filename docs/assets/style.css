@@ -1,0 +1,302 @@
+/* 다운로드 페이지 스타일 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  min-height: 100vh;
+  color: #e0e0e0;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
+/* 헤더 */
+header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #a855f7, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.5rem;
+}
+
+.subtitle {
+  color: #94a3b8;
+  font-size: 1.1rem;
+}
+
+/* 앱 카드 */
+.app-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  display: flex;
+  gap: 2rem;
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.app-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+.app-icon {
+  font-size: 4rem;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(59, 130, 246, 0.2));
+  border-radius: 1.5rem;
+  flex-shrink: 0;
+}
+
+.app-info {
+  flex: 1;
+}
+
+.app-info h2 {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: #fff;
+}
+
+.description {
+  color: #94a3b8;
+  margin-bottom: 1rem;
+}
+
+/* 기능 태그 */
+.features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.feature {
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+  color: #c4b5fd;
+}
+
+/* 다운로드 버튼 */
+.download-buttons {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.download-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s;
+  flex: 1;
+  max-width: 200px;
+}
+
+.download-btn .icon {
+  font-size: 1.5rem;
+}
+
+.download-btn .text {
+  display: flex;
+  flex-direction: column;
+}
+
+.download-btn .platform {
+  font-weight: 600;
+  font-size: 1rem;
+}
+
+.download-btn .size {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+
+.download-btn.macos {
+  background: linear-gradient(135deg, #374151, #1f2937);
+  color: #fff;
+  border: 1px solid #4b5563;
+}
+
+.download-btn.macos:hover {
+  background: linear-gradient(135deg, #4b5563, #374151);
+  transform: translateY(-2px);
+}
+
+.download-btn.windows {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #fff;
+  border: 1px solid #3b82f6;
+}
+
+.download-btn.windows:hover {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  transform: translateY(-2px);
+}
+
+.download-btn.recommended {
+  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.5);
+}
+
+.more-link {
+  color: #a855f7;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.more-link:hover {
+  text-decoration: underline;
+}
+
+/* 푸터 */
+footer {
+  margin-top: 3rem;
+  text-align: center;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.requirements {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  text-align: left;
+}
+
+.requirements h3 {
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.requirements ul {
+  list-style: none;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.requirements li {
+  margin-bottom: 0.5rem;
+}
+
+.requirements strong {
+  color: #e0e0e0;
+}
+
+.copyright {
+  color: #64748b;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.note {
+  color: #f59e0b;
+  font-size: 0.85rem;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  display: inline-block;
+}
+
+/* 반응형 */
+@media (max-width: 640px) {
+  .app-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .app-icon {
+    margin: 0 auto;
+  }
+
+  .features {
+    justify-content: center;
+  }
+
+  .download-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .download-btn {
+    max-width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 설치 가이드 페이지 스타일 */
+.install-guide {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-top: 2rem;
+}
+
+.install-guide h3 {
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.install-guide ol {
+  padding-left: 1.5rem;
+  color: #94a3b8;
+}
+
+.install-guide li {
+  margin-bottom: 0.75rem;
+}
+
+.install-guide code {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.9rem;
+}
+
+/* Windows 경고 */
+.windows-warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-top: 1rem;
+  color: #fcd34d;
+  font-size: 0.9rem;
+}
+
+.windows-warning strong {
+  color: #f59e0b;
+}

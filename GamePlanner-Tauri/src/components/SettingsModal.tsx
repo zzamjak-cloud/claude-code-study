@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { X } from 'lucide-react'
+import { X, LogOut } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { saveSettings } from '../lib/store'
 import { devLog } from '../lib/utils/logger'
+import { useAuth } from '../hooks/useAuth'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [notionPlanningDatabaseIdInput, setNotionPlanningDatabaseIdInput] = useState('')
   const [notionAnalysisDatabaseIdInput, setNotionAnalysisDatabaseIdInput] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
   const {
     apiKey,
     notionApiKey,
@@ -25,6 +27,23 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     setNotionPlanningDatabaseId,
     setNotionAnalysisDatabaseId,
   } = useAppStore()
+  const { user, logout } = useAuth()
+
+  // 로그아웃 처리
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      console.log('[Settings] 로그아웃 시작')
+      await logout()
+      console.log('[Settings] 로그아웃 완료')
+      // 강제로 페이지 새로고침하여 로그인 화면으로 전환
+      window.location.reload()
+    } catch (error) {
+      console.error('[Settings] 로그아웃 실패:', error)
+      alert('로그아웃에 실패했습니다.')
+      setIsLoggingOut(false)
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -167,6 +186,39 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             <p className="text-xs text-muted-foreground mt-1">
               게임 분석 결과를 저장할 Notion 데이터베이스 ID
             </p>
+          </div>
+
+          {/* Divider */}
+          <div className="border-t border-border"></div>
+
+          {/* 계정 정보 및 로그아웃 */}
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              로그인 계정
+            </label>
+            <div className="flex items-center justify-between p-3 rounded-md border border-input bg-muted/30">
+              <div className="flex items-center gap-3">
+                {user?.picture && (
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="w-8 h-8 rounded-full"
+                  />
+                )}
+                <div>
+                  <p className="text-sm font-medium">{user?.name || '알 수 없음'}</p>
+                  <p className="text-xs text-muted-foreground">{user?.email || ''}</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-destructive hover:bg-destructive/10 rounded-md transition-colors disabled:opacity-50"
+              >
+                <LogOut className="w-4 h-4" />
+                {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
+              </button>
+            </div>
           </div>
 
           <div className="flex gap-2 justify-end">
