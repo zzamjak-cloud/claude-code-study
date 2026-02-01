@@ -53,20 +53,15 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and Release (macOS with signing)
+      - name: Build and Release (macOS without Apple signing)
         if: matrix.platform == 'macos-latest'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.STYLESTUDIO_SIGNING_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.STYLESTUDIO_SIGNING_KEY_PASSWORD }}
-          # Apple 코드 서명 (선택적)
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Apple 코드 서명 비활성화 (인증서 없음)
+          APPLE_SIGNING_IDENTITY: "-"
         with:
           projectPath: ./StyleStudio-Tauri
           tagName: ${{ github.ref_name }}
