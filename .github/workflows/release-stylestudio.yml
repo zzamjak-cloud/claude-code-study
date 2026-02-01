@@ -53,6 +53,13 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      # .env 파일 생성 (OAuth 환경 변수)
+      - name: Create .env file
+        run: |
+          echo "VITE_GOOGLE_CLIENT_ID=${{ secrets.STYLESTUDIO_GOOGLE_CLIENT_ID }}" >> .env
+          echo "VITE_GOOGLE_CLIENT_SECRET=${{ secrets.STYLESTUDIO_GOOGLE_CLIENT_SECRET }}" >> .env
+          echo "VITE_ALLOWED_DOMAIN=${{ secrets.STYLESTUDIO_ALLOWED_DOMAIN }}" >> .env
+
       # Base64로 인코딩된 키를 디코딩하여 환경 변수로 설정
       - name: Decode signing key (macOS/Linux)
         if: matrix.platform != 'windows-latest'
