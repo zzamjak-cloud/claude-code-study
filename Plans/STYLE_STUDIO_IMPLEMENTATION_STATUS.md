@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-01-24
-> **버전**: 8.2
-> **상태**: 투명 배경 PNG 고급 처리 (Feather 효과 강화) + Grid 라인 방지
+> **최종 업데이트**: 2026-02-01
+> **버전**: 9.0
+> **상태**: Google OAuth 인증 + 자동 업데이트 시스템
 
 ---
 
@@ -26,8 +26,10 @@
 | **Frontend** | Vite + React + TypeScript |
 | **Styling** | TailwindCSS |
 | **State** | React Hooks |
-| **Storage** | LocalStorage (Base64 이미지 포함) |
+| **Storage** | Tauri Store (토큰, 설정), LocalStorage (세션, 이미지) |
 | **AI** | Gemini 2.5 Flash (분석), Gemini 3 Pro Image (생성) |
+| **Auth** | Google OAuth 2.0 (PKCE) |
+| **Update** | Tauri Updater Plugin (GitHub Releases) |
 
 ---
 
@@ -1007,6 +1009,16 @@ if (entry.settings.pixelArtGrid) {
   - 유틸리티 통합: fileUtils, dateUtils, comparison 생성
   - 상수 중앙화: constants.ts로 매직 넘버 제거
   - 레거시 코드 제거: 700줄 이상 삭제
+- ✅ **Google OAuth 인증 (v9.0)**
+  - Loadcomplete.com 도메인 전용 로그인
+  - PKCE 기반 보안 인증
+  - Rust 로컬 콜백 서버
+  - UTF-8 한글 이름 지원
+- ✅ **자동 업데이트 시스템 (v9.0)**
+  - GitHub Releases 기반 온라인 업데이트
+  - macOS/Windows 크로스 플랫폼 지원
+  - Tauri 서명 키 기반 보안 업데이트
+  - 롤링 릴리스 (stylestudio-latest)
 
 ---
 
@@ -1041,6 +1053,152 @@ if (entry.settings.pixelArtGrid) {
 
 ---
 
+## Google OAuth 인증 시스템 (v9.0)
+
+### 개요
+
+Loadcomplete.com Google Workspace 멤버만 앱을 사용할 수 있도록 도메인 제한 로그인을 구현했습니다.
+
+### 인증 흐름
+
+```
+┌─────────────┐     ┌──────────────┐     ┌───────────────┐
+│  사용자 앱   │────▶│ Google OAuth │────▶│  콜백 서버     │
+│  (Frontend) │     │  Consent     │     │  (Rust 127.0.0.1) │
+└─────────────┘     └──────────────┘     └───────────────┘
+      │                                         │
+      │         ID Token (JWT)                  │
+      ◀─────────────────────────────────────────┘
+      │
+      ▼
+┌─────────────┐
+│ 도메인 검증  │ ─▶ hd === 'loadcomplete.com' ?
+│  + 토큰 저장 │
+└─────────────┘
+```
+
+### 핵심 파일
+
+| 파일 | 역할 |
+|------|------|
+| `src/lib/services/authService.ts` | OAuth 로직, 토큰 관리, 도메인 검증 |
+| `src/hooks/useAuth.ts` | 인증 상태 관리 훅 |
+| `src/components/common/AuthGuard.tsx` | 로그인 화면 렌더링 |
+| `src/components/common/SettingsModal.tsx` | 로그아웃 버튼 |
+| `src/components/common/Header.tsx` | 버전 표시 |
+| `src-tauri/src/oauth.rs` | Rust 로컬 콜백 서버 |
+| `.env` | OAuth 자격증명 (gitignore) |
+
+### 환경 변수 설정
+
+```env
+# .env (gitignore에 포함)
+VITE_GOOGLE_CLIENT_ID=643129061729-xxx.apps.googleusercontent.com
+VITE_GOOGLE_CLIENT_SECRET=GOCSPX-xxx
+VITE_ALLOWED_DOMAIN=loadcomplete.com
+```
+
+### 주요 구현 내용
+
+1. **PKCE 인증**: `code_verifier`와 `code_challenge`로 보안 강화
+2. **로컬 콜백 서버**: Rust에서 `127.0.0.1:포트`로 OAuth 콜백 수신
+3. **도메인 검증**: JWT의 `hd` (hosted domain) 필드로 도메인 확인
+4. **UTF-8 디코딩**: 한글 이름 등 유니코드 문자 정상 표시
+5. **토큰 저장**: Tauri Store로 안전하게 토큰 저장
+6. **로그아웃**: 설정 모달에서 로그아웃 버튼으로 세션 종료
+
+---
+
+## 자동 업데이트 시스템 (v9.0)
+
+### 개요
+
+GitHub Releases를 통해 앱의 새 버전을 자동으로 배포하고, 사용자에게 업데이트를 알립니다.
+
+### 업데이트 흐름
+
+```
+┌───────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│ 개발자 (태그)  │────▶│  GitHub Actions   │────▶│ GitHub Releases │
+│ git push tag │     │  빌드 + 서명       │     │  latest.json    │
+└───────────────┘     └──────────────────┘     └─────────────────┘
+                                                       │
+                                                       ▼
+                      ┌──────────────────┐     ┌─────────────────┐
+                      │   사용자 앱       │◀────│  업데이트 확인   │
+                      │   (UpdateModal)  │     │  (앱 시작 시)    │
+                      └──────────────────┘     └─────────────────┘
+```
+
+### 핵심 파일
+
+| 파일 | 역할 |
+|------|------|
+| `src/hooks/useAutoUpdate.ts` | 업데이트 확인 및 설치 로직 |
+| `src/components/common/UpdateModal.tsx` | 업데이트 알림 UI |
+| `src-tauri/tauri.conf.json` | 업데이트 엔드포인트 및 공개키 설정 |
+| `.github/workflows/release-stylestudio.yml` | CI/CD 빌드 워크플로우 |
+
+### Tauri 설정 (`tauri.conf.json`)
+
+```json
+{
+  "version": "0.1.1",
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6...",
+      "endpoints": [
+        "https://github.com/zzamjak-cloud/claude-code-study/releases/download/stylestudio-latest/latest.json"
+      ]
+    }
+  }
+}
+```
+
+### GitHub Actions 워크플로우
+
+**트리거**: `stylestudio-v*` 태그 푸시 시 자동 실행
+
+```yaml
+on:
+  push:
+    tags:
+      - 'stylestudio-v*'
+```
+
+**빌드 매트릭스**:
+- macOS: Universal Binary (Apple Silicon + Intel)
+- Windows: x64
+
+**필요한 GitHub Secrets**:
+
+| Secret | 용도 |
+|--------|------|
+| `STYLESTUDIO_SIGNING_KEY_BASE64` | Tauri 서명 키 (Base64 인코딩) |
+| `STYLESTUDIO_SIGNING_KEY_PASSWORD` | 서명 키 비밀번호 |
+
+### 릴리스 명령어
+
+```bash
+# 1. 버전 업데이트 (tauri.conf.json, package.json)
+# 2. 커밋 및 푸시
+git add . && git commit -m "v0.1.2 릴리스"
+git push origin main
+
+# 3. 태그 생성 및 푸시
+git tag stylestudio-v0.1.2
+git push origin stylestudio-v0.1.2
+
+# 4. GitHub Actions 자동 빌드 (~10분)
+# 5. 사용자 앱에서 업데이트 알림 표시
+```
+
+### 롤링 릴리스
+
+자동 업데이트용 고정 URL 유지를 위해 `stylestudio-latest` 태그를 매번 갱신합니다.
+
+---
+
 ## 다음 개발 계획
 
 ### Phase 5: 고급 기능
@@ -1057,6 +1215,6 @@ if (entry.settings.pixelArtGrid) {
 
 ---
 
-**문서 버전**: 8.2
-**작성일**: 2026-01-24
+**문서 버전**: 9.0
+**작성일**: 2026-02-01
 **다음 단계**: 여러 캐릭터 세션 통합 생성 시스템
