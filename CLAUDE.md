@@ -80,10 +80,13 @@ Tauri + React 데스크톱 앱 개발 자동화를 위한 전역 플러그인이
 | `/tauri:init` | 새 프로젝트 초기화 가이드 |
 | `/tauri:setup-store` | Tauri Store 설정 (데이터 영속성) |
 | `/tauri:setup-fs` | 파일 시스템 유틸리티 |
+| `/tauri:setup-oauth` | **Google OAuth 2.0 인증 시스템 설정** |
 | `/tauri:dialog` | 커스텀 다이얼로그 생성 |
 | `/tauri:dnd` | 드래그앤드롭 구현 |
 | `/tauri:emoji` | 이모지 피커 생성 |
 | `/tauri:build` | 플랫폼별 빌드 가이드 |
+| `/tauri:setup-cicd` | **GitHub Actions CI/CD + Secrets 설정** |
+| `/tauri:release-prep` | **릴리스 준비 - 버전 업데이트 및 문서 동기화** |
 | `/tauri:icons` | 앱 아이콘 생성 |
 
 ### 실수 방지 (Hookify)

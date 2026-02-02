@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-02-01
-> **버전**: 9.0
-> **상태**: Google OAuth 인증 + 자동 업데이트 시스템
+> **최종 업데이트**: 2026-02-03
+> **버전**: 10.0
+> **상태**: ILLUSTRATION 세션 + 카메라 앵글/렌즈 설정 추가
 
 ---
 
@@ -33,13 +33,14 @@
 
 ---
 
-## 세션 타입 (9가지)
+## 세션 타입 (10가지)
 
 | 타입 | 아이콘 | 색상 | 목적 | 참조 이미지 | Grid 지원 |
 |------|--------|------|------|------------|---------|
 | **STYLE** | 🎨 Palette | 보라색 | 특정 화풍/아트 스타일 재현 | 선택 | ✓ (1x1~8x8) |
 | **CHARACTER** | 👤 User | 파란색 | 캐릭터 외형 유지, 포즈 변경 | 필수 | ✓ (1x1~8x8) |
 | **BACKGROUND** | ⛰️ Mountain | 녹색 | 배경 스타일 학습, 다양한 환경 생성 | 필수 | ✓ (1x1~8x8) |
+| **ILLUSTRATION** | 🖼️ Images | 청보라색 | 여러 캐릭터 일러스트 생성, 이름 기반 참조 | 필수 | ✓ (1x1~8x8) |
 | **ICON** | 📦 Box | 주황색 | 아이템/아이콘 스타일 학습, 오브젝트 생성 | 필수 | ✓ (1x1~8x8) |
 | **UI** | 📱 Mobile | 핑크색 | 게임/앱 UI 화면 디자인 생성 | 필수 | ✓ (1x1~8x8) |
 | **LOGO** | 🔤 Text | 빨간색 | 로고 타이틀 디자인 생성 | 필수 | ✓ (1x1~8x8) |
@@ -114,6 +115,13 @@
   - 캐릭터 없이 순수 환경만 생성
   - Grid 지원 (1x1 ~ 8x8): 여러 배경 바리에이션 동시 생성
 
+- **ILLUSTRATION**: 여러 캐릭터 조합 일러스트 생성
+  - 최대 5명의 명명된 캐릭터 등록 (캐릭터당 최대 5장 참조 이미지)
+  - 이름 기반 참조: 프롬프트에서 캐릭터 이름으로 호출 (예: "라미가 토끼와 함께...")
+  - 선택적 배경 이미지로 환경/분위기 스타일 참조
+  - 캐릭터 정확도 최우선: 카메라 설정보다 캐릭터 재현에 우선순위
+  - Grid 지원 (1x1 ~ 8x8): 여러 일러스트 바리에이션 동시 생성
+
 - **ICON**: 아이콘 스타일 유지 + 오브젝트 변경
   - 형태, 라인, 색상, 음영 스타일 복사
   - 명확한 실루엣, 단일 오브젝트 중심
@@ -155,6 +163,14 @@
 - **이미지 설정**: 비율 (1:1, 16:9, 9:16, 4:3, 3:4), 크기 (1K, 2K, 4K)
 - **참조 영향력**: 0.0 (영감만) ~ 1.0 (완벽 복사)
 - **고급 파라미터**: Seed, Temperature (0.0~2.0), Top-K (1~100), Top-P (0.0~1.0)
+- **카메라 앵글 프리셋** (20가지): 눈높이, 하이앵글, 로우앵글, 더치 앵글, 버드아이 뷰 등
+  - 적용 대상: CHARACTER, BACKGROUND, ILLUSTRATION, STYLE, PIXELART_BACKGROUND, ICON, PIXELART_ICON
+- **렌즈/화각 프리셋** (15가지): 14mm~200mm, 매크로, 어안 렌즈, 틸트 시프트 등
+  - 초광각 (14-18mm): 극적 왜곡, 건축/풍경
+  - 광각 (24-35mm): 환경 포함, 다큐멘터리
+  - 표준 (50-85mm): 자연스러운 원근, 인물 촬영
+  - 망원 (135-200mm): 압축 효과, 피사체 분리
+  - 특수 렌즈: 매크로, 어안, 틸트 시프트
 - **프리셋**:
   - 포즈/표정 변화 (Temp 0.8, Ref 0.95)
   - 다양한 캐릭터 디자인 (Temp 1.2, Ref 0.6)
@@ -167,6 +183,8 @@
 - **설정 복원**: 히스토리에서 모든 설정값 불러오기
   - 비율, 크기, Seed, Temperature, Top-K, Top-P, Reference Strength
   - **Grid 레이아웃** (pixelArtGrid)
+  - **카메라 앵글** (cameraAngle)
+  - **렌즈/화각** (cameraLens)
   - 추가 프롬프트
 - **상세 정보 툴팁**: 마우스 호버 시 생성 시간, 비율, 크기, Grid, Seed 표시
 - **개별 삭제**: 확인 다이얼로그
@@ -178,7 +196,7 @@
 ### SessionType
 
 ```typescript
-export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'UI' | 'LOGO' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON';
+export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ILLUSTRATION' | 'ICON' | 'UI' | 'LOGO' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON';
 ```
 
 ### Session
@@ -197,6 +215,7 @@ interface Session {
   imageCount: number;              // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리
   folderId?: string | null;        // 소속 폴더 ID (null/undefined면 루트)
+  illustrationData?: IllustrationSessionData;  // ILLUSTRATION 세션 전용
 }
 ```
 
@@ -284,7 +303,56 @@ interface GenerationSettings {
   referenceStrength?: number;
   useReferenceImages: boolean;
   pixelArtGrid?: PixelArtGridLayout;  // 스프라이트 그리드 레이아웃 (1x1, 2x2, 4x4, 6x6, 8x8)
+  cameraAngle?: string;               // 카메라 앵글 프리셋 ID
+  cameraLens?: string;                // 카메라 렌즈/화각 프리셋 ID
 }
+```
+
+### IllustrationSessionData (ILLUSTRATION 세션 전용)
+
+```typescript
+interface IllustrationCharacter {
+  id: string;
+  name: string;                       // 캐릭터 이름 (프롬프트에서 참조용)
+  images: string[];                   // Base64 이미지 (최대 5장)
+  imageKeys?: string[];               // IndexedDB 키
+  analysis?: CharacterAnalysisResult; // 개별 캐릭터 분석 결과
+}
+
+interface IllustrationSessionData {
+  characters: IllustrationCharacter[];  // 최대 5명
+  backgroundImages: string[];           // 최대 5장, 선택사항
+  backgroundImageKeys?: string[];
+  backgroundAnalysis?: BackgroundAnalysisResult;
+}
+```
+
+### CameraAngle (카메라 앵글 프리셋)
+
+```typescript
+interface CameraAngle {
+  id: string;           // 'eye-level', 'high-angle', 등
+  label: string;        // 한글 라벨 (눈높이 앵글)
+  prompt: string;       // 영어 프롬프트 (eye-level shot, camera at eye height)
+  description: string;  // 상세 설명
+}
+// 총 20가지 프리셋: 눈높이, 하이앵글, 로우앵글, 더치 앵글, 버드아이 뷰, 웜즈아이 뷰,
+//                  오버 더 숄더, POV, 프로필, 3/4 뷰, 정면, 후면, 스플릿 뷰,
+//                  미러 샷, 클로즈업, 익스트림 클로즈업, 미디엄 샷, 풀샷, 롱샷, 익스트림 롱샷
+```
+
+### CameraLens (렌즈/화각 프리셋)
+
+```typescript
+interface CameraLens {
+  id: string;           // '14mm', '24mm', 'macro', 등
+  label: string;        // 한글 라벨 (14mm 초광각)
+  prompt: string;       // 영어 프롬프트 (14mm ultra-wide angle lens...)
+  description: string;  // 상세 설명 (극도로 넓은 시야, 건축/풍경에 적합)
+  category: 'none' | 'ultra-wide' | 'wide' | 'standard' | 'telephoto' | 'special';
+}
+// 총 15가지 프리셋: 14mm, 18mm, 24mm, 28mm, 35mm, 50mm, 85mm, 105mm, 135mm, 200mm,
+//                  매크로, 어안 렌즈, 아나모픽, 틸트 시프트, 소프트 포커스
 ```
 
 ---
@@ -305,11 +373,15 @@ StyleStudio-Tauri/
 │   │   │   └── UnifiedPromptCard.tsx
 │   │   ├── generator/             # 이미지 생성
 │   │   │   ├── ImageGeneratorPanel.tsx  # 877줄 (최적화 완료)
-│   │   │   ├── GeneratorSettings.tsx    # 469줄 (좌측 설정 패널)
+│   │   │   ├── GeneratorSettings.tsx    # 520줄+ (좌측 설정 패널, 카메라 설정 추가)
 │   │   │   ├── GeneratorPreview.tsx     # 97줄 (우측 프리뷰)
 │   │   │   ├── GeneratorHistory.tsx     # 173줄 (히스토리 섹션)
 │   │   │   ├── ImageUpload.tsx
 │   │   │   └── DocumentManager.tsx
+│   │   ├── illustration/          # ILLUSTRATION 세션 전용
+│   │   │   ├── IllustrationSetupPanel.tsx  # 메인 설정 패널
+│   │   │   ├── CharacterCard.tsx           # 캐릭터 카드 컴포넌트
+│   │   │   └── BackgroundSection.tsx       # 배경 섹션
 │   │   └── common/                # 공통 컴포넌트
 │   │       ├── Sidebar.tsx
 │   │       ├── NewSessionModal.tsx
@@ -348,6 +420,9 @@ StyleStudio-Tauri/
 │   │   ├── analysis.ts
 │   │   ├── session.ts
 │   │   ├── folder.ts                       # 폴더 타입 정의 (Folder, FolderPath, FolderData)
+│   │   ├── illustration.ts                 # ILLUSTRATION 세션 전용 타입 (v10.0)
+│   │   ├── cameraAngle.ts                  # 카메라 앵글 프리셋 (20가지, v10.0)
+│   │   ├── cameraLens.ts                   # 렌즈/화각 프리셋 (15가지, v10.0)
 │   │   ├── constants.ts                    # 268줄 (전역 상수, Phase 4)
 │   │   ├── pixelart.ts
 │   │   └── referenceDocument.ts
@@ -582,6 +657,100 @@ Base64 변환 및 파일 처리 유틸리티:
 ---
 
 ## 최신 업데이트
+
+### 2026-02-03: ILLUSTRATION 세션 + 카메라 앵글/렌즈 설정 (v0.1.8)
+
+#### 개요
+새로운 ILLUSTRATION 세션 타입과 카메라 앵글/렌즈 화각 설정 기능을 추가했습니다.
+
+#### 1. ILLUSTRATION 세션 타입 추가
+
+**목적**: 여러 명의 명명된 캐릭터를 등록하고, 프롬프트에서 이름으로 참조하여 일러스트를 생성합니다.
+
+**핵심 기능**:
+- **캐릭터 등록**: 최대 5명의 캐릭터, 캐릭터당 최대 5장의 참조 이미지
+- **이름 기반 참조**: 프롬프트에서 캐릭터 이름으로 호출 (예: "라미와 토끼가 숲에서...")
+- **개별 분석**: 각 캐릭터별로 개별 분석 후 고유 특징 추출
+- **배경 스타일**: 선택적 배경 참조 이미지 (최대 5장)로 환경/분위기 스타일 적용
+
+**새 파일**:
+- `src/types/illustration.ts`: IllustrationCharacter, IllustrationSessionData 타입
+- `src/components/illustration/IllustrationSetupPanel.tsx`: 캐릭터/배경 등록 패널
+- `src/components/illustration/CharacterCard.tsx`: 캐릭터 카드 컴포넌트
+- `src/components/illustration/BackgroundSection.tsx`: 배경 섹션
+
+**프롬프트 설계**:
+- 캐릭터 정확도 최우선 (카메라 설정보다 우선)
+- 각 캐릭터의 고유 식별 특징 강조
+- 여러 캐릭터 간 구별 가능한 시각적 요소 유지
+
+#### 2. 카메라 앵글 프리셋 (20가지)
+
+**적용 세션 타입**: CHARACTER, BACKGROUND, ILLUSTRATION, STYLE, PIXELART_BACKGROUND, ICON, PIXELART_ICON
+
+| 카테고리 | 앵글 |
+|---------|------|
+| 기본 앵글 | 눈높이, 하이앵글, 로우앵글, 더치 앵글 |
+| 극단적 앵글 | 버드아이 뷰, 웜즈아이 뷰 |
+| 인물 촬영 | 오버 더 숄더, POV, 프로필, 3/4 뷰, 정면, 후면 |
+| 특수 촬영 | 스플릿 뷰, 미러 샷 |
+| 거리 조절 | 클로즈업, 익스트림 클로즈업, 미디엄 샷, 풀샷, 롱샷, 익스트림 롱샷 |
+
+**새 파일**: `src/types/cameraAngle.ts`
+
+#### 3. 렌즈/화각 프리셋 (15가지)
+
+| 카테고리 | 렌즈 |
+|---------|------|
+| 초광각 | 14mm, 18mm |
+| 광각 | 24mm, 28mm, 35mm |
+| 표준 | 50mm, 85mm |
+| 망원 | 105mm, 135mm, 200mm |
+| 특수 | 매크로, 어안 렌즈, 아나모픽, 틸트 시프트, 소프트 포커스 |
+
+**렌즈별 특성**:
+- **14mm 초광각**: 극적 왜곡, 건축/풍경 촬영
+- **24-35mm 광각**: 환경 맥락 포함, 스트리트 포토
+- **50mm 표준**: 자연스러운 원근감, 범용
+- **85mm 인물**: 얼굴 왜곡 최소화, 아름다운 보케
+- **135-200mm 망원**: 배경 압축 효과, 피사체 분리
+- **매크로**: 극한 근접 촬영, 세밀한 디테일
+- **어안 렌즈**: 180도 시야, 극단적 왜곡
+- **틸트 시프트**: 미니어처 효과, 선택적 초점
+
+**새 파일**: `src/types/cameraLens.ts`
+
+#### 4. UI 개선사항
+
+- **추가 프롬프트 자동 확장**: textarea가 내용에 따라 자동 확장 (최소 72px, 최대 200px)
+- **드롭다운 형식**: `{앵글} : {설명}` 형태로 선택 시 이해 용이
+- **히스토리 저장**: 카메라 앵글/렌즈 설정이 히스토리에 저장되어 복원 가능
+
+#### 5. 프롬프트 최적화 (ILLUSTRATION 캐릭터 정확도)
+
+**문제**: 카메라 설정 추가 시 참조 이미지 캐릭터 재현 정확도 저하
+
+**해결**:
+- 카메라 설정을 basePrompt와 분리하여 별도 전달
+- 프롬프트에 명시적 우선순위 지정:
+  ```
+  ⚠️ CRITICAL: Character reproduction is the #1 PRIORITY
+  📷 CAMERA (apply AFTER ensuring character accuracy)
+  ```
+- FINAL REMINDER로 캐릭터 정확도 재강조
+
+#### 수정된 파일
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `src/types/session.ts` | GenerationSettings에 cameraAngle, cameraLens 추가 |
+| `src/components/generator/GeneratorSettings.tsx` | 카메라 앵글/렌즈 드롭다운, 자동 확장 textarea |
+| `src/components/generator/ImageGeneratorPanel.tsx` | 카메라 상태 관리, 히스토리 저장/복원 |
+| `src/lib/prompts/sessionPrompts.ts` | ILLUSTRATION 프롬프트, 카메라 설정 우선순위 |
+| `src/components/common/NewSessionModal.tsx` | ILLUSTRATION 타입 버튼 추가 |
+| `src/components/common/Sidebar.tsx` | Images 아이콘 추가 |
+
+---
 
 ### 2026-01-24: 투명 배경 PNG 저장 기능
 
@@ -981,7 +1150,14 @@ if (entry.settings.pixelArtGrid) {
 ## 구현 완료 기능
 
 - ✅ Tauri 2.x 프로젝트 구조
-- ✅ 9가지 세션 타입 (STYLE, CHARACTER, BACKGROUND, ICON, UI, LOGO, PIXELART_CHARACTER, PIXELART_BACKGROUND, PIXELART_ICON)
+- ✅ 10가지 세션 타입 (STYLE, CHARACTER, BACKGROUND, ILLUSTRATION, ICON, UI, LOGO, PIXELART_CHARACTER, PIXELART_BACKGROUND, PIXELART_ICON)
+- ✅ **ILLUSTRATION 세션 (v10.0)**
+  - 최대 5명의 명명된 캐릭터 등록
+  - 캐릭터당 최대 5장 참조 이미지
+  - 이름 기반 프롬프트 참조
+  - 선택적 배경 스타일 참조
+- ✅ **카메라 앵글 프리셋 (v10.0)**: 20가지 앵글 (눈높이~익스트림 롱샷)
+- ✅ **렌즈/화각 프리셋 (v10.0)**: 15가지 렌즈 (14mm~틸트 시프트)
 - ✅ **투명 배경 PNG 저장** (CHARACTER, PIXELART_CHARACTER, ICON, PIXELART_ICON, LOGO)
   - 흰색 배경 자동 제거 후 투명 PNG 저장
   - Canvas API 기반 실시간 처리
@@ -1024,10 +1200,11 @@ if (entry.settings.pixelArtGrid) {
 
 ## Grid 시스템 상세
 
-### 지원 타입 (전체 9가지 세션 타입)
+### 지원 타입 (전체 10가지 세션 타입)
 - **STYLE**: 1x1 ~ 8x8 (최대 64가지 스타일 작품)
 - **CHARACTER**: 1x1 ~ 8x8 (최대 64가지 캐릭터 포즈)
 - **BACKGROUND**: 1x1 ~ 8x8 (최대 64개 배경 바리에이션)
+- **ILLUSTRATION**: 1x1 ~ 8x8 (최대 64개 일러스트 바리에이션)
 - **ICON**: 1x1 ~ 8x8 (최대 64개 아이콘)
 - **UI**: 1x1 ~ 8x8 (최대 64개 UI 화면)
 - **LOGO**: 1x1 ~ 8x8 (최대 64개 로고 바리에이션)
@@ -1215,6 +1392,6 @@ git push origin stylestudio-v0.1.2
 
 ---
 
-**문서 버전**: 9.0
-**작성일**: 2026-02-01
-**다음 단계**: 여러 캐릭터 세션 통합 생성 시스템
+**문서 버전**: 10.0
+**작성일**: 2026-02-03
+**다음 단계**: 레이어 시스템 (캐릭터 + 배경 분리 생성)
