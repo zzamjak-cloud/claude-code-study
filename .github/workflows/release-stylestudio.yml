@@ -89,7 +89,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'StyleStudio ${{ github.ref_name }}'
           releaseBody: |
-            ## StyleStudio v0.1.4 업데이트
+            ## StyleStudio v0.1.5 업데이트
 
             ### ✨ 새로운 기능
 
@@ -130,7 +130,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'StyleStudio ${{ github.ref_name }}'
           releaseBody: |
-            ## StyleStudio v0.1.4 업데이트
+            ## StyleStudio v0.1.5 업데이트
 
             ### ✨ 새로운 기능
 
