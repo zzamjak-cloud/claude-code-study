@@ -7,6 +7,7 @@ import { useAppStore } from './store/useAppStore'
 import { useAuth } from './lib/hooks/useAuth'
 import { useFirebaseSync } from './lib/hooks/useFirebaseSync'
 import { useUndoRedo } from './lib/hooks/useUndoRedo'
+import { useUrlParams } from './lib/hooks/useUrlParams'
 import { signInWithGoogle } from './lib/firebase/auth'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { LoadingSpinner } from './components/common/LoadingSpinner'
@@ -37,6 +38,9 @@ function App() {
 
   // Undo/Redo 기능 (Ctrl+Z, Ctrl+Shift+Z)
   useUndoRedo()
+
+  // URL 파라미터 관리 (공유 링크 지원)
+  useUrlParams()
 
   // 관리자 패널 상태
   const [showAdminPanel, setShowAdminPanel] = useState(false)
