@@ -28,6 +28,7 @@ import {
   persistSessions,
 } from './utils/sessionHelpers';
 import { logger } from './lib/logger';
+import { exportFolderToFile, importFromFile } from './lib/storage';
 
 function App() {
   const [showSaveSession, setShowSaveSession] = useState(false);
@@ -53,6 +54,23 @@ function App() {
   const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null);
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
 
+  // Import 진행 상태
+  const [importProgress, setImportProgress] = useState({
+    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
+    message: '',
+    percentage: 0,
+    estimatedSecondsLeft: 0,
+  });
+
+  // 폴더 삭제 Undo 기능
+  const [deletedFolderBackup, setDeletedFolderBackup] = useState<{
+    folders: typeof folders;
+    sessions: Session[];
+    sessionFolderMap: Record<string, string | null>;
+    deletedFolderName: string;
+  } | null>(null);
+  const [undoToast, setUndoToast] = useState<string | null>(null);
+
   // 커스텀 훅 사용
   const { uploadedImages, setUploadedImages, handleImageSelect, handleRemoveImage, showLimitWarning, setShowLimitWarning } =
     useImageHandling();
@@ -69,7 +87,6 @@ function App() {
     handleSelectSession,
     handleDeleteSession,
     handleExportSession,
-    handleImportSession,
     handleReorderSessions,
     handleHistoryAdd,
     handleHistoryUpdate,
@@ -92,6 +109,7 @@ function App() {
     folders,
     currentFolderId,
     folderPath,
+    sessionFolderMap,
     initializeFolders,
     getCurrentFolderSessions,
     getCurrentFolderSubfolders,
@@ -104,6 +122,8 @@ function App() {
     moveFolderToFolder,
     reorderFolders,
     getCurrentFolderIdForNewSession,
+    importFolderData,
+    restoreFolderData,
   } = useFolderManagement();
 
   // 자동 업데이트
@@ -121,6 +141,38 @@ function App() {
     initializeFolders();
   }, []);
 
+  // Ctrl+Z로 폴더 삭제 되돌리기
+  useEffect(() => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      // Ctrl+Z 또는 Cmd+Z 감지
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && deletedFolderBackup) {
+        e.preventDefault();
+
+        // 폴더 데이터 복원
+        await restoreFolderData(deletedFolderBackup.folders, deletedFolderBackup.sessionFolderMap);
+
+        // 세션 데이터 복원
+        setSessions(deletedFolderBackup.sessions);
+        await persistSessions(deletedFolderBackup.sessions);
+
+        // 토스트 메시지
+        setInfoDialog({
+          title: '복원 완료',
+          message: `"${deletedFolderBackup.deletedFolderName}" 폴더가 복원되었습니다.`
+        });
+
+        // 백업 및 토스트 초기화
+        setDeletedFolderBackup(null);
+        setUndoToast(null);
+
+        logger.info('✅ 폴더 삭제 되돌리기 완료:', deletedFolderBackup.deletedFolderName);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [deletedFolderBackup, restoreFolderData, setSessions]);
+
   // 현재 폴더의 세션과 하위 폴더
   const currentFolderSessions = getCurrentFolderSessions(sessions);
   const currentFolderSubfolders = getCurrentFolderSubfolders();
@@ -134,14 +186,25 @@ function App() {
       if (!currentSessionInFolder) {
         setSelectedFolderId(null);
         setCurrentSession(currentFolderSessions[0]);
+        // 세션의 분석 결과와 이미지도 로드
+        setAnalysisResult(currentFolderSessions[0].analysis);
+        setUploadedImages(currentFolderSessions[0].referenceImages || []);
         logger.debug('📂 폴더 진입: 첫 번째 세션 선택:', currentFolderSessions[0].name);
       }
     } else if (currentFolderSubfolders.length > 0) {
       // 세션이 없고 하위 폴더가 있으면 첫 번째 폴더 선택 (폴더 도움말 표시)
+      // 현재 세션 초기화 (다른 폴더의 세션이 보이지 않도록)
+      setCurrentSession(null);
+      setAnalysisResult(null);
+      setUploadedImages([]);
       setSelectedFolderId(currentFolderSubfolders[0].id);
       logger.debug('📂 폴더 진입: 첫 번째 하위 폴더 선택:', currentFolderSubfolders[0].name);
     } else {
       // 세션도 폴더도 없으면 빈 상태
+      // 현재 세션 초기화 (다른 폴더의 세션이 보이지 않도록)
+      setCurrentSession(null);
+      setAnalysisResult(null);
+      setUploadedImages([]);
       setSelectedFolderId(null);
       logger.debug('📂 빈 폴더 진입');
     }
@@ -183,11 +246,12 @@ function App() {
 
   // 1. 앱 시작 시 첫 번째 세션 자동 선택 및 손상된 세션 확인
   useEffect(() => {
-    // currentSession이 없을 때만 실행 (무한 루프 방지)
-    if (sessions.length > 0 && !currentSession) {
-      const firstSession = sessions[0];
+    // currentSession이 없고 현재 폴더에 세션이 있을 때만 실행
+    // 현재 폴더 기준으로 세션 선택 (다른 폴더 세션 표시 방지)
+    if (currentFolderSessions.length > 0 && !currentSession) {
+      const firstSession = currentFolderSessions[0];
       setCurrentSession(firstSession);
-      logger.info('✅ 첫 번째 세션 자동 선택:', firstSession.name);
+      logger.info('✅ 현재 폴더의 첫 번째 세션 자동 선택:', firstSession.name);
 
       // 손상된 세션 확인 (참조 이미지가 없는데 imageCount가 있는 경우)
       const damagedSessions = sessions.filter(
@@ -473,6 +537,259 @@ function App() {
     navigateBack();
   }, [navigateBack]);
 
+  // 폴더 내보내기 핸들러
+  const handleExportFolder = useCallback(async (folderId: string) => {
+    const folder = folders.find(f => f.id === folderId);
+    if (!folder) {
+      logger.error('❌ 내보낼 폴더를 찾을 수 없습니다:', folderId);
+      return;
+    }
+
+    try {
+      await exportFolderToFile(folder, folders, sessions, sessionFolderMap);
+      logger.info('✅ 폴더 내보내기 완료:', folder.name);
+    } catch (error) {
+      logger.error('❌ 폴더 내보내기 오류:', error);
+      setErrorDialog({
+        title: '폴더 내보내기 오류',
+        message: '폴더를 내보내는 중 오류가 발생했습니다.'
+      });
+    }
+  }, [folders, sessions, sessionFolderMap]);
+
+  // 통합 불러오기 핸들러 (세션/폴더 모두 처리)
+  const handleImport = useCallback(async () => {
+    try {
+      // 진행 상태 시작
+      setImportProgress({
+        stage: 'translating',
+        message: '파일 선택 중...',
+        percentage: 0,
+        estimatedSecondsLeft: 0,
+      });
+
+      const result = await importFromFile();
+
+      // 취소된 경우
+      if (result.sessions.length === 0 && !result.folderData) {
+        logger.debug('❌ 불러오기 취소됨');
+        setImportProgress({ stage: 'idle', message: '', percentage: 0, estimatedSecondsLeft: 0 });
+        return;
+      }
+
+      // 폴더 파일인 경우
+      if (result.type === 'folder' && result.folderData) {
+        const folderData = result.folderData;
+
+        setImportProgress({
+          stage: 'translating',
+          message: `"${folderData.folder.name}" 폴더 구조 복원 중...`,
+          percentage: 20,
+          estimatedSecondsLeft: 0,
+        });
+
+        // 폴더 ID 매핑을 위해 importFolderData 호출
+        const { newFolderIdMap } = await importFolderData(
+          folderData.folder,
+          folderData.subfolders,
+          folderData.sessionFolderMap,
+          currentFolderId // 현재 폴더 아래에 배치
+        );
+
+        // 세션 추가 (새 폴더 ID로 매핑된 상태로)
+        if (folderData.sessions.length > 0) {
+          let updatedSessions = [...sessions];
+          let lastSession: Session | null = null;
+          const totalSessions = folderData.sessions.length;
+
+          for (let i = 0; i < folderData.sessions.length; i++) {
+            const importedSession = folderData.sessions[i];
+
+            // 진행 상태 업데이트
+            setImportProgress({
+              stage: 'saving',
+              message: `세션 복원 중... (${i + 1}/${totalSessions})`,
+              percentage: 20 + Math.round((i / totalSessions) * 70),
+              estimatedSecondsLeft: 0,
+            });
+
+            // 중복 ID 처리
+            const isDuplicate = updatedSessions.some(s => s.id === importedSession.id);
+            if (isDuplicate) {
+              const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+              logger.debug(`   - 중복 ID 감지, 새 ID 생성: ${importedSession.id} → ${newId}`);
+
+              // 세션-폴더 매핑도 새 ID로 업데이트
+              const oldFolderId = folderData.sessionFolderMap[importedSession.id];
+              if (oldFolderId && newFolderIdMap[oldFolderId]) {
+                await moveSessionToFolder(newId, newFolderIdMap[oldFolderId]);
+              }
+
+              importedSession.id = newId;
+            } else {
+              // 기존 ID 유지, 폴더 매핑만 업데이트
+              const oldFolderId = folderData.sessionFolderMap[importedSession.id];
+              if (oldFolderId && newFolderIdMap[oldFolderId]) {
+                await moveSessionToFolder(importedSession.id, newFolderIdMap[oldFolderId]);
+              }
+            }
+
+            updatedSessions = addSessionToList(updatedSessions, importedSession);
+            lastSession = importedSession;
+          }
+
+          setImportProgress({
+            stage: 'saving',
+            message: '데이터 저장 중...',
+            percentage: 95,
+            estimatedSecondsLeft: 0,
+          });
+
+          setSessions(updatedSessions);
+          await persistSessions(updatedSessions);
+
+          if (lastSession) {
+            setCurrentSession(lastSession);
+          }
+        }
+
+        logger.info(`✅ 폴더 불러오기 완료: ${folderData.folder.name}`);
+        logger.info(`   - 하위 폴더: ${folderData.subfolders.length}개`);
+        logger.info(`   - 세션: ${folderData.sessions.length}개`);
+
+        // 완료 상태
+        setImportProgress({
+          stage: 'complete',
+          message: '불러오기 완료!',
+          percentage: 100,
+          estimatedSecondsLeft: 0,
+        });
+
+        setTimeout(() => {
+          setImportProgress({ stage: 'idle', message: '', percentage: 0, estimatedSecondsLeft: 0 });
+          setInfoDialog({
+            title: '폴더 불러오기 완료',
+            message: `"${folderData.folder.name}" 폴더를 불러왔습니다.\n\n하위 폴더: ${folderData.subfolders.length}개\n세션: ${folderData.sessions.length}개`
+          });
+        }, 1000);
+        return;
+      }
+
+      // 세션 파일인 경우 (기존 로직)
+      const importedSessions = result.sessions;
+      if (importedSessions.length === 0) {
+        setImportProgress({ stage: 'idle', message: '', percentage: 0, estimatedSecondsLeft: 0 });
+        return;
+      }
+
+      logger.info(`📂 ${importedSessions.length}개 세션 처리 시작`);
+
+      setImportProgress({
+        stage: 'translating',
+        message: `${importedSessions.length}개 세션 처리 중...`,
+        percentage: 10,
+        estimatedSecondsLeft: 0,
+      });
+
+      let updatedSessions = [...sessions];
+      let lastValidSession: Session | null = null;
+      const damagedSessions: string[] = [];
+      const totalSessions = importedSessions.length;
+
+      // 각 세션 처리
+      for (let i = 0; i < importedSessions.length; i++) {
+        const importedSession = importedSessions[i];
+
+        // 진행 상태 업데이트
+        setImportProgress({
+          stage: 'saving',
+          message: `세션 복원 중... (${i + 1}/${totalSessions})`,
+          percentage: 10 + Math.round((i / totalSessions) * 80),
+          estimatedSecondsLeft: 0,
+        });
+
+        // 중복 ID 확인 및 처리
+        const isDuplicate = updatedSessions.some((s) => s.id === importedSession.id);
+        if (isDuplicate) {
+          const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+          logger.debug(`   - 중복 ID 감지, 새 ID 생성: ${importedSession.id} → ${newId}`);
+          importedSession.id = newId;
+        }
+
+        // 참조 이미지 검증 (Base64 데이터가 있는지 확인)
+        const hasValidImages = importedSession.referenceImages.length > 0 &&
+          importedSession.referenceImages.every(img => img.startsWith('data:'));
+
+        if (importedSession.imageCount > 0 && !hasValidImages) {
+          logger.warn(`   ⚠️ 세션 "${importedSession.name}"의 참조 이미지가 손상되었습니다`);
+          damagedSessions.push(importedSession.name);
+        }
+
+        // 현재 폴더에 세션 추가
+        if (currentFolderId) {
+          await moveSessionToFolder(importedSession.id, currentFolderId);
+        }
+
+        // 세션 추가
+        updatedSessions = addSessionToList(updatedSessions, importedSession);
+        lastValidSession = importedSession;
+
+        logger.info(
+          `   ✅ 세션 "${importedSession.name}" 추가 완료 (참조 이미지: ${importedSession.imageCount}개, 유효: ${hasValidImages})`
+        );
+      }
+
+      // 세션 저장
+      setImportProgress({
+        stage: 'saving',
+        message: '데이터 저장 중...',
+        percentage: 95,
+        estimatedSecondsLeft: 0,
+      });
+
+      setSessions(updatedSessions);
+      await persistSessions(updatedSessions);
+
+      // 완료 상태
+      setImportProgress({
+        stage: 'complete',
+        message: '불러오기 완료!',
+        percentage: 100,
+        estimatedSecondsLeft: 0,
+      });
+
+      setTimeout(() => {
+        setImportProgress({ stage: 'idle', message: '', percentage: 0, estimatedSecondsLeft: 0 });
+      }, 1500);
+
+      // 손상된 세션 알림
+      if (damagedSessions.length > 0) {
+        setErrorDialog({
+          title: '세션 손상 경고',
+          message: `${damagedSessions.length}개 세션의 참조 이미지가 손상되었습니다:\n\n` +
+            damagedSessions.map(name => `• ${name}`).join('\n') +
+            `\n\n원인: 이전 버전으로 export한 파일이거나, 이미지 데이터가 누락되었습니다.\n\n` +
+            `해결 방법:\n` +
+            `1. 원본 PC에서 최신 버전으로 세션을 다시 export하세요\n` +
+            `2. 참조 이미지를 다시 업로드하고 분석하세요`
+        });
+      }
+
+      // 마지막 세션 선택 (강제)
+      if (lastValidSession) {
+        setCurrentSession(lastValidSession);
+        logger.info(`✅ 총 ${importedSessions.length}개 세션 불러오기 완료, 마지막 세션 선택: "${lastValidSession.name}"`);
+      }
+    } catch (error) {
+      logger.error('❌ 불러오기 오류:', error);
+      setImportProgress({ stage: 'idle', message: '', percentage: 0, estimatedSecondsLeft: 0 });
+      setErrorDialog({
+        title: '불러오기 오류',
+        message: '파일을 불러오는 중 오류가 발생했습니다.'
+      });
+    }
+  }, [currentFolderId, sessions, importFolderData, moveSessionToFolder, setSessions, setCurrentSession]);
+
   const handleSaveSessionClick = useCallback(() => {
     if (!analysisResult || uploadedImages.length === 0) {
       setInfoDialog({
@@ -678,7 +995,7 @@ function App() {
           onExportSession={handleExportSession}
           onRenameSession={handleRenameSession}
           onNewImage={handleReset}
-          onImportSession={handleImportSession}
+          onImportSession={handleImport}
           onSettingsClick={handleSettingsClick}
           onReorderSessions={handleReorderSessions}
           disabled={currentView === 'generator'}
@@ -695,11 +1012,33 @@ function App() {
           onCreateFolder={async (name) => { await createFolder(name); }}
           onRenameFolder={renameFolder}
           onDeleteFolder={async (folderId, deleteContents) => {
+            // 삭제 전 백업 저장 (Undo용)
+            const folderToDelete = folders.find(f => f.id === folderId);
+            if (folderToDelete) {
+              setDeletedFolderBackup({
+                folders: [...folders],
+                sessions: [...sessions],
+                sessionFolderMap: { ...sessionFolderMap },
+                deletedFolderName: folderToDelete.name,
+              });
+            }
+
             await deleteFolder(folderId, deleteContents, sessions, handleDeleteSession);
+
+            // Undo 토스트 표시
+            if (folderToDelete) {
+              setUndoToast(`"${folderToDelete.name}" 폴더가 삭제되었습니다`);
+              // 10초 후 자동으로 토스트 닫기 및 백업 삭제
+              setTimeout(() => {
+                setUndoToast(null);
+                setDeletedFolderBackup(null);
+              }, 10000);
+            }
           }}
           onMoveSessionToFolder={moveSessionToFolder}
           onMoveFolderToFolder={moveFolderToFolder}
           onReorderFolders={reorderFolders}
+          onExportFolder={handleExportFolder}
         />
       </div>
 
@@ -883,6 +1222,7 @@ function App() {
       {saveProgress.stage !== 'idle' && <ProgressIndicator {...saveProgress} />}
       {generateProgress.stage !== 'idle' && <ProgressIndicator {...generateProgress} />}
       {initialTranslationProgress.stage !== 'idle' && <ProgressIndicator {...initialTranslationProgress} />}
+      {importProgress.stage !== 'idle' && <ProgressIndicator {...importProgress} />}
 
       {/* 분석 강화 확인 다이얼로그 */}
       {refineConfirm && (
@@ -1048,6 +1388,38 @@ function App() {
         onDownload={downloadAndInstall}
         onDismiss={dismissUpdate}
       />
+
+      {/* 폴더 삭제 Undo 토스트 */}
+      {undoToast && (
+        <div className="fixed bottom-4 left-4 bg-gray-900 text-white rounded-xl shadow-2xl p-4 border border-gray-700 min-w-[320px] animate-slide-up z-50">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-4 h-4 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-medium text-sm">{undoToast}</p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 bg-gray-700 rounded text-xs">Z</kbd> 로 되돌리기
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setUndoToast(null);
+                setDeletedFolderBackup(null);
+              }}
+              className="p-1 hover:bg-gray-700 rounded transition-colors"
+            >
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
       </div>
     </ErrorBoundary>
   );

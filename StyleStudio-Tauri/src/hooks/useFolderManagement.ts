@@ -44,6 +44,20 @@ interface UseFolderManagementReturn {
 
   // 새 세션 생성 시 현재 폴더 ID 반환
   getCurrentFolderIdForNewSession: () => string | null;
+
+  // 폴더 import (외부에서 불러온 폴더 데이터 추가)
+  importFolderData: (
+    importedFolder: Folder,
+    importedSubfolders: Folder[],
+    importedSessionFolderMap: Record<string, string | null>,
+    targetFolderId: string | null
+  ) => Promise<{ newFolderIdMap: Record<string, string> }>;
+
+  // 폴더 데이터 복원 (Undo용)
+  restoreFolderData: (
+    backupFolders: Folder[],
+    backupSessionFolderMap: Record<string, string | null>
+  ) => Promise<void>;
 }
 
 /**
@@ -322,6 +336,91 @@ export function useFolderManagement(): UseFolderManagementReturn {
     return currentFolderId;
   };
 
+  // 폴더 import (외부에서 불러온 폴더 데이터 추가)
+  // 반환: 기존 폴더 ID -> 새 폴더 ID 매핑
+  const importFolderData = async (
+    importedFolder: Folder,
+    importedSubfolders: Folder[],
+    importedSessionFolderMap: Record<string, string | null>,
+    targetFolderId: string | null
+  ): Promise<{ newFolderIdMap: Record<string, string> }> => {
+    // 새 ID 생성을 위한 매핑 (기존 ID -> 새 ID)
+    const newFolderIdMap: Record<string, string> = {};
+
+    // 1. 루트 폴더 ID 생성
+    const newRootFolderId = Date.now().toString() + Math.random().toString(36).substring(2, 9);
+    newFolderIdMap[importedFolder.id] = newRootFolderId;
+
+    // 2. 하위 폴더 ID 생성
+    for (const subfolder of importedSubfolders) {
+      const newId = Date.now().toString() + Math.random().toString(36).substring(2, 9) + Math.random().toString(36).substring(2, 5);
+      newFolderIdMap[subfolder.id] = newId;
+    }
+
+    // 3. 새 폴더 객체 생성
+    const newRootFolder: Folder = {
+      ...importedFolder,
+      id: newRootFolderId,
+      parentId: targetFolderId, // 타겟 폴더 아래에 배치
+      order: folders.filter(f => f.parentId === targetFolderId).length,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const newSubfolders: Folder[] = importedSubfolders.map(subfolder => ({
+      ...subfolder,
+      id: newFolderIdMap[subfolder.id],
+      parentId: subfolder.parentId ? newFolderIdMap[subfolder.parentId] : newRootFolderId,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }));
+
+    // 4. 세션-폴더 매핑 업데이트
+    const newSessionFolderMap: Record<string, string | null> = {};
+    for (const [sessionId, oldFolderId] of Object.entries(importedSessionFolderMap)) {
+      if (oldFolderId && newFolderIdMap[oldFolderId]) {
+        newSessionFolderMap[sessionId] = newFolderIdMap[oldFolderId];
+      }
+    }
+
+    // 5. 상태 업데이트
+    const updatedFolders = [...folders, newRootFolder, ...newSubfolders];
+    const updatedSessionFolderMap = { ...sessionFolderMap, ...newSessionFolderMap };
+
+    setFolders(updatedFolders);
+    setSessionFolderMap(updatedSessionFolderMap);
+
+    // 6. 저장
+    try {
+      await saveFolderData({ folders: updatedFolders, sessionFolderMap: updatedSessionFolderMap });
+      logger.info('✅ 폴더 import 완료:', importedFolder.name);
+      logger.debug(`   - 루트 폴더: ${newRootFolderId}`);
+      logger.debug(`   - 하위 폴더: ${newSubfolders.length}개`);
+    } catch (error) {
+      logger.error('❌ 폴더 import 오류:', error);
+      throw error;
+    }
+
+    return { newFolderIdMap };
+  };
+
+  // 폴더 데이터 복원 (Undo용)
+  const restoreFolderData = async (
+    backupFolders: Folder[],
+    backupSessionFolderMap: Record<string, string | null>
+  ): Promise<void> => {
+    setFolders(backupFolders);
+    setSessionFolderMap(backupSessionFolderMap);
+
+    try {
+      await saveFolderData({ folders: backupFolders, sessionFolderMap: backupSessionFolderMap });
+      logger.info('✅ 폴더 데이터 복원 완료');
+    } catch (error) {
+      logger.error('❌ 폴더 데이터 복원 오류:', error);
+      throw error;
+    }
+  };
+
   return {
     folders,
     currentFolderId,
@@ -342,5 +441,7 @@ export function useFolderManagement(): UseFolderManagementReturn {
     moveFolderToFolder,
     reorderFolders,
     getCurrentFolderIdForNewSession,
+    importFolderData,
+    restoreFolderData,
   };
 }

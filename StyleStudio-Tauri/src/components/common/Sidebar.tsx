@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import {
   Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings,
   Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award,
-  Folder, FolderPlus, ChevronLeft, MoreVertical, Pencil
+  Folder, FolderPlus, ChevronLeft, MoreVertical, Pencil, FolderDown
 } from 'lucide-react';
 import { Session, SessionType } from '../../types/session';
 import { Folder as FolderType, FolderPath } from '../../types/folder';
@@ -61,6 +61,7 @@ interface SidebarProps {
   onCreateFolder: (name: string) => Promise<void>;
   onRenameFolder: (folderId: string, newName: string) => Promise<void>;
   onDeleteFolder: (folderId: string, deleteContents: boolean) => Promise<void>;
+  onExportFolder?: (folderId: string) => Promise<void>;
   onMoveSessionToFolder: (sessionId: string, folderId: string | null) => Promise<void>;
   onMoveFolderToFolder: (folderId: string, targetFolderId: string | null) => Promise<void>;
   onReorderFolders: (reorderedFolders: FolderType[]) => Promise<void>;
@@ -94,6 +95,7 @@ export function Sidebar({
   onCreateFolder,
   onRenameFolder,
   onDeleteFolder,
+  onExportFolder,
   onMoveSessionToFolder,
   onMoveFolderToFolder,
   onReorderFolders,
@@ -122,6 +124,9 @@ export function Sidebar({
   const [inlineEditSessionId, setInlineEditSessionId] = useState<string | null>(null);
   const [inlineEditValue, setInlineEditValue] = useState('');
   const inlineInputRef = useRef<HTMLInputElement>(null);
+
+  // 폴더 삭제 로딩 상태
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false);
 
   // 드래그 임계값
   const DRAG_THRESHOLD = 5;
@@ -758,7 +763,7 @@ export function Sidebar({
       {/* 폴더 컨텍스트 메뉴 */}
       {folderContextMenu && (
         <div
-          className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50 min-w-[100px]"
+          className="fixed bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50 min-w-[120px]"
           style={{ left: folderContextMenu.x, top: folderContextMenu.y }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -777,6 +782,18 @@ export function Sidebar({
             <Pencil size={12} />
             이름 변경
           </button>
+          {onExportFolder && (
+            <button
+              onClick={async () => {
+                await onExportFolder(folderContextMenu.folderId);
+                setFolderContextMenu(null);
+              }}
+              className="w-full px-4 py-1.5 text-left text-xs text-green-400 hover:bg-gray-700 flex items-center gap-2 whitespace-nowrap"
+            >
+              <FolderDown size={12} />
+              폴더 내보내기
+            </button>
+          )}
           <button
             onClick={() => {
               setFolderDeleteConfirm(folderContextMenu.folderId);
@@ -828,39 +845,60 @@ export function Sidebar({
       {folderDeleteConfirm && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={(e) => e.target === e.currentTarget && setFolderDeleteConfirm(null)}
+          onClick={(e) => !isDeletingFolder && e.target === e.currentTarget && setFolderDeleteConfirm(null)}
         >
           <div className="bg-gray-800 border border-gray-700 rounded-lg shadow-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold mb-2 text-white">폴더 삭제 확인</h3>
-            <p className="text-sm text-gray-300 mb-5">
-              "{folders.find((f) => f.id === folderDeleteConfirm)?.name || '폴더'}"을(를) 삭제하시겠습니까?
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={async () => {
-                  await onDeleteFolder(folderDeleteConfirm, false);
-                  setFolderDeleteConfirm(null);
-                }}
-                className="w-full px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium text-white text-left"
-              >
-                폴더만 삭제 <span className="text-xs text-gray-400">(내용은 상위로 이동)</span>
-              </button>
-              <button
-                onClick={async () => {
-                  await onDeleteFolder(folderDeleteConfirm, true);
-                  setFolderDeleteConfirm(null);
-                }}
-                className="w-full px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium text-white text-left"
-              >
-                폴더와 내용 모두 삭제
-              </button>
-              <button
-                onClick={() => setFolderDeleteConfirm(null)}
-                className="w-full px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium text-gray-400"
-              >
-                취소
-              </button>
-            </div>
+            {isDeletingFolder ? (
+              // 삭제 중 로딩 표시
+              <div className="flex flex-col items-center py-4">
+                <div className="animate-spin rounded-full h-10 w-10 border-3 border-red-500 border-t-transparent mb-4" />
+                <p className="text-sm text-gray-300">폴더 삭제 중...</p>
+                <p className="text-xs text-gray-500 mt-1">잠시만 기다려주세요</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-base font-semibold mb-2 text-white">폴더 삭제 확인</h3>
+                <p className="text-sm text-gray-300 mb-5">
+                  "{folders.find((f) => f.id === folderDeleteConfirm)?.name || '폴더'}"을(를) 삭제하시겠습니까?
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={async () => {
+                      setIsDeletingFolder(true);
+                      try {
+                        await onDeleteFolder(folderDeleteConfirm, false);
+                      } finally {
+                        setIsDeletingFolder(false);
+                        setFolderDeleteConfirm(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium text-white text-left"
+                  >
+                    폴더만 삭제 <span className="text-xs text-gray-400">(내용은 상위로 이동)</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsDeletingFolder(true);
+                      try {
+                        await onDeleteFolder(folderDeleteConfirm, true);
+                      } finally {
+                        setIsDeletingFolder(false);
+                        setFolderDeleteConfirm(null);
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 transition-colors text-sm font-medium text-white text-left"
+                  >
+                    폴더와 내용 모두 삭제
+                  </button>
+                  <button
+                    onClick={() => setFolderDeleteConfirm(null)}
+                    className="w-full px-3 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition-colors text-sm font-medium text-gray-400"
+                  >
+                    취소
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
