@@ -1,8 +1,9 @@
 import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
 import { PixelArtGridLayout } from './pixelart';
 import { ReferenceDocument } from './referenceDocument';
+import { IllustrationSessionData } from './illustration';
 
-export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI' | 'LOGO';
+export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI' | 'LOGO' | 'ILLUSTRATION';
 
 // 번역된 분석 결과 (캐싱용)
 export interface KoreanAnalysisCache {
@@ -31,6 +32,7 @@ export interface Session {
   autoSavePath?: string; // 자동 저장 폴더 경로 (선택)
   referenceDocuments?: ReferenceDocument[]; // 참조 문서 (UI 세션 전용)
   folderId?: string | null; // 소속 폴더 ID (null/undefined면 루트)
+  illustrationData?: IllustrationSessionData; // 일러스트 세션 전용 데이터
 }
 
 // 생성 히스토리 엔트리
@@ -57,4 +59,6 @@ export interface GenerationSettings {
   referenceStrength?: number; // 참조 이미지 영향력 (0.0 ~ 1.0)
   useReferenceImages: boolean;
   pixelArtGrid?: PixelArtGridLayout; // 스프라이트 그리드 레이아웃 (1x1, 2x2, 4x4, 6x6, 8x8)
+  cameraAngle?: string; // 카메라 앵글 프리셋 ID
+  cameraLens?: string;  // 카메라 렌즈/화각 프리셋 ID
 }

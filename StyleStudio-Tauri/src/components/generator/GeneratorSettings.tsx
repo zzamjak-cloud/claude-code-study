@@ -1,9 +1,11 @@
-import { useState } from 'react';
-import { Languages, Wand2, Dices, HelpCircle, X, Award, AlertTriangle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Languages, Wand2, Dices, HelpCircle, X, Award, AlertTriangle, Camera, ChevronDown } from 'lucide-react';
 import { SessionType } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
 import { ReferenceDocument } from '../../types/referenceDocument';
 import { ImageAnalysisResult } from '../../types/analysis';
+import { CAMERA_ANGLES } from '../../types/cameraAngle';
+import { CAMERA_LENSES } from '../../types/cameraLens';
 import { DocumentManager } from './DocumentManager';
 import {
   getGridButtonStyle,
@@ -38,6 +40,10 @@ interface GeneratorSettingsProps {
   // 참조 문서 (UI 세션용)
   referenceDocuments: ReferenceDocument[];
 
+  // 카메라 앵글 및 렌즈 (CHARACTER, BACKGROUND, ILLUSTRATION 세션용)
+  cameraAngle: string;
+  cameraLens: string;
+
   // 콜백
   onGenerate: () => void;
   onAdditionalPromptChange: (value: string) => void;
@@ -51,6 +57,8 @@ interface GeneratorSettingsProps {
   onTemperatureChange: (value: number) => void;
   onTopKChange: (value: number) => void;
   onTopPChange: (value: number) => void;
+  onCameraAngleChange: (value: string) => void;
+  onCameraLensChange: (value: string) => void;
   onDocumentAdd?: (document: ReferenceDocument) => void;
   onDocumentDelete?: (documentId: string) => void;
 
@@ -76,6 +84,8 @@ export function GeneratorSettings({
   temperature,
   topK,
   topP,
+  cameraAngle,
+  cameraLens,
   referenceDocuments,
   onGenerate,
   onAdditionalPromptChange,
@@ -89,10 +99,26 @@ export function GeneratorSettings({
   onTemperatureChange,
   onTopKChange,
   onTopPChange,
+  onCameraAngleChange,
+  onCameraLensChange,
   onDocumentAdd,
   onDocumentDelete,
   containsKorean,
 }: GeneratorSettingsProps) {
+  // textarea 자동 확장을 위한 ref
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // textarea 높이 자동 조절
+  useEffect(() => {
+    if (textareaRef.current) {
+      // 높이 초기화 후 scrollHeight 기반으로 재조절
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      // 최소 3줄(약 72px), 최대 200px
+      const newHeight = Math.min(Math.max(scrollHeight, 72), 200);
+      textareaRef.current.style.height = `${newHeight}px`;
+    }
+  }, [additionalPrompt]);
   // 비용 경고 팝업 상태
   const [costWarning, setCostWarning] = useState<{ size: '2K' | '4K' } | null>(null);
 
@@ -131,11 +157,13 @@ export function GeneratorSettings({
             )}
           </div>
           <textarea
+            ref={textareaRef}
             value={additionalPrompt}
             onChange={(e) => onAdditionalPromptChange(e.target.value)}
             placeholder={getPromptPlaceholder(sessionType)}
             rows={3}
-            className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+            className="w-full p-3 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none overflow-y-auto"
+            style={{ minHeight: '72px', maxHeight: '200px' }}
           />
           <p className="text-xs text-gray-500 mt-1">
             한글/영어 모두 입력 가능 (한글은 자동으로 영어로 번역됩니다)
@@ -198,7 +226,7 @@ export function GeneratorSettings({
             </div>
           )}
 
-          {/* 픽셀아트 그리드 레이아웃 선택 */}
+          {/* 그리드 레이아웃 선택 */}
           {(sessionType === 'PIXELART_CHARACTER' ||
             sessionType === 'PIXELART_BACKGROUND' ||
             sessionType === 'PIXELART_ICON' ||
@@ -207,7 +235,8 @@ export function GeneratorSettings({
             sessionType === 'ICON' ||
             sessionType === 'STYLE' ||
             sessionType === 'UI' ||
-            sessionType === 'LOGO') && (
+            sessionType === 'LOGO' ||
+            sessionType === 'ILLUSTRATION') && (
             <div className={getGridSectionStyle(sessionType)}>
               <label className="block text-sm font-semibold text-gray-700 mb-3">
                 {getGridLabel(sessionType)}
@@ -234,6 +263,16 @@ export function GeneratorSettings({
                   <div className="text-xs opacity-75">4개</div>
                 </button>
                 <button
+                  onClick={() => onPixelArtGridChange('3x3')}
+                  className={`p-3 rounded-lg text-sm font-medium border-2 transition-all ${getGridButtonStyle(
+                    sessionType,
+                    pixelArtGrid === '3x3'
+                  )}`}
+                >
+                  <div className="font-bold mb-1">3x3</div>
+                  <div className="text-xs opacity-75">9개</div>
+                </button>
+                <button
                   onClick={() => onPixelArtGridChange('4x4')}
                   className={`p-3 rounded-lg text-sm font-medium border-2 transition-all ${getGridButtonStyle(
                     sessionType,
@@ -243,18 +282,78 @@ export function GeneratorSettings({
                   <div className="font-bold mb-1">4x4</div>
                   <div className="text-xs opacity-75">16개</div>
                 </button>
-                <button
-                  onClick={() => onPixelArtGridChange('6x6')}
-                  className={`p-3 rounded-lg text-sm font-medium border-2 transition-all ${getGridButtonStyle(
-                    sessionType,
-                    pixelArtGrid === '6x6'
-                  )}`}
-                >
-                  <div className="font-bold mb-1">6x6</div>
-                  <div className="text-xs opacity-75">36개</div>
-                </button>
               </div>
               <p className="text-xs text-gray-500 mt-2">{getGridDescription(sessionType, pixelArtGrid)}</p>
+            </div>
+          )}
+
+          {/* 카메라 앵글 선택 */}
+          {(sessionType === 'CHARACTER' ||
+            sessionType === 'BACKGROUND' ||
+            sessionType === 'ILLUSTRATION' ||
+            sessionType === 'STYLE' ||
+            sessionType === 'ICON' ||
+            sessionType === 'PIXELART_BACKGROUND' ||
+            sessionType === 'PIXELART_ICON') && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <Camera size={16} className="text-purple-600" />
+                  <span>카메라 앵글</span>
+                </div>
+              </label>
+              <div className="relative">
+                <select
+                  value={cameraAngle}
+                  onChange={(e) => onCameraAngleChange(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none cursor-pointer pr-10"
+                >
+                  {CAMERA_ANGLES.map((angle) => (
+                    <option key={angle.id} value={angle.id}>
+                      {angle.id === 'none' ? angle.label : `${angle.label} : ${angle.description}`}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* 카메라 렌즈/화각 선택 */}
+          {(sessionType === 'CHARACTER' ||
+            sessionType === 'BACKGROUND' ||
+            sessionType === 'ILLUSTRATION' ||
+            sessionType === 'STYLE' ||
+            sessionType === 'ICON' ||
+            sessionType === 'PIXELART_BACKGROUND' ||
+            sessionType === 'PIXELART_ICON') && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-purple-600">🔭</span>
+                  <span>렌즈 / 화각</span>
+                </div>
+              </label>
+              <div className="relative">
+                <select
+                  value={cameraLens}
+                  onChange={(e) => onCameraLensChange(e.target.value)}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-purple-500 focus:border-transparent appearance-none cursor-pointer pr-10"
+                >
+                  {CAMERA_LENSES.map((lens) => (
+                    <option key={lens.id} value={lens.id}>
+                      {lens.id === 'none' ? lens.label : `${lens.label} : ${lens.description}`}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                />
+              </div>
             </div>
           )}
 

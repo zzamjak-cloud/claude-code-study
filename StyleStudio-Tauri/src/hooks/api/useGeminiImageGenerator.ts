@@ -202,14 +202,21 @@ export function useGeminiImageGenerator() {
 
 
       // 2. 프롬프트 추가 (참조 이미지가 있으면 일관성 강조)
-      let fullPrompt = buildPromptForSession({
-        basePrompt: params.prompt,
-        hasReferenceImages: hasReferenceImages || false,
-        sessionType: params.sessionType,
-        pixelArtGrid: params.pixelArtGrid,
-        analysis: params.analysis,
-        referenceDocuments: params.referenceDocuments,
-      });
+      // ILLUSTRATION 세션은 ImageGeneratorPanel에서 이미 buildPromptForSession을 호출했으므로 재처리 안함
+      let fullPrompt: string;
+      if (params.sessionType === 'ILLUSTRATION') {
+        // ILLUSTRATION 세션: 이미 완성된 프롬프트 사용
+        fullPrompt = params.prompt;
+      } else {
+        fullPrompt = buildPromptForSession({
+          basePrompt: params.prompt,
+          hasReferenceImages: hasReferenceImages || false,
+          sessionType: params.sessionType,
+          pixelArtGrid: params.pixelArtGrid,
+          analysis: params.analysis,
+          referenceDocuments: params.referenceDocuments,
+        });
+      }
 
 
       // Negative Prompt가 있으면 프롬프트에 명시

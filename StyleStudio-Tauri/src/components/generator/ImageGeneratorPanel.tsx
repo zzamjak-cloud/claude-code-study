@@ -7,7 +7,11 @@ import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
 import { ReferenceDocument } from '../../types/referenceDocument';
+import { IllustrationSessionData, ILLUSTRATION_LIMITS } from '../../types/illustration';
+import { getCameraAnglePrompt } from '../../types/cameraAngle';
+import { getCameraLensPrompt } from '../../types/cameraLens';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
+import { buildPromptForSession } from '../../lib/prompts/sessionPrompts';
 import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
 import { useTranslation } from '../../hooks/useTranslation';
 import { logger } from '../../lib/logger';
@@ -324,6 +328,7 @@ interface ImageGeneratorPanelProps {
   referenceDocuments?: ReferenceDocument[]; // 참조 문서 (UI 세션 전용)
   onDocumentAdd?: (document: ReferenceDocument) => void;
   onDocumentDelete?: (documentId: string) => void;
+  illustrationData?: IllustrationSessionData; // 일러스트 세션 전용 데이터
 }
 
 // 통합 상태 타입 정의
@@ -337,6 +342,8 @@ interface GeneratorState {
   progressMessage: string;
   generatedImage: string | null;
   pixelArtGrid: PixelArtGridLayout;
+  cameraAngle: string;  // 카메라 앵글 프리셋 ID
+  cameraLens: string;   // 카메라 렌즈/화각 프리셋 ID
   zoomLevel: 'fit' | 'actual' | number;
   showZoomMenu: boolean;
   showPathTooltip: boolean;
@@ -366,6 +373,7 @@ export function ImageGeneratorPanel({
   referenceDocuments = [],
   onDocumentAdd,
   onDocumentDelete,
+  illustrationData,
 }: ImageGeneratorPanelProps) {
   const { positivePrompt, negativePrompt } = useMemo(
     () => buildUnifiedPrompt(analysis),
@@ -385,6 +393,8 @@ export function ImageGeneratorPanel({
     progressMessage: '',
     generatedImage: null,
     pixelArtGrid: IMAGE_GENERATION_DEFAULTS.PIXEL_ART_GRID,
+    cameraAngle: 'none',  // 기본값: 선택 안함
+    cameraLens: 'none',   // 기본값: 선택 안함
     zoomLevel: 'fit',
     showZoomMenu: false,
     showPathTooltip: false,
@@ -414,6 +424,8 @@ export function ImageGeneratorPanel({
     progressMessage,
     generatedImage,
     pixelArtGrid,
+    cameraAngle,
+    cameraLens,
     zoomLevel,
     showZoomMenu,
     showPathTooltip,
@@ -437,6 +449,8 @@ export function ImageGeneratorPanel({
   const setProgressMessage = (value: string) => updateState({ progressMessage: value });
   const setGeneratedImage = (value: string | null) => updateState({ generatedImage: value });
   const setPixelArtGrid = (value: PixelArtGridLayout) => updateState({ pixelArtGrid: value });
+  const setCameraAngle = (value: string) => updateState({ cameraAngle: value });
+  const setCameraLens = (value: string) => updateState({ cameraLens: value });
   const setZoomLevel = (value: 'fit' | 'actual' | number) => updateState({ zoomLevel: value });
   const setShowZoomMenu = (value: boolean) => updateState({ showZoomMenu: value });
   const setShowPathTooltip = (value: boolean) => updateState({ showPathTooltip: value });
@@ -518,21 +532,66 @@ export function ImageGeneratorPanel({
       // 2단계: 최종 프롬프트 구성 (영어 사용)
       let finalPrompt = '';
 
-      if (sessionType === 'CHARACTER') {
+      // 카메라 앵글 및 렌즈 프롬프트 가져오기
+      const cameraAnglePrompt = getCameraAnglePrompt(cameraAngle);
+      const cameraLensPrompt = getCameraLensPrompt(cameraLens);
+
+      // 카메라 설정 프롬프트 합치기
+      const cameraSettingsStr = [cameraAnglePrompt, cameraLensPrompt].filter(Boolean).join(', ');
+
+      if (sessionType === 'ILLUSTRATION' && illustrationData) {
+        // 일러스트 세션: 카메라 설정을 basePrompt에 포함하지 않고 별도로 전달
+        // 캐릭터 복제가 최우선이므로 카메라 설정은 별도 섹션으로 처리
+        const basePromptParts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+        const basePrompt = basePromptParts.join(', ');
+        finalPrompt = buildPromptForSession({
+          basePrompt: basePrompt || 'Create an illustration with the characters',
+          hasReferenceImages: true,
+          sessionType: 'ILLUSTRATION',
+          illustrationData: illustrationData,
+          pixelArtGrid: pixelArtGrid, // 그리드 레이아웃 전달
+          cameraSettings: cameraSettingsStr || undefined, // 카메라 설정 별도 전달
+        });
+      } else if (sessionType === 'CHARACTER') {
         // 캐릭터 세션: 참조 이미지가 캐릭터 외형을 완벽히 유지하므로
         // 포즈/표정/동작만 프롬프트로 전달
         const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+        // 카메라 설정 추가
+        if (cameraSettingsStr) {
+          parts.push(cameraSettingsStr);
+        }
         finalPrompt = parts.length > 0 ? parts.join(', ') : 'standing naturally, neutral expression';
+      } else if (sessionType === 'BACKGROUND') {
+        // 배경 세션: 카메라 설정 추가
+        const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+        if (cameraSettingsStr) {
+          parts.push(cameraSettingsStr);
+        }
+        if (useReferenceImages && referenceImages.length > 0) {
+          finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
+        } else {
+          parts.push(positivePrompt);
+          finalPrompt = parts.filter(Boolean).join(', ');
+        }
       } else {
-        // 스타일 세션: 참조 이미지가 있으면 스타일만 유지하고
-        // 구체적인 내용은 사용자 프롬프트 사용
+        // 기타 세션 (STYLE, ICON, PIXELART_BACKGROUND, PIXELART_ICON 등)
+        // 카메라 설정 적용 가능한 세션 타입 확인
+        const cameraEnabledSessions: SessionType[] = ['STYLE', 'ICON', 'PIXELART_BACKGROUND', 'PIXELART_ICON'];
+        const shouldAddCameraSettings = cameraEnabledSessions.includes(sessionType) && cameraSettingsStr;
+
         if (useReferenceImages && referenceImages.length > 0) {
           // 참조 이미지로 스타일 유지, 사용자 프롬프트만 사용
           const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+          if (shouldAddCameraSettings) {
+            parts.push(cameraSettingsStr);
+          }
           finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
         } else {
           // 참조 이미지 없으면 AI 분석 프롬프트도 포함
           const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt, positivePrompt].filter(Boolean);
+          if (shouldAddCameraSettings) {
+            parts.push(cameraSettingsStr);
+          }
           finalPrompt = parts.join(', ');
         }
       }
@@ -540,13 +599,34 @@ export function ImageGeneratorPanel({
       logger.debug('🎨 최종 프롬프트 (영어):', finalPrompt);
 
       // 3단계: 이미지 생성
+      // ILLUSTRATION 세션의 경우 캐릭터 및 배경 참조 이미지 수집 (캐릭터당 최대 3장)
+      let finalReferenceImages: string[] | undefined;
+      if (sessionType === 'ILLUSTRATION' && illustrationData) {
+        const allImages: string[] = [];
+        // 캐릭터 참조 이미지 수집 (캐릭터당 최대 ILLUSTRATION_LIMITS.MAX_IMAGES_PER_CHARACTER장)
+        illustrationData.characters.forEach(char => {
+          if (char.images && char.images.length > 0) {
+            const limitedImages = char.images.slice(0, ILLUSTRATION_LIMITS.MAX_IMAGES_PER_CHARACTER);
+            allImages.push(...limitedImages);
+            logger.debug(`   - ${char.name}: ${limitedImages.length}장 (최대 ${ILLUSTRATION_LIMITS.MAX_IMAGES_PER_CHARACTER}장)`);
+          }
+        });
+        // 배경 참조 이미지 수집
+        if (illustrationData.backgroundImages && illustrationData.backgroundImages.length > 0) {
+          allImages.push(...illustrationData.backgroundImages);
+        }
+        finalReferenceImages = allImages.length > 0 ? allImages : undefined;
+        logger.debug(`📸 ILLUSTRATION 참조 이미지 총: ${allImages.length}장`);
+      } else if (sessionType === 'CHARACTER' || useReferenceImages) {
+        finalReferenceImages = referenceImages;
+      }
+
       await generateImage(
         apiKey,
         {
           prompt: finalPrompt,
           negativePrompt: negativePrompt,
-          referenceImages:
-            sessionType === 'CHARACTER' || useReferenceImages ? referenceImages : undefined,
+          referenceImages: finalReferenceImages,
           aspectRatio: aspectRatio,
           imageSize: imageSize,
           sessionType: sessionType,
@@ -620,6 +700,8 @@ export function ImageGeneratorPanel({
                   referenceStrength: referenceStrength,
                   useReferenceImages: sessionType === 'CHARACTER' || useReferenceImages,
                   pixelArtGrid: pixelArtGrid, // 스프라이트 그리드 레이아웃
+                  cameraAngle: cameraAngle !== 'none' ? cameraAngle : undefined, // 카메라 앵글
+                  cameraLens: cameraLens !== 'none' ? cameraLens : undefined,   // 카메라 렌즈/화각
                 },
                 referenceDocumentIds: referenceDocuments?.map(doc => doc.id), // 참조 문서 ID 목록
               };
@@ -1004,6 +1086,10 @@ export function ImageGeneratorPanel({
       setPixelArtGrid(entry.settings.pixelArtGrid);
     }
 
+    // 카메라 앵글 및 렌즈 복원
+    setCameraAngle(entry.settings.cameraAngle ?? 'none');
+    setCameraLens(entry.settings.cameraLens ?? 'none');
+
     // 추가 포즈/동작 프롬프트 복원
     if (entry.additionalPrompt) {
       setAdditionalPrompt(entry.additionalPrompt);
@@ -1197,6 +1283,8 @@ export function ImageGeneratorPanel({
           temperature={temperature}
           topK={topK}
           topP={topP}
+          cameraAngle={cameraAngle}
+          cameraLens={cameraLens}
           referenceDocuments={referenceDocuments}
           onGenerate={handleGenerate}
           onAdditionalPromptChange={setAdditionalPrompt}
@@ -1210,6 +1298,8 @@ export function ImageGeneratorPanel({
           onTemperatureChange={setTemperature}
           onTopKChange={setTopK}
           onTopPChange={setTopP}
+          onCameraAngleChange={setCameraAngle}
+          onCameraLensChange={setCameraLens}
           onDocumentAdd={onDocumentAdd}
           onDocumentDelete={onDocumentDelete}
           containsKorean={containsKorean}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -236,6 +236,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   게임 타이틀 로고 스타일을 학습하여 브랜드 로고를 생성합니다
+                </p>
+              </button>
+
+              {/* ILLUSTRATION */}
+              <button
+                onClick={() => setSessionType('ILLUSTRATION')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'ILLUSTRATION'
+                    ? 'bg-violet-50 border-violet-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-violet-300 hover:bg-violet-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Images size={20} className={sessionType === 'ILLUSTRATION' ? 'text-violet-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'ILLUSTRATION' ? 'text-violet-900' : 'text-gray-700'}>일러스트</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  여러 캐릭터를 등록하고 배경과 함께 씬을 구성합니다
                 </p>
               </button>
             </div>

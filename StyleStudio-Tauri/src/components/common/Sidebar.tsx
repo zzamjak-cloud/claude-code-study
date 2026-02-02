@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Palette, User, Trash2, ImagePlus, Download, FolderOpen, Settings,
-  Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award,
+  Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images,
   Folder, FolderPlus, ChevronLeft, MoreVertical, Pencil, FolderDown
 } from 'lucide-react';
 import { Session, SessionType } from '../../types/session';
@@ -29,6 +29,8 @@ function getSessionTypeInfo(type: SessionType) {
       return { icon: Monitor, bgColor: 'bg-pink-600/20', textColor: 'text-pink-400' };
     case 'LOGO':
       return { icon: Award, bgColor: 'bg-red-600/20', textColor: 'text-red-400' };
+    case 'ILLUSTRATION':
+      return { icon: Images, bgColor: 'bg-violet-600/20', textColor: 'text-violet-400' };
     default:
       return { icon: Palette, bgColor: 'bg-purple-600/20', textColor: 'text-purple-400' };
   }

@@ -2,6 +2,7 @@ import { SessionType } from '../../types/session';
 import { ReferenceDocument } from '../../types/referenceDocument';
 import { PixelArtGridLayout, getPixelArtGridInfo } from '../../types/pixelart';
 import { ImageAnalysisResult } from '../../types/analysis';
+import { IllustrationSessionData } from '../../types/illustration';
 
 /**
  * 해상도 문자열에서 숫자 추출
@@ -26,6 +27,8 @@ export interface PromptGenerationParams {
   pixelArtGrid?: PixelArtGridLayout;
   analysis?: ImageAnalysisResult;
   referenceDocuments?: ReferenceDocument[];
+  illustrationData?: IllustrationSessionData; // ILLUSTRATION 세션 전용
+  cameraSettings?: string; // 카메라 앵글/렌즈 설정 (별도 처리용)
 }
 
 /**
@@ -43,6 +46,7 @@ const promptGenerators: Record<SessionType, PromptGeneratorFunction> = {
   PIXELART_CHARACTER: generatePixelArtCharacterPrompt,
   PIXELART_BACKGROUND: generatePixelArtBackgroundPrompt,
   PIXELART_ICON: generatePixelArtIconPrompt,
+  ILLUSTRATION: generateIllustrationPrompt,
 };
 
 /**
@@ -408,4 +412,109 @@ Resolution: ${resolution}x${resolution}px
 Match the pixel art style and color palette.
 
 BACKGROUND: Pure white background (#FFFFFF) only. No gradients, no patterns, no checkered pattern, no transparency.`;
+}
+
+/**
+ * ILLUSTRATION 세션 프롬프트 생성
+ * - 참조 이미지의 캐릭터를 직접 복사하는 방식
+ * - 그리드 레이아웃 지원
+ * - 카메라 설정은 캐릭터 복제보다 낮은 우선순위로 처리
+ */
+function generateIllustrationPrompt(params: PromptGenerationParams): string {
+  const { basePrompt, illustrationData, pixelArtGrid, cameraSettings } = params;
+
+  if (!illustrationData) {
+    return basePrompt;
+  }
+
+  // 캐릭터가 있는지 확인 (분석 여부 상관없이 이미지가 있으면 사용)
+  const charactersWithImages = illustrationData.characters.filter(c => c.images && c.images.length > 0);
+
+  if (charactersWithImages.length === 0) {
+    return basePrompt;
+  }
+
+  // 캐릭터 이름 목록
+  const characterNames = charactersWithImages.map(c => `"${c.name}"`).join(', ');
+  const characterCount = charactersWithImages.length;
+
+  // 카메라 설정 섹션 (있을 경우에만)
+  const cameraSection = cameraSettings
+    ? `\n📷 CAMERA (apply AFTER ensuring character accuracy):\n${cameraSettings}\n⚠️ Camera settings must NOT alter character appearance - only affect composition/framing.`
+    : '';
+
+  // 그리드 레이아웃 처리
+  if (pixelArtGrid && pixelArtGrid !== '1x1') {
+    const gridInfo = getPixelArtGridInfo(pixelArtGrid);
+    const gridLayout = `${gridInfo.rows}x${gridInfo.cols}`;
+    const frameCount = gridInfo.rows * gridInfo.cols;
+
+    return `⚠️⚠️⚠️ CRITICAL INSTRUCTION - READ CAREFULLY ⚠️⚠️⚠️
+
+YOU MUST DIRECTLY COPY THE CHARACTERS FROM THE REFERENCE IMAGES ABOVE.
+THIS IS THE #1 PRIORITY - CHARACTER ACCURACY COMES BEFORE EVERYTHING ELSE.
+
+🔴 MANDATORY - CHARACTER REPRODUCTION (HIGHEST PRIORITY):
+The reference images show ${characterCount} character(s): ${characterNames}
+You MUST draw these EXACT characters - not similar ones, not inspired by, but IDENTICAL copies.
+
+✅ WHAT TO COPY FROM REFERENCE IMAGES:
+- The EXACT face (same shape, same features, same proportions)
+- The EXACT eyes (same color, same style, same size)
+- The EXACT hair (same style, same color, same length, same details)
+- The EXACT body (same proportions, same build)
+- The EXACT clothing (same outfit, same colors, same patterns)
+- The EXACT art style (same line work, same coloring technique)
+
+🚫 WHAT YOU MUST NOT DO:
+- DO NOT redesign the characters
+- DO NOT change hair color or style
+- DO NOT change eye color or shape
+- DO NOT change clothing or accessories
+- DO NOT change body proportions
+- DO NOT change the art style
+- DO NOT add or remove any features
+
+📐 GRID LAYOUT: ${gridLayout} (${frameCount} cells)
+⛔ NO GRID LINES - cells blend seamlessly with no borders or dividers.
+
+🎬 SCENE: ${basePrompt || 'Various poses with the characters'}
+${cameraSection}
+
+Each of the ${frameCount} cells shows the SAME characters (copied pixel-perfect from reference) in different poses/scenes.
+
+⚠️ FINAL REMINDER: The characters in your output must be VISUALLY IDENTICAL to the reference images. Character accuracy is MORE IMPORTANT than camera angles or any other instruction. If someone compared them side by side, they should look like the same character drawn by the same artist.`;
+  }
+
+  // 단일 이미지
+  return `⚠️⚠️⚠️ CRITICAL INSTRUCTION - READ CAREFULLY ⚠️⚠️⚠️
+
+YOU MUST DIRECTLY COPY THE CHARACTERS FROM THE REFERENCE IMAGES ABOVE.
+THIS IS THE #1 PRIORITY - CHARACTER ACCURACY COMES BEFORE EVERYTHING ELSE.
+
+🔴 MANDATORY - CHARACTER REPRODUCTION (HIGHEST PRIORITY):
+The reference images show ${characterCount} character(s): ${characterNames}
+You MUST draw these EXACT characters - not similar ones, not inspired by, but IDENTICAL copies.
+
+✅ WHAT TO COPY FROM REFERENCE IMAGES:
+- The EXACT face (same shape, same features, same proportions)
+- The EXACT eyes (same color, same style, same size)
+- The EXACT hair (same style, same color, same length, same details)
+- The EXACT body (same proportions, same build)
+- The EXACT clothing (same outfit, same colors, same patterns)
+- The EXACT art style (same line work, same coloring technique)
+
+🚫 WHAT YOU MUST NOT DO:
+- DO NOT redesign the characters
+- DO NOT change hair color or style
+- DO NOT change eye color or shape
+- DO NOT change clothing or accessories
+- DO NOT change body proportions
+- DO NOT change the art style
+- DO NOT add or remove any features
+
+🎬 SCENE: ${basePrompt}
+${cameraSection}
+
+⚠️ FINAL REMINDER: The characters in your output must be VISUALLY IDENTICAL to the reference images. Character accuracy is MORE IMPORTANT than camera angles or any other instruction. If someone compared them side by side, they should look like the same character drawn by the same artist.`;
 }

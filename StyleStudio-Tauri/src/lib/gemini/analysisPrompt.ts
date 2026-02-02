@@ -634,3 +634,134 @@ Include these categories:
 - Focus on visual replication accuracy, not semantic meaning of text
 `;
 
+/**
+ * ILLUSTRATION 세션 전용 - 개별 캐릭터 분석 프롬프트
+ * - 캐릭터 이름을 받아서 해당 캐릭터의 고유 특징 추출
+ * - 다른 캐릭터와 구분할 수 있는 식별 정보 중심
+ */
+export const ILLUSTRATION_CHARACTER_ANALYZER_PROMPT = (characterName: string) => `
+You are an expert character designer specialized in identifying and documenting unique character features.
+
+Analyze the reference images of the character named "${characterName}".
+Extract ALL visual features that make this character UNIQUE and IDENTIFIABLE.
+
+**CRITICAL**: This character may appear alongside other characters in a scene.
+You MUST identify the most distinctive features that set "${characterName}" apart from others.
+
+Respond with this EXACT JSON structure:
+
+{
+  "character": {
+    "gender": "Gender (male/female/neutral/ambiguous)",
+    "age_group": "Age group (child/teen/adult/elderly/ageless)",
+    "hair": "EXACT hair style and color with HIGH specificity (e.g., 'pink twin-tails with yellow star clips and gradient to white tips')",
+    "eyes": "EXACT eye color, shape, and unique features (e.g., 'large golden eyes with sparkle highlights and heart-shaped pupils')",
+    "face": "Face shape and unique facial features (e.g., 'round face with rosy cheeks and small nose')",
+    "outfit": "Signature clothing that identifies this character (e.g., 'blue sailor uniform with red ribbon')",
+    "accessories": "Distinctive accessories and items (e.g., 'red headband, silver earrings, magic wand')",
+    "body_proportions": "Body ratio (e.g., '2-head chibi', '3-head stylized', '6-head anime', '8-head realistic')",
+    "limb_proportions": "Arm and leg length relative to body (e.g., 'short stubby limbs', 'normal proportions', 'long elegant limbs')",
+    "torso_shape": "Body shape (e.g., 'compact rounded torso', 'slim waist', 'athletic build')",
+    "hand_style": "Hand representation style (e.g., 'simplified 3-finger', 'mitten style', 'detailed 5-finger')",
+    "species_type": "Character type: human / animal / creature / hybrid / mascot",
+    "distinctive_features": "THE MOST UNIQUE IDENTIFYING FEATURES (CRITICAL! e.g., 'fox ears and three fluffy tails', 'scar over left eye', 'rainbow wings')",
+    "color_scheme": "Primary colors that define this character (e.g., 'pink, white, gold as accent')",
+    "silhouette_shape": "Recognizable silhouette (e.g., 'large ears create distinctive silhouette', 'flowing cape extends silhouette')",
+    "personality_visual_cues": "Visual hints of personality (e.g., 'cheerful expression lines', 'confident posture', 'shy hunched shoulders')"
+  },
+  "negative_prompt": "Elements to AVOID when generating this character - things that would break character consistency (English keywords)"
+}
+
+**ANALYSIS PRIORITIES:**
+
+1. **DISTINCTIVE FEATURES (HIGHEST PRIORITY - 40%)**:
+   - What makes "${characterName}" INSTANTLY recognizable?
+   - Focus on unique physical traits (special ears, tails, horns, wings, marks)
+   - Signature colors that define the character
+   - Unique accessories always present
+
+2. **CONSISTENT APPEARANCE (30%)**:
+   - Hair style and color (EXACT specification)
+   - Eye color and shape (EXACT specification)
+   - Body proportions that remain consistent
+   - Signature outfit elements
+
+3. **SPECIES/TYPE IDENTIFICATION (20%)**:
+   - Human, animal, creature, hybrid?
+   - If animal: what species? (cat, dog, rabbit, dragon, etc.)
+   - If hybrid: which features from each type?
+
+4. **PERSONALITY CUES (10%)**:
+   - Visual elements that convey personality
+   - Default expression tendency
+   - Typical posture or stance
+
+**IMPORTANT NOTES:**
+- Be EXTREMELY specific with colors (not just "blue" but "sky blue with purple undertones")
+- Be EXTREMELY specific with hair (not just "long hair" but "waist-length straight black hair with blunt bangs")
+- Include ANY unique marks, scars, tattoos, or special features
+- If the character is non-human, describe their unique anatomy precisely
+- Output ONLY valid JSON - no other text
+`;
+
+/**
+ * ILLUSTRATION 세션 전용 - 배경 스타일 분석 프롬프트
+ * - 배경 이미지에서 환경/분위기/스타일 정보 추출
+ * - 캐릭터 없이 순수 배경 스타일만 분석
+ */
+export const ILLUSTRATION_BACKGROUND_ANALYZER_PROMPT = `
+You are an expert background artist and environment designer.
+
+Analyze the reference background images to extract the visual style and atmosphere.
+Focus on environmental elements, lighting, color mood, and artistic style.
+
+**CRITICAL**: Extract the STYLE and MOOD of the background, not specific objects.
+This style will be applied to NEW scenes while maintaining atmosphere consistency.
+
+Respond with this EXACT JSON structure:
+
+{
+  "background": {
+    "environment_type": "Environment category (indoor/outdoor/fantasy/urban/nature/abstract/mixed)",
+    "atmosphere": "Overall mood and feeling (e.g., 'warm cozy atmosphere with nostalgic feeling', 'mysterious dark fantasy vibe')",
+    "color_palette": "Primary and secondary colors (e.g., 'warm orange sunset tones with deep purple shadows, golden highlights')",
+    "lighting": "Lighting characteristics (warm/cool/dramatic/soft/backlit/rim light/ambient)",
+    "time_of_day": "Time setting (dawn/morning/day/afternoon/dusk/evening/night/timeless)",
+    "weather": "Weather or atmospheric conditions if visible (sunny/cloudy/rainy/foggy/snowy/magical particles)",
+    "depth_layers": "Depth composition (e.g., 'foreground flowers, midground forest, background mountains with atmospheric haze')",
+    "style_keywords": "Art style keywords for reproduction (e.g., 'soft watercolor, painterly brushstrokes, vibrant anime style, detailed ghibli-esque')"
+  },
+  "negative_prompt": "Elements to AVOID in background generation (English keywords - e.g., 'characters, people, photorealistic, harsh shadows')"
+}
+
+**ANALYSIS PRIORITIES:**
+
+1. **ATMOSPHERE & MOOD (HIGHEST PRIORITY - 40%)**:
+   - What emotional response does this background evoke?
+   - Is it warm/cold, bright/dark, peaceful/tense?
+   - What story does the environment tell?
+
+2. **COLOR & LIGHTING (30%)**:
+   - Dominant color palette with specific descriptions
+   - Lighting direction and quality
+   - Color temperature (warm sunset vs cool moonlight)
+   - Contrast level (high drama vs soft ambient)
+
+3. **ARTISTIC STYLE (20%)**:
+   - Rendering technique (painterly, cel-shaded, realistic, stylized)
+   - Level of detail (detailed vs simplified)
+   - Brushwork or texture characteristics
+
+4. **SPATIAL COMPOSITION (10%)**:
+   - How depth is achieved (layers, atmospheric perspective)
+   - Open vs enclosed feeling
+   - Scale and grandeur level
+
+**IMPORTANT NOTES:**
+- Focus on STYLE that can be transferred to different scenes
+- Ignore any characters in the background images
+- Be specific about color temperatures and lighting qualities
+- Include atmospheric effects (fog, particles, glow)
+- Output ONLY valid JSON - no other text
+`;
+

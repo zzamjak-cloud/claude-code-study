@@ -9,12 +9,14 @@ import { SettingsModal } from './components/common/SettingsModal';
 import { SaveSessionModal } from './components/common/SaveSessionModal';
 import { NewSessionModal } from './components/common/NewSessionModal';
 import { UpdateModal } from './components/common/UpdateModal';
+import { IllustrationSetupPanel } from './components/illustration';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoUpdate } from './hooks/useAutoUpdate';
 import { ProgressIndicator } from './components/common/ProgressIndicator';
 import { ImageAnalysisResult } from './types/analysis';
 import { Session, SessionType } from './types/session';
+import { IllustrationSessionData } from './types/illustration';
 import { useImageHandling } from './hooks/useImageHandling';
 import { useSessionManagement } from './hooks/useSessionManagement';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
@@ -845,6 +847,14 @@ function App() {
     // 현재 폴더 ID 설정
     newSession.folderId = getCurrentFolderIdForNewSession();
 
+    // ILLUSTRATION 세션인 경우 초기 데이터 설정
+    if (type === 'ILLUSTRATION') {
+      newSession.illustrationData = {
+        characters: [],
+        backgroundImages: [],
+      };
+    }
+
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);
@@ -860,6 +870,69 @@ function App() {
     setAnalysisResult(null);
     setCurrentView('analysis');
   }, [sessions, setSessions, setCurrentSession, setUploadedImages, getCurrentFolderIdForNewSession, moveSessionToFolder]);
+
+  // ILLUSTRATION 세션의 illustrationData 업데이트 핸들러
+  const handleIllustrationDataChange = useCallback(async (illustrationData: IllustrationSessionData) => {
+    if (!currentSession || currentSession.type !== 'ILLUSTRATION') return;
+
+    const updatedSession = updateSession(currentSession, { illustrationData });
+    const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+    setSessions(updatedSessions);
+    setCurrentSession(updatedSession);
+    await persistSessions(updatedSessions);
+  }, [currentSession, sessions, setSessions, setCurrentSession]);
+
+  // ILLUSTRATION 세션에서 이미지 생성 화면으로 이동
+  const handleIllustrationGenerate = useCallback(() => {
+    if (!currentSession || currentSession.type !== 'ILLUSTRATION') return;
+
+    // 최소 1개 이상의 분석된 캐릭터가 있어야 함
+    const analyzedCharacters = currentSession.illustrationData?.characters.filter(c => c.analysis) || [];
+    if (analyzedCharacters.length === 0) {
+      setInfoDialog({
+        title: '캐릭터 분석 필요',
+        message: '최소 1개 이상의 캐릭터를 분석해야 합니다.\n\n캐릭터를 추가하고 분석 버튼을 눌러주세요.'
+      });
+      return;
+    }
+
+    // ILLUSTRATION 세션용 더미 분석 결과 생성 (기존 흐름 유지를 위해)
+    const dummyAnalysis: ImageAnalysisResult = {
+      style: {
+        art_style: 'illustration',
+        technique: 'multi-character composition',
+        color_palette: analyzedCharacters.map(c => c.analysis?.color_scheme || '').filter(Boolean).join(', '),
+        lighting: currentSession.illustrationData?.backgroundAnalysis?.lighting || 'natural',
+        mood: currentSession.illustrationData?.backgroundAnalysis?.atmosphere || 'dynamic',
+      },
+      character: {
+        gender: 'mixed (multiple characters)',
+        age_group: 'varies',
+        hair: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.hair}`).join('; '),
+        eyes: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.eyes}`).join('; '),
+        face: 'varies per character',
+        outfit: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.outfit}`).join('; '),
+        accessories: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.accessories}`).filter(Boolean).join('; '),
+        body_proportions: analyzedCharacters[0]?.analysis?.body_proportions || 'varies',
+        limb_proportions: 'varies per character',
+        torso_shape: 'varies per character',
+        hand_style: analyzedCharacters[0]?.analysis?.hand_style || 'varies',
+      },
+      composition: {
+        pose: 'scene-dependent',
+        angle: 'varies',
+        background: currentSession.illustrationData?.backgroundAnalysis?.environment_type || 'custom scene',
+        depth_of_field: currentSession.illustrationData?.backgroundAnalysis?.depth_layers || 'standard',
+      },
+      negative_prompt: [
+        ...analyzedCharacters.map(c => c.negativePrompt).filter(Boolean),
+        currentSession.illustrationData?.backgroundNegativePrompt,
+      ].filter(Boolean).join(', '),
+    };
+
+    setAnalysisResult(dummyAnalysis);
+    setCurrentView('generator');
+  }, [currentSession, setInfoDialog]);
 
   const handleGenerateImage = async () => {
     if (!analysisResult) {
@@ -1095,6 +1168,68 @@ function App() {
               </div>
             </div>
           </div>
+        ) : currentSession?.type === 'ILLUSTRATION' ? (
+          // ILLUSTRATION 세션 전용 UI
+          currentView === 'analysis' ? (
+            <div className="flex-1 overflow-auto bg-gradient-to-br from-gray-50 to-gray-100 p-6">
+              <div className="max-w-2xl mx-auto">
+                <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                  <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-violet-500 to-purple-600">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      🎨 일러스트 세션 설정
+                    </h2>
+                    <p className="text-sm text-white/80 mt-1">
+                      캐릭터와 배경 참조 이미지를 등록하세요
+                    </p>
+                  </div>
+                  <div className="p-6">
+                    <IllustrationSetupPanel
+                      data={currentSession.illustrationData || { characters: [], backgroundImages: [] }}
+                      onDataChange={handleIllustrationDataChange}
+                      disabled={false}
+                    />
+                  </div>
+                  {/* 이미지 생성으로 이동 버튼 */}
+                  <div className="p-6 border-t border-gray-200 bg-gray-50">
+                    <button
+                      onClick={handleIllustrationGenerate}
+                      disabled={!(currentSession.illustrationData?.characters.some(c => c.images.length > 0))}
+                      className={`w-full py-3 font-semibold rounded-lg transition-all ${
+                        currentSession.illustrationData?.characters.some(c => c.images.length > 0)
+                          ? 'bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white shadow-lg'
+                          : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      }`}
+                    >
+                      이미지 생성하기
+                    </button>
+                    {!(currentSession.illustrationData?.characters.some(c => c.images.length > 0)) && (
+                      <p className="text-xs text-gray-500 text-center mt-2">
+                        최소 1개 이상의 캐릭터에 이미지를 등록해야 합니다
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            analysisResult && (
+              <ImageGeneratorPanel
+                apiKey={apiKey}
+                analysis={analysisResult}
+                referenceImages={currentSession.illustrationData?.characters.flatMap(c => c.images) || []}
+                sessionType="ILLUSTRATION"
+                koreanAnalysis={currentSession?.koreanAnalysis}
+                generationHistory={currentSession?.generationHistory}
+                onHistoryAdd={handleHistoryAdd}
+                onHistoryUpdate={handleHistoryUpdate}
+                onHistoryDelete={handleHistoryDelete}
+                onBack={handleBackToAnalysis}
+                autoSavePath={currentSession?.autoSavePath}
+                onAutoSavePathChange={handleAutoSavePathChange}
+                illustrationData={currentSession.illustrationData}
+              />
+            )
+          )
         ) : uploadedImages.length > 0 ? (
           currentView === 'analysis' ? (
             <AnalysisPanel

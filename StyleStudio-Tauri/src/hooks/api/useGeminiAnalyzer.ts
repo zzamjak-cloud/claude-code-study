@@ -7,9 +7,12 @@ import {
   PIXELART_BACKGROUND_ANALYZER_PROMPT,
   UI_ANALYZER_PROMPT,
   LOGO_ANALYZER_PROMPT,
+  ILLUSTRATION_CHARACTER_ANALYZER_PROMPT,
+  ILLUSTRATION_BACKGROUND_ANALYZER_PROMPT,
 } from '../../lib/gemini/analysisPrompt';
 import { ImageAnalysisResult } from '../../types/analysis';
 import { SessionType } from '../../types/session';
+import { IllustrationCharacterAnalysis, BackgroundAnalysisResult } from '../../types/illustration';
 import { logger } from '../../lib/logger';
 
 interface AnalysisCallbacks {
@@ -372,5 +375,204 @@ export function useGeminiAnalyzer() {
     }
   };
 
-  return { analyzeImages };
+  /**
+   * 일러스트 캐릭터 개별 분석
+   * - 캐릭터 이름과 이미지 배열을 받아 해당 캐릭터의 고유 특징 추출
+   */
+  const analyzeIllustrationCharacter = async (
+    apiKey: string,
+    characterName: string,
+    imageBase64Array: string[],
+    onProgress?: (message: string) => void
+  ): Promise<{ analysis: IllustrationCharacterAnalysis; negativePrompt: string }> => {
+    const cleanApiKey = String(apiKey || '').trim();
+    if (!cleanApiKey) {
+      throw new Error('API Key가 비어있습니다');
+    }
+
+    if (!imageBase64Array || imageBase64Array.length === 0) {
+      throw new Error('분석할 이미지가 없습니다');
+    }
+
+    logger.debug(`🎭 캐릭터 분석 시작: "${characterName}" (${imageBase64Array.length}장)`);
+    onProgress?.(`"${characterName}" 캐릭터를 분석하고 있습니다...`);
+
+    // 이미지를 parts 배열로 변환
+    const imageParts = imageBase64Array.map((imageBase64) => {
+      const base64Data = imageBase64.includes(',')
+        ? imageBase64.split(',')[1]
+        : imageBase64;
+      const mimeMatch = imageBase64.match(/data:([^;]+);base64/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+
+      return {
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data,
+        },
+      };
+    });
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${cleanApiKey}`;
+
+    const parts = [
+      { text: ILLUSTRATION_CHARACTER_ANALYZER_PROMPT(characterName) },
+      ...imageParts,
+    ];
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.4,
+          topK: 32,
+          topP: 0.95,
+          maxOutputTokens: 8192,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API 오류 (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    const candidate = result.candidates?.[0];
+
+    if (!candidate || candidate.finishReason === 'SAFETY') {
+      throw new Error('이미지가 안전 필터에 의해 차단되었습니다.');
+    }
+
+    const text = candidate.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('Gemini 응답에 텍스트가 없습니다.');
+    }
+
+    // JSON 파싱
+    let jsonText = text;
+    if (text.includes('```')) {
+      const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
+      if (jsonBlockMatch) jsonText = jsonBlockMatch[1];
+    }
+
+    const firstBrace = jsonText.indexOf('{');
+    const lastBrace = jsonText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+    }
+    jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1');
+
+    const parsed = JSON.parse(jsonText.trim());
+
+    logger.debug(`✅ 캐릭터 "${characterName}" 분석 완료`);
+
+    return {
+      analysis: parsed.character as IllustrationCharacterAnalysis,
+      negativePrompt: parsed.negative_prompt || '',
+    };
+  };
+
+  /**
+   * 일러스트 배경 스타일 분석
+   * - 배경 이미지에서 환경, 분위기, 스타일 정보 추출
+   */
+  const analyzeIllustrationBackground = async (
+    apiKey: string,
+    imageBase64Array: string[],
+    onProgress?: (message: string) => void
+  ): Promise<{ analysis: BackgroundAnalysisResult; negativePrompt: string }> => {
+    const cleanApiKey = String(apiKey || '').trim();
+    if (!cleanApiKey) {
+      throw new Error('API Key가 비어있습니다');
+    }
+
+    if (!imageBase64Array || imageBase64Array.length === 0) {
+      throw new Error('분석할 이미지가 없습니다');
+    }
+
+    logger.debug(`🖼️ 배경 분석 시작: ${imageBase64Array.length}장`);
+    onProgress?.('배경 스타일을 분석하고 있습니다...');
+
+    // 이미지를 parts 배열로 변환
+    const imageParts = imageBase64Array.map((imageBase64) => {
+      const base64Data = imageBase64.includes(',')
+        ? imageBase64.split(',')[1]
+        : imageBase64;
+      const mimeMatch = imageBase64.match(/data:([^;]+);base64/);
+      const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+
+      return {
+        inline_data: {
+          mime_type: mimeType,
+          data: base64Data,
+        },
+      };
+    });
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${cleanApiKey}`;
+
+    const parts = [
+      { text: ILLUSTRATION_BACKGROUND_ANALYZER_PROMPT },
+      ...imageParts,
+    ];
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.4,
+          topK: 32,
+          topP: 0.95,
+          maxOutputTokens: 8192,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`API 오류 (${response.status}): ${errorText}`);
+    }
+
+    const result = await response.json();
+    const candidate = result.candidates?.[0];
+
+    if (!candidate || candidate.finishReason === 'SAFETY') {
+      throw new Error('이미지가 안전 필터에 의해 차단되었습니다.');
+    }
+
+    const text = candidate.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('Gemini 응답에 텍스트가 없습니다.');
+    }
+
+    // JSON 파싱
+    let jsonText = text;
+    if (text.includes('```')) {
+      const jsonBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/```\s*([\s\S]*?)\s*```/);
+      if (jsonBlockMatch) jsonText = jsonBlockMatch[1];
+    }
+
+    const firstBrace = jsonText.indexOf('{');
+    const lastBrace = jsonText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = jsonText.substring(firstBrace, lastBrace + 1);
+    }
+    jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1');
+
+    const parsed = JSON.parse(jsonText.trim());
+
+    logger.debug('✅ 배경 분석 완료');
+
+    return {
+      analysis: parsed.background as BackgroundAnalysisResult,
+      negativePrompt: parsed.negative_prompt || '',
+    };
+  };
+
+  return { analyzeImages, analyzeIllustrationCharacter, analyzeIllustrationBackground };
 }

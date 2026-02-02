@@ -1,6 +1,6 @@
 import { SessionType } from '../../types/session';
 
-export type PixelArtGridLayout = '1x1' | '2x2' | '4x4' | '6x6' | '8x8';
+export type PixelArtGridLayout = '1x1' | '2x2' | '3x3' | '4x4' | '6x6' | '8x8';
 
 /**
  * 세션 타입별 설정
@@ -54,6 +54,7 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 캐릭터 포즈를 생성합니다 (1024px 풀사이즈)',
       '2x2': '✨ 4가지 캐릭터 포즈 바리에이션을 생성합니다',
+      '3x3': '✨ 9가지 캐릭터 포즈 세트를 생성합니다',
       '4x4': '✨ 16가지 다양한 캐릭터 포즈를 생성합니다',
       '6x6': '✨ 36가지 캐릭터 포즈 대형 세트를 생성합니다',
       '8x8': '✨ 64가지 캐릭터 포즈 초대형 세트를 생성합니다',
@@ -75,6 +76,7 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 배경을 생성합니다 (1024px 풀사이즈)',
       '2x2': '✨ 4가지 배경 바리에이션을 생성합니다',
+      '3x3': '✨ 9가지 배경 세트를 생성합니다',
       '4x4': '✨ 16가지 다양한 배경을 생성합니다',
       '6x6': '✨ 36가지 배경 대형 세트를 생성합니다',
       '8x8': '✨ 64가지 배경 초대형 세트를 생성합니다',
@@ -96,6 +98,7 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 아이콘을 생성합니다 (1024px 풀사이즈)',
       '2x2': '✨ 4가지 아이콘 바리에이션을 생성합니다',
+      '3x3': '✨ 9개 아이콘 세트를 생성합니다',
       '4x4': '✨ 16개 아이콘 세트를 생성합니다',
       '6x6': '✨ 36개 아이콘 대형 세트를 생성합니다',
       '8x8': '✨ 64개 아이콘 초대형 세트를 생성합니다',
@@ -117,6 +120,7 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)',
       '2x2': '✨ 4가지 스타일 바리에이션을 생성합니다',
+      '3x3': '✨ 9가지 스타일 작품 세트를 생성합니다',
       '4x4': '✨ 16가지 다양한 스타일 작품을 생성합니다',
       '6x6': '✨ 36가지 스타일 대형 세트를 생성합니다',
       '8x8': '✨ 64가지 스타일 초대형 세트를 생성합니다',
@@ -138,6 +142,7 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 UI 화면 (1024px)',
       '2x2': '✨ 4가지 UI 화면 바리에이션',
+      '3x3': '✨ 9개 UI 화면 세트',
       '4x4': '✨ 16개 UI 화면 세트',
       '6x6': '✨ 36개 UI 화면 대형 세트',
       '8x8': '✨ 64개 UI 화면 초대형 세트',
@@ -159,12 +164,35 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 로고를 생성합니다 (1024px 풀사이즈)',
       '2x2': '✨ 4가지 로고 재질/색상 바리에이션을 생성합니다',
+      '3x3': '✨ 9가지 로고 스타일 옵션을 생성합니다',
       '4x4': '✨ 16가지 다양한 로고 스타일 옵션을 생성합니다 (A/B 테스트용)',
       '6x6': '✨ 36가지 로고 대형 바리에이션 세트를 생성합니다',
       '8x8': '✨ 64가지 로고 초대형 바리에이션 세트를 생성합니다',
     },
     promptPlaceholder: `로고 타이틀 텍스트와 스타일을 설명하세요 (예: "DRAGON POP" 젤리 재질, 버블 폰트)`,
     gridLabel: '🔤 로고 그리드',
+  },
+
+  ILLUSTRATION: {
+    label: '일러스트',
+    icon: '🎨',
+    description: '여러 캐릭터가 등장하는 일러스트 씬을 생성합니다',
+    colors: {
+      selected: 'bg-violet-600 text-white border-violet-700 shadow-lg',
+      unselected: 'bg-white text-gray-700 border-violet-200 hover:border-violet-400',
+      background: 'bg-gradient-to-r from-violet-50 to-purple-50',
+      border: 'border-violet-200',
+    },
+    grids: {
+      '1x1': '✨ 단일 일러스트를 생성합니다 (1024px 풀사이즈)',
+      '2x2': '✨ 4가지 씬 바리에이션을 생성합니다',
+      '3x3': '✨ 9가지 씬 구성 세트를 생성합니다',
+      '4x4': '✨ 16가지 다양한 씬 구성을 생성합니다',
+      '6x6': '✨ 36가지 씬 대형 세트를 생성합니다',
+      '8x8': '✨ 64가지 씬 초대형 세트를 생성합니다',
+    },
+    promptPlaceholder: `캐릭터 이름을 사용하여 씬을 설명하세요 (예: 라미가 토끼와 함께 꽃밭에서 놀고 있다)`,
+    gridLabel: '🎨 일러스트 그리드',
   },
 
   PIXELART_CHARACTER: {
@@ -180,6 +208,7 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     grids: {
       '1x1': '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)',
       '2x2': '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)',
+      '3x3': '✨ 9프레임 애니메이션을 생성합니다',
       '4x4': '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)',
       '6x6': '✨ 36프레임 복잡한 애니메이션을 생성합니다',
       '8x8': '✨ 64프레임 매우 상세한 애니메이션을 생성합니다',
@@ -200,10 +229,11 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     },
     grids: {
       '1x1': '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)',
-      '2x2': '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)',
-      '4x4': '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)',
-      '6x6': '✨ 36프레임 복잡한 애니메이션을 생성합니다',
-      '8x8': '✨ 64프레임 매우 상세한 애니메이션을 생성합니다',
+      '2x2': '✨ 4가지 바리에이션을 생성합니다 (예: 시간대별 변화)',
+      '3x3': '✨ 9가지 배경 타일을 생성합니다',
+      '4x4': '✨ 16가지 배경 바리에이션을 생성합니다',
+      '6x6': '✨ 36가지 배경 대형 세트를 생성합니다',
+      '8x8': '✨ 64가지 배경 초대형 세트를 생성합니다',
     },
     promptPlaceholder: `배경 바리에이션을 설명하세요 (예: forest at different times, dungeon levels)`,
     gridLabel: '🏞️ 픽셀아트 배경 그리드',
@@ -221,10 +251,11 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     },
     grids: {
       '1x1': '✨ 단일 이미지를 생성합니다 (1024px 풀사이즈)',
-      '2x2': '✨ 4가지 바리에이션을 생성합니다 (예: 4방향 대기 자세)',
-      '4x4': '✨ 완전한 애니메이션 시퀀스를 생성합니다 (예: 공격 동작 16프레임)',
-      '6x6': '✨ 36프레임 복잡한 애니메이션을 생성합니다',
-      '8x8': '✨ 64프레임 매우 상세한 애니메이션을 생성합니다',
+      '2x2': '✨ 4가지 아이콘 바리에이션을 생성합니다',
+      '3x3': '✨ 9개 아이콘 세트를 생성합니다',
+      '4x4': '✨ 16개 아이콘 세트를 생성합니다',
+      '6x6': '✨ 36개 아이콘 대형 세트를 생성합니다',
+      '8x8': '✨ 64개 아이콘 초대형 세트를 생성합니다',
     },
     promptPlaceholder: `픽셀아트 아이콘을 설명하세요 (예: health potion, mana crystal, gold coin)`,
     gridLabel: '💎 픽셀아트 아이콘 그리드',
