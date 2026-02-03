@@ -886,12 +886,12 @@ function App() {
   const handleIllustrationGenerate = useCallback(() => {
     if (!currentSession || currentSession.type !== 'ILLUSTRATION') return;
 
-    // 최소 1개 이상의 분석된 캐릭터가 있어야 함
-    const analyzedCharacters = currentSession.illustrationData?.characters.filter(c => c.analysis) || [];
-    if (analyzedCharacters.length === 0) {
+    // 최소 1개 이상의 캐릭터가 있고, 해당 캐릭터에 이미지가 있어야 함
+    const charactersWithImages = currentSession.illustrationData?.characters.filter(c => c.images.length > 0) || [];
+    if (charactersWithImages.length === 0) {
       setInfoDialog({
-        title: '캐릭터 분석 필요',
-        message: '최소 1개 이상의 캐릭터를 분석해야 합니다.\n\n캐릭터를 추가하고 분석 버튼을 눌러주세요.'
+        title: '캐릭터 필요',
+        message: '최소 1개 이상의 캐릭터와 참조 이미지가 필요합니다.\n\n캐릭터를 추가하고 이미지를 등록해주세요.'
       });
       return;
     }
@@ -901,22 +901,22 @@ function App() {
       style: {
         art_style: 'illustration',
         technique: 'multi-character composition',
-        color_palette: analyzedCharacters.map(c => c.analysis?.color_scheme || '').filter(Boolean).join(', '),
+        color_palette: 'varies per character',
         lighting: currentSession.illustrationData?.backgroundAnalysis?.lighting || 'natural',
         mood: currentSession.illustrationData?.backgroundAnalysis?.atmosphere || 'dynamic',
       },
       character: {
         gender: 'mixed (multiple characters)',
         age_group: 'varies',
-        hair: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.hair}`).join('; '),
-        eyes: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.eyes}`).join('; '),
+        hair: charactersWithImages.map(c => c.name).join(', '),
+        eyes: 'varies per character',
         face: 'varies per character',
-        outfit: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.outfit}`).join('; '),
-        accessories: analyzedCharacters.map(c => `${c.name}: ${c.analysis?.accessories}`).filter(Boolean).join('; '),
-        body_proportions: analyzedCharacters[0]?.analysis?.body_proportions || 'varies',
+        outfit: 'varies per character',
+        accessories: 'varies per character',
+        body_proportions: 'varies',
         limb_proportions: 'varies per character',
         torso_shape: 'varies per character',
-        hand_style: analyzedCharacters[0]?.analysis?.hand_style || 'varies',
+        hand_style: 'varies',
       },
       composition: {
         pose: 'scene-dependent',
@@ -924,10 +924,7 @@ function App() {
         background: currentSession.illustrationData?.backgroundAnalysis?.environment_type || 'custom scene',
         depth_of_field: currentSession.illustrationData?.backgroundAnalysis?.depth_layers || 'standard',
       },
-      negative_prompt: [
-        ...analyzedCharacters.map(c => c.negativePrompt).filter(Boolean),
-        currentSession.illustrationData?.backgroundNegativePrompt,
-      ].filter(Boolean).join(', '),
+      negative_prompt: currentSession.illustrationData?.backgroundNegativePrompt || '',
     };
 
     setAnalysisResult(dummyAnalysis);
