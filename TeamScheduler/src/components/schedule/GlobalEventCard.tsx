@@ -351,7 +351,6 @@ export const GlobalEventCard = memo(function GlobalEventCard({
             backgroundColor: event.color || '#f59e0b',
             color: event.textColor || '#ffffff',
           }}
-          onMouseDown={(e) => e.stopPropagation()}
           onDoubleClick={handleDoubleClick}
           onClick={handleClick}
           onContextMenu={handleContextMenu}
