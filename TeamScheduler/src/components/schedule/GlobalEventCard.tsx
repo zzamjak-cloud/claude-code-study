@@ -113,9 +113,6 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   // 충돌 상태
   const [isColliding, setIsColliding] = useState(false)
 
-  // 드래그 종료 후 그리드 스냅을 위한 리마운트 키
-  const [snapKey, setSnapKey] = useState(0)
-
   // 현재 위치/크기 계산
   const calculatedWidth = dateRangeToWidth(
     new Date(event.startDate),
@@ -219,19 +216,14 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     const adjustedY = data.y - CARD_MARGIN
     const newRowIndex = Math.max(0, Math.min(totalRows - 1, Math.round(adjustedY / cellHeight)))
 
-    // 위치가 변경되지 않은 경우에도 그리드 스냅을 위해 리마운트
     if (newStartDate.getTime() === event.startDate && newRowIndex === currentRowIndex) {
-      setIsColliding(false)
-      setSnapKey(prev => prev + 1)
       return
     }
 
     const colliding = checkCollision(newStartDate.getTime(), newEndDate.getTime(), newRowIndex)
     setIsColliding(colliding)
 
-    // 충돌 시 원래 위치로 스냅백
     if (colliding) {
-      setSnapKey(prev => prev + 1)
       return
     }
 
@@ -257,9 +249,6 @@ export const GlobalEventCard = memo(function GlobalEventCard({
         500
       )
     }
-
-    // 상태 업데이트 후 그리드 스냅을 위해 리마운트
-    setSnapKey(prev => prev + 1)
   }
 
   // 리사이즈 종료
@@ -332,7 +321,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   return (
     <>
       <Rnd
-        key={`${event.id}-${snapKey}`}
+        key={`${event.id}-${event.startDate}-${event.endDate}-${event.rowIndex}`}
         position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
         onDragStart={handleDragStart}
