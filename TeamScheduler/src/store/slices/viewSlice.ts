@@ -50,6 +50,9 @@ export interface ViewSlice {
   // 선택된 직군 필터 (null = 전체)
   selectedJobTitle: string | null
 
+  // 오늘 날짜로 스크롤 트리거 (카운터)
+  scrollToTodayTrigger: number
+
   // 메서드
   setZoomLevel: (level: number) => void
   setColumnWidthScale: (scale: number) => void
@@ -64,6 +67,7 @@ export interface ViewSlice {
   setSelectedProjectId: (projectId: string | null) => void
   setLastSelectedProjectId: (projectId: string | null) => void
   setSelectedJobTitle: (jobTitle: string | null) => void
+  scrollToToday: () => void
   resetFilters: () => void
 }
 
@@ -159,6 +163,7 @@ export const createViewSlice = (set: any): ViewSlice => ({
   selectedProjectId: getInitialSelectedProjectId(),
   lastSelectedProjectId: getInitialLastSelectedProjectId(),
   selectedJobTitle: null,
+  scrollToTodayTrigger: 0,
 
   // 줌 레벨 설정 (localStorage에도 저장)
   setZoomLevel: (level) => {
@@ -247,6 +252,10 @@ export const createViewSlice = (set: any): ViewSlice => ({
   setSelectedJobTitle: (jobTitle) => {
     set({ selectedJobTitle: jobTitle })
   },
+
+  // 오늘 날짜로 스크롤
+  scrollToToday: () =>
+    set((state: ViewSlice) => ({ scrollToTodayTrigger: state.scrollToTodayTrigger + 1 })),
 
   // 필터 초기화 (localStorage도 초기화)
   resetFilters: () => {

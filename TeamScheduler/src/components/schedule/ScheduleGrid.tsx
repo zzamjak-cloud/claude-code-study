@@ -10,13 +10,14 @@ import { GridCell } from './GridCell'
 import { ScheduleCard } from './ScheduleCard'
 import { MemberMemo } from './MemberMemo'
 import { Announcement } from '../layout/Announcement'
-import { TodaySchedule } from './TodaySchedule'
 import { GlobalEventCard } from './GlobalEventCard'
 import { getVisibleDayIndices, getVisibleScheduleSegments } from '../../lib/utils/dateUtils'
-import { createSchedule as createScheduleFirebase, updateTeamMember, createGlobalEvent, updateGlobalEventSettings } from '../../lib/firebase/firestore'
+import { createSchedule as createScheduleFirebase, updateSchedule as updateScheduleFirebase, updateTeamMember, createGlobalEvent, updateGlobalEventSettings } from '../../lib/firebase/firestore'
 import { DEFAULT_SCHEDULE_COLOR, GLOBAL_EVENT_COLOR, ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
 import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
+import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
 import { addDays } from 'date-fns'
+import { useBoxSelection } from './useBoxSelection'
 
 export function ScheduleGrid() {
   const {
@@ -39,6 +40,7 @@ export function ScheduleGrid() {
     pushHistory,
     selectedJobTitle,
     updateMember,
+    scrollToTodayTrigger,
   } = useAppStore()
 
   // 현재 프로젝트의 특이사항 행 개수 (프로젝트 미선택 시 'default' 사용)
@@ -190,6 +192,31 @@ export function ScheduleGrid() {
     container.scrollLeft = Math.max(0, scrollTarget)
     hasScrolledToToday.current = true
   }, [currentYear, visibleDayIndices, dayIndexToVisibleIndex, cellWidth])
+
+  // "오늘" 버튼 클릭 시 오늘 날짜로 스크롤 (부드러운 스크롤)
+  useEffect(() => {
+    if (scrollToTodayTrigger === 0) return
+    if (!scrollContainerRef.current) return
+
+    const today = new Date()
+    const todayYear = today.getFullYear()
+    if (currentYear !== todayYear) return
+
+    const yearStart = new Date(currentYear, 0, 1)
+    const todayDayIndex = Math.floor((today.getTime() - yearStart.getTime()) / (1000 * 60 * 60 * 24))
+
+    const todayVisibleIndex = dayIndexToVisibleIndex[todayDayIndex]
+    if (todayVisibleIndex === undefined) return
+
+    const container = scrollContainerRef.current
+    const todayPixelX = todayVisibleIndex * cellWidth
+    const scrollTarget = todayPixelX - (container.clientWidth / 2) + (cellWidth / 2)
+
+    container.scrollTo({
+      left: Math.max(0, scrollTarget),
+      behavior: 'smooth',
+    })
+  }, [scrollToTodayTrigger, currentYear, dayIndexToVisibleIndex, cellWidth])
 
   // 하단 패널 리사이즈 핸들러
   const handlePanelResizeStart = useCallback((e: React.MouseEvent) => {
@@ -610,6 +637,34 @@ export function ScheduleGrid() {
     return groups
   }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
 
+  // 박스 선택 훅
+  const {
+    selectedCardIds,
+    isBoxSelecting,
+    selectionRect,
+    isMultiDragging,
+    multiDragDeltaX,
+    multiDragDeltaY,
+    handleBoxSelectStart,
+    handleBoxSelectMove,
+    handleBoxSelectEnd,
+    handleMultiDragStart,
+    handleMultiDragMove,
+    handleMultiDragEnd,
+    clearSelection,
+    isCardMultiSelected,
+  } = useBoxSelection({
+    cellWidth,
+    cellHeight,
+    schedules,
+    memberGroups,
+    dayIndexToVisibleIndex,
+    currentYear,
+    zoomLevel,
+    columnWidthScale,
+    contentYOffset: dateAxisHeight + globalEventRowCount * cellHeight,
+  })
+
   // 생성 상태 초기화
   const resetCreation = useCallback(() => {
     setIsCreating(false)
@@ -628,44 +683,77 @@ export function ScheduleGrid() {
     setCreateGlobalEnd(null)
   }, [])
 
-  // 마우스 다운: Ctrl/Alt + 드래그로 일정 생성 시작
-  const handleMouseDown = useCallback((e: React.MouseEvent, memberId: string, rowIndex: number) => {
+  // Escape 키로 박스 선택 해제
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && selectedCardIds.size > 0) {
+        clearSelection()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedCardIds.size, clearSelection])
 
-    // Ctrl 또는 Alt 키가 눌려있지 않으면 무시
+  // 마우스 다운: Ctrl/Alt + 드래그로 일정 생성 시작, 수정키 없으면 박스 선택
+  const handleMouseDown = useCallback((e: React.MouseEvent, memberId: string, rowIndex: number) => {
     const isCtrl = e.ctrlKey || e.metaKey
     const isAlt = e.altKey
-    if (!isCtrl && !isAlt) return
 
     // 이미 존재하는 카드 위에서 시작하면 무시
     if ((e.target as HTMLElement).closest('.schedule-card')) return
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const dayIndex = Math.floor(x / cellWidth)
+    if (isCtrl || isAlt) {
+      // 기존: Ctrl/Alt 드래그로 일정 생성
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const dayIndex = Math.floor(x / cellWidth)
 
-    setIsCreating(true)
-    setCreateMemberId(memberId)
-    setCreateRowIndex(rowIndex)
-    setCreateStart(dayIndex)
-    setCreateEnd(dayIndex)
-    setIsAnnualLeave(isAlt)  // Alt 키면 연차 카드
+      setIsCreating(true)
+      setCreateMemberId(memberId)
+      setCreateRowIndex(rowIndex)
+      setCreateStart(dayIndex)
+      setCreateEnd(dayIndex)
+      setIsAnnualLeave(isAlt)  // Alt 키면 연차 카드
+
+      // 일정 생성 시작 시 박스 선택 해제
+      clearSelection()
+    } else {
+      // 신규: 수정키 없이 빈 영역 드래그 → 박스 선택
+      const scrollContainer = scrollContainerRef.current
+      if (scrollContainer) {
+        handleBoxSelectStart(e, scrollContainer)
+      }
+    }
 
     e.preventDefault()
-  }, [isUnifiedTab, cellWidth])
+  }, [cellWidth, clearSelection, handleBoxSelectStart])
 
-  // 마우스 이동: 일정 범위 확장
+  // 마우스 이동: 일정 범위 확장 또는 박스 선택 이동
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isCreating || createStart === null) return
+    if (isCreating && createStart !== null) {
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const dayIndex = Math.max(0, Math.min(YEAR_DAYS - 1, Math.floor(x / cellWidth)))
+      setCreateEnd(dayIndex)
+      return
+    }
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const dayIndex = Math.max(0, Math.min(YEAR_DAYS - 1, Math.floor(x / cellWidth)))
+    if (isBoxSelecting) {
+      const scrollContainer = scrollContainerRef.current
+      if (scrollContainer) {
+        handleBoxSelectMove(e, scrollContainer)
+      }
+    }
+  }, [isCreating, createStart, cellWidth, isBoxSelecting, handleBoxSelectMove])
 
-    setCreateEnd(dayIndex)
-  }, [isCreating, createStart, cellWidth])
-
-  // 마우스 업: 일정 생성
+  // 마우스 업: 박스 선택 종료 또는 일정 생성
   const handleMouseUp = useCallback(async () => {
+    // 박스 선택 종료
+    if (isBoxSelecting) {
+      handleBoxSelectEnd()
+      return
+    }
+
     // 생성 중이 아니면 무시
     if (!isCreating) return
 
@@ -727,7 +815,7 @@ export function ScheduleGrid() {
         console.error('일정 생성 실패:', error)
       }
     }
-  }, [isCreating, createStart, createEnd, createMemberId, createRowIndex, isAnnualLeave, currentYear, selectedScheduleColor, workspaceId, currentUser, members, pushHistory, resetCreation])
+  }, [isBoxSelecting, handleBoxSelectEnd, isCreating, createStart, createEnd, createMemberId, createRowIndex, isAnnualLeave, currentYear, selectedScheduleColor, workspaceId, currentUser, members, pushHistory, resetCreation])
 
   // 글로벌 행에서 마우스 다운: Ctrl + 드래그로 글로벌 이벤트 생성 (인증된 사용자)
   const handleGlobalMouseDown = useCallback((e: React.MouseEvent, rowIndex: number) => {
@@ -834,6 +922,38 @@ export function ScheduleGrid() {
       width: (endDay - startDay + 1) * cellWidth,
     }
   }, [isCreatingGlobal, createGlobalRowIndex, createGlobalStart, createGlobalEnd, cellWidth])
+
+  // 다중 드래그 종료 처리
+  const handleMultiDragComplete = useCallback(async (deltaX: number, deltaY: number) => {
+    const updatedSchedules = handleMultiDragEnd(deltaX, deltaY)
+    if (!updatedSchedules || !workspaceId) return
+
+    const { updateSchedule } = useAppStore.getState()
+
+    // 낙관적 업데이트
+    for (const updated of updatedSchedules) {
+      updateSchedule(updated.id, {
+        startDate: updated.startDate,
+        endDate: updated.endDate,
+        rowIndex: updated.rowIndex,
+      })
+    }
+
+    // Firebase 배치 업데이트 (debounce)
+    for (const updated of updatedSchedules) {
+      debouncedFirebaseUpdate(
+        `multi-drag-${updated.id}`,
+        async () => {
+          await updateScheduleFirebase(workspaceId, updated.id, {
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+            rowIndex: updated.rowIndex,
+          })
+        },
+        500
+      )
+    }
+  }, [handleMultiDragEnd, workspaceId])
 
   // 생성 중인 일정 미리보기 계산
   const getCreationPreview = useCallback((memberId: string, rowIndex: number) => {
@@ -1030,7 +1150,7 @@ export function ScheduleGrid() {
         ref={scrollContainerRef}
         className="flex-1 overflow-auto scrollbar-thin"
       >
-        <div style={{ width: `${visibleDayCount * cellWidth}px` }}>
+        <div className="relative" style={{ width: `${visibleDayCount * cellWidth}px` }}>
           {/* 날짜 축 - sticky로 상단 고정 */}
           <div className="sticky top-0 z-30 bg-card border-b border-border">
             <DateAxis hideFixedColumn />
@@ -1161,6 +1281,7 @@ export function ScheduleGrid() {
                 onMouseUp={handleMouseUp}
                 onMouseLeave={() => {
                   if (isCreating) resetCreation()
+                  if (isBoxSelecting) handleBoxSelectEnd()
                 }}
               >
                 {/* 각 행의 그리드 셀 배경 */}
@@ -1238,6 +1359,12 @@ export function ScheduleGrid() {
                       isReadOnly={false}
                       totalRows={group.totalRows}
                       visibleWidth={totalVisibleDays * cellWidth}
+                      isMultiSelected={isCardMultiSelected(schedule.id)}
+                      multiDragDeltaX={isMultiDragging && selectedCardIds.has(schedule.id) ? multiDragDeltaX : null}
+                      multiDragDeltaY={isMultiDragging && selectedCardIds.has(schedule.id) ? multiDragDeltaY : null}
+                      onMultiDragStart={() => handleMultiDragStart(schedule.id)}
+                      onMultiDragMove={handleMultiDragMove}
+                      onMultiDragEnd={handleMultiDragComplete}
                     />
                   )
                 })}
@@ -1255,6 +1382,19 @@ export function ScheduleGrid() {
           {/* 통합 탭 하단 여백 (일정 수정 팝업이 가려지지 않도록) */}
           {isUnifiedTab && rows.length > 0 && (
             <div style={{ height: '500px' }} />
+          )}
+
+          {/* 박스 선택 사각형 오버레이 */}
+          {isBoxSelecting && selectionRect && (
+            <div
+              className="absolute border-2 border-blue-400 bg-blue-400/15 rounded-sm pointer-events-none z-40"
+              style={{
+                left: `${Math.min(selectionRect.startX, selectionRect.endX)}px`,
+                top: `${Math.min(selectionRect.startY, selectionRect.endY)}px`,
+                width: `${Math.abs(selectionRect.endX - selectionRect.startX)}px`,
+                height: `${Math.abs(selectionRect.endY - selectionRect.startY)}px`,
+              }}
+            />
           )}
 
         </div>
@@ -1290,13 +1430,13 @@ export function ScheduleGrid() {
               <div className="flex-1 border-r border-border">
                 <Announcement />
               </div>
-              {/* 메모 (로그인 사용자 기준) */}
+              {/* 메모 1 (왼쪽) */}
               <div className="flex-1 border-r border-border">
-                <MemberMemo memberId={memoMemberId} />
+                <MemberMemo memberId={memoMemberId} column="left" />
               </div>
-              {/* 오늘의 일정 (Google Calendar) */}
+              {/* 메모 2 (오른쪽) */}
               <div className="flex-1">
-                <TodaySchedule />
+                <MemberMemo memberId={memoMemberId} column="right" />
               </div>
             </div>
           </div>

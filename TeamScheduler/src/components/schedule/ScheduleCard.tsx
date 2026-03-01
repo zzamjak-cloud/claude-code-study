@@ -1,6 +1,6 @@
 // 일정 카드 컴포넌트 (Phase 2: 드래그 앤 드롭 + 리사이즈 핸들 + Delete 삭제)
 
-import { useState, memo } from 'react'
+import { useState, memo, useCallback, useRef } from 'react'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { Schedule } from '../../types/schedule'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
@@ -10,6 +10,7 @@ import {
   updateSchedule as updateScheduleFirebase,
   deleteSchedule as deleteScheduleFirebase,
   updateTeamMember,
+  createSchedule as createScheduleFirebase,
 } from '../../lib/firebase/firestore'
 import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
 import { hasCollision } from '../../lib/utils/collisionDetection'
@@ -33,6 +34,13 @@ interface ScheduleCardProps {
   totalRows?: number
   visibleWidth?: number // 월 필터링 시 클리핑된 너비
   onCollisionChange?: (isColliding: boolean) => void
+  // 다중 선택 관련
+  isMultiSelected?: boolean
+  multiDragDeltaX?: number | null
+  multiDragDeltaY?: number | null
+  onMultiDragStart?: () => void
+  onMultiDragMove?: (deltaX: number, deltaY: number) => void
+  onMultiDragEnd?: (deltaX: number, deltaY: number) => void
 }
 
 // React.memo 비교 함수 - props가 같으면 리렌더링 스킵
@@ -56,7 +64,10 @@ const areScheduleCardPropsEqual = (
     prev.y === next.y &&
     prev.isReadOnly === next.isReadOnly &&
     prev.totalRows === next.totalRows &&
-    prev.visibleWidth === next.visibleWidth
+    prev.visibleWidth === next.visibleWidth &&
+    prev.isMultiSelected === next.isMultiSelected &&
+    prev.multiDragDeltaX === next.multiDragDeltaX &&
+    prev.multiDragDeltaY === next.multiDragDeltaY
   )
 }
 
@@ -68,6 +79,12 @@ export const ScheduleCard = memo(function ScheduleCard({
   totalRows = 1,
   visibleWidth,
   onCollisionChange,
+  isMultiSelected = false,
+  multiDragDeltaX = null,
+  multiDragDeltaY = null,
+  onMultiDragStart,
+  onMultiDragMove,
+  onMultiDragEnd,
 }: ScheduleCardProps) {
   // Zustand 선택적 구독
   const zoomLevel = useAppStore(state => state.zoomLevel)
@@ -77,11 +94,82 @@ export const ScheduleCard = memo(function ScheduleCard({
   const schedules = useAppStore(state => state.schedules)
   const setDragging = useAppStore(state => state.setDragging)
   const members = useAppStore(state => state.members)
+  const currentUser = useAppStore(state => state.currentUser)
   const projects = useAppStore(state => state.projects)
   const pushHistory = useAppStore(state => state.pushHistory)
 
   const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
   const cellHeight = getCellHeight(zoomLevel)
+
+  // Ctrl+D 카드 복제
+  const handleDuplicate = useCallback(async () => {
+    if (!workspaceId || !currentUser) return
+
+    const memberId = schedule.memberId
+    const member = members.find(m => m.id === memberId)
+    const memberSchedules = schedules.filter(s => s.memberId === memberId)
+    const currentRowCount = member?.rowCount || 1
+
+    // 빈 행 탐색: 같은 날짜 범위에서 겹치지 않는 행 찾기
+    let targetRowIndex = -1
+    for (let rowIdx = 0; rowIdx < currentRowCount; rowIdx++) {
+      const rowSchedules = memberSchedules.filter(s => (s.rowIndex || 0) === rowIdx)
+      const hasConflict = rowSchedules.some(existing =>
+        !(schedule.endDate <= existing.startDate || schedule.startDate >= existing.endDate)
+      )
+      if (!hasConflict) {
+        targetRowIndex = rowIdx
+        break
+      }
+    }
+
+    // 빈 행이 없으면 행 추가
+    let needsNewRow = false
+    if (targetRowIndex === -1) {
+      targetRowIndex = currentRowCount
+      needsNewRow = true
+    }
+
+    try {
+      if (needsNewRow) {
+        await updateTeamMember(workspaceId, memberId, {
+          rowCount: currentRowCount + 1,
+        })
+        const { updateMember } = useAppStore.getState()
+        updateMember(memberId, { rowCount: currentRowCount + 1 })
+      }
+
+      // 기존 일정 생성 패턴과 동일: 필수 필드만 포함, optional 필드는 값이 있을 때만
+      const scheduleData: Record<string, any> = {
+        memberId: schedule.memberId,
+        title: schedule.title,
+        startDate: schedule.startDate,
+        endDate: schedule.endDate,
+        color: schedule.color,
+        rowIndex: targetRowIndex,
+        createdBy: currentUser.uid,
+      }
+      if (schedule.comment) scheduleData.comment = schedule.comment
+      if (schedule.link) scheduleData.link = schedule.link
+      if (schedule.textColor) scheduleData.textColor = schedule.textColor
+      if (schedule.projectId) scheduleData.projectId = schedule.projectId
+
+      const newId = await createScheduleFirebase(workspaceId, scheduleData as any)
+
+      pushHistory({
+        type: 'schedule_create',
+        description: `${member?.name || '구성원'} 일정 복제`,
+        undoData: { scheduleId: newId },
+        redoData: { schedule: scheduleData },
+      })
+    } catch (error) {
+      console.error('일정 복제 실패:', error)
+    }
+  }, [workspaceId, currentUser, schedule, members, schedules, pushHistory])
+
+  // Shift+드래그 복제용 Shift 키 상태 추적
+  const isShiftDragRef = useRef(false)
+  const [isShiftDragging, setIsShiftDragging] = useState(false)
 
   // 공통 상호작용 훅 사용
   const {
@@ -105,7 +193,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     handleContextMenu,
     handleMouseEnter,
     handleMouseLeave,
-  } = useCardInteractions({ isReadOnly })
+  } = useCardInteractions({ isReadOnly, onDuplicate: handleDuplicate })
 
   // 충돌 상태 (ScheduleCard 전용)
   const [isColliding, setIsColliding] = useState(false)
@@ -128,10 +216,27 @@ export const ScheduleCard = memo(function ScheduleCard({
     setEditPopup(null)
 
     if (workspaceId) {
+      // undefined 값 제거 (Firestore는 undefined 값을 허용하지 않음)
+      const updates: Record<string, any> = { title, comment: comment || '', link: link || '' }
+      if (projectId !== undefined) {
+        updates.projectId = projectId
+      }
+
+      // 로컬 상태 즉시 반영
+      const { updateSchedule } = useAppStore.getState()
+      updateSchedule(schedule.id, updates)
+
       try {
-        await updateScheduleFirebase(workspaceId, schedule.id, { title, comment, link, projectId })
+        await updateScheduleFirebase(workspaceId, schedule.id, updates)
       } catch (error) {
         console.error('일정 수정 실패:', error)
+        // 실패 시 원래 값으로 롤백
+        updateSchedule(schedule.id, {
+          title: schedule.title,
+          comment: schedule.comment,
+          link: schedule.link,
+          projectId: schedule.projectId,
+        })
       }
     }
   }
@@ -260,18 +365,52 @@ export const ScheduleCard = memo(function ScheduleCard({
   }
 
   // 드래그 시작
-  const handleDragStart = () => {
+  const handleDragStart = (e: any) => {
     if (isReadOnly) return
     setIsDragging(true)
     setDragging(true, schedule)
     setIsSelected(true)
+
+    // Shift 키 감지 (Shift+드래그 = 복제)
+    const shiftPressed = !!(e as MouseEvent)?.shiftKey
+    isShiftDragRef.current = shiftPressed
+    setIsShiftDragging(shiftPressed)
+
+    // 다중 선택 상태에서 드래그 시작하면 다중 드래그 모드
+    if (isMultiSelected && onMultiDragStart) {
+      onMultiDragStart()
+    }
+  }
+
+  // 드래그 중: 다중 선택 시 리더 카드의 deltaX/deltaY를 팔로워에 전달
+  const handleDrag = (_e: any, data: DraggableData) => {
+    if (isMultiSelected && onMultiDragMove) {
+      const adjustedX = data.x - CARD_MARGIN
+      const snappedX = snapToGrid(adjustedX, cellWidth)
+      const deltaX = snappedX - x
+      const deltaY = data.y - CARD_MARGIN - y
+      onMultiDragMove(deltaX, deltaY)
+    }
   }
 
   // 드래그 종료
   const handleDragStop = (_e: any, data: DraggableData) => {
     if (isReadOnly) return
+    const wasShiftDrag = isShiftDragRef.current
+    isShiftDragRef.current = false
+    setIsShiftDragging(false)
     setIsDragging(false)
     setDragging(false)
+
+    // 다중 드래그 모드일 때: deltaX/deltaY 계산 후 콜백 호출
+    if (isMultiSelected && onMultiDragEnd) {
+      const adjustedX = data.x - CARD_MARGIN
+      const snappedX = snapToGrid(adjustedX, cellWidth)
+      const deltaX = snappedX - x
+      const deltaY = data.y - CARD_MARGIN - y
+      onMultiDragEnd(deltaX, deltaY)
+      return  // 개별 업데이트 건너뜀
+    }
 
     // x 좌표 계산 (그리드 스냅)
     const adjustedX = data.x - CARD_MARGIN
@@ -297,6 +436,37 @@ export const ScheduleCard = memo(function ScheduleCard({
       return
     }
 
+    // Shift+드래그: 원본은 그대로 두고, 드래그 위치에 복제본 생성
+    if (wasShiftDrag && workspaceId && currentUser) {
+      const scheduleData: Record<string, any> = {
+        memberId: schedule.memberId,
+        title: schedule.title,
+        startDate: newStartDate.getTime(),
+        endDate: newEndDate.getTime(),
+        color: schedule.color,
+        rowIndex: newRowIndex,
+        createdBy: currentUser.uid,
+      }
+      if (schedule.comment) scheduleData.comment = schedule.comment
+      if (schedule.link) scheduleData.link = schedule.link
+      if (schedule.textColor) scheduleData.textColor = schedule.textColor
+      if (schedule.projectId) scheduleData.projectId = schedule.projectId
+
+      createScheduleFirebase(workspaceId, scheduleData as any).then((newId) => {
+        const member = members.find(m => m.id === schedule.memberId)
+        pushHistory({
+          type: 'schedule_create',
+          description: `${member?.name || '구성원'} 일정 복제 (Shift+드래그)`,
+          undoData: { scheduleId: newId },
+          redoData: { schedule: scheduleData },
+        })
+      }).catch((error) => {
+        console.error('Shift+드래그 복제 실패:', error)
+      })
+      return  // 원본 이동 건너뜀
+    }
+
+    // 일반 드래그: 원본 위치 업데이트
     const updates: Partial<Schedule> = {
       startDate: newStartDate.getTime(),
       endDate: newEndDate.getTime(),
@@ -379,29 +549,65 @@ export const ScheduleCard = memo(function ScheduleCard({
     totalRows,
   })
 
-  // 카드 스타일 클래스
+  // 카드 스타일 클래스 (다중 선택 시 isSelected 활성화)
   const cardClassName = getCardClassName({
     isReadOnly,
-    isSelected,
+    isSelected: isSelected || isMultiSelected,
     isDragging,
     isResizing,
     isColliding,
   })
 
+  // 팔로워 카드는 multiDragDelta로 오프셋 적용
+  const effectiveX = multiDragDeltaX != null ? x + multiDragDeltaX : x
+  const effectiveY = multiDragDeltaY != null ? y + multiDragDeltaY : y
+
   return (
     <>
+      {/* Shift+드래그 시 원본 카드 팬텀 (제자리에 유지) */}
+      {isShiftDragging && (
+        <div
+          className="!absolute pointer-events-none"
+          style={{
+            left: `${x + CARD_MARGIN}px`,
+            top: `${y + CARD_MARGIN}px`,
+            width: `${currentWidth - CARD_MARGIN * 2}px`,
+            height: `${cellHeight - CARD_MARGIN * 2}px`,
+            zIndex: 9,
+          }}
+        >
+          <div
+            className="h-full rounded-md border-2 border-transparent select-none relative overflow-hidden"
+            style={{
+              backgroundColor: isPast ? '#9ca3af' : schedule.color,
+              color: schedule.textColor || '#ffffff',
+            }}
+          >
+            <div className="flex items-center h-full px-1.5 overflow-hidden">
+              <span className="text-sm font-medium leading-tight overflow-hidden whitespace-nowrap">
+                {schedule.title || '제목 없음'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Rnd
         key={`${schedule.id}-${schedule.startDate}-${schedule.endDate}-${schedule.rowIndex}`}
-        position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
+        position={{ x: effectiveX + CARD_MARGIN, y: effectiveY + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
         onDragStart={handleDragStart}
+        onDrag={handleDrag}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}
         onResizeStop={handleResizeStop}
-        disableDragging={isReadOnly}
+        disableDragging={isReadOnly || (multiDragDeltaX != null)}
         {...rndConfig}
         className="!absolute schedule-card"
-        style={{ zIndex: isDragging || isResizing || isSelected ? 100 : 10 }}
+        style={{
+          zIndex: isDragging || isResizing || isSelected ? 100 : 10,
+          opacity: isShiftDragging ? 0.55 : undefined,
+        }}
       >
         <div
           ref={cardRef}
@@ -504,28 +710,37 @@ export const ScheduleCard = memo(function ScheduleCard({
         if (!rect) return null
 
         const project = schedule.projectId ? projects.find(p => p.id === schedule.projectId) : null
-        let tooltipHeight = 28
-        if (project) tooltipHeight += 18
-        if (schedule.comment) tooltipHeight += 20
+        // 각 요소별 높이를 넉넉하게 계산
+        let tooltipHeight = 36  // 기본 패딩 + 제목 높이
+        if (project) tooltipHeight += 20
+        if (schedule.comment) tooltipHeight += 24
+        const TOOLTIP_GAP = 6  // 카드와 툴팁 사이 간격
+
+        // 카드 위에 표시 (카드를 가리지 않도록 간격 확보)
+        let tooltipTop = rect.top - tooltipHeight - TOOLTIP_GAP
+        // 화면 상단을 넘어가면 카드 아래에 표시
+        if (tooltipTop < 4) {
+          tooltipTop = rect.bottom + TOOLTIP_GAP
+        }
 
         return (
           <div
-            className="fixed bg-card border border-border rounded-md shadow-lg px-3 py-2 z-[250] max-w-xs pointer-events-none"
+            className="fixed bg-card border border-border rounded-md shadow-lg px-3 py-2.5 z-[250] max-w-xs pointer-events-none"
             style={{
               left: `${rect.left}px`,
-              top: `${rect.top - tooltipHeight - 2}px`,
+              top: `${tooltipTop}px`,
             }}
           >
             {project && (
-              <div className="text-[10px] text-muted-foreground mb-0.5">
+              <div className="text-[10px] text-muted-foreground mb-1">
                 {project.name}
               </div>
             )}
-            <div className="text-sm font-semibold text-foreground">
+            <div className="text-sm font-semibold text-foreground leading-snug">
               {schedule.title || '제목 없음'}
             </div>
             {schedule.comment && (
-              <div className="text-xs text-muted-foreground mt-0.5">
+              <div className="text-xs text-muted-foreground mt-1 leading-relaxed">
                 {schedule.comment}
               </div>
             )}

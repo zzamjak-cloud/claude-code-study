@@ -6,83 +6,17 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   User,
-  OAuthCredential,
-  reauthenticateWithPopup,
 } from 'firebase/auth'
 import { auth } from './config'
 
-// Google Provider 설정 (캘린더 스코프 포함)
+// Google Provider 설정
 const googleProvider = new GoogleAuthProvider()
-googleProvider.addScope('https://www.googleapis.com/auth/calendar.readonly')
-
-// 토큰 갱신용 Provider (동의 화면 강제 표시)
-const googleProviderWithConsent = new GoogleAuthProvider()
-googleProviderWithConsent.addScope('https://www.googleapis.com/auth/calendar.readonly')
-googleProviderWithConsent.setCustomParameters({
-  prompt: 'consent',
-})
-
-// 캘린더 토큰 저장 키
-const CALENDAR_TOKEN_KEY = 'google_calendar_token'
 
 /**
- * 캘린더 토큰 저장
- * sessionStorage 사용 - 브라우저 창을 닫기 전까지 유지
- */
-export const saveCalendarToken = (accessToken: string) => {
-  // sessionStorage 사용으로 브라우저 세션 동안만 유지 (창 닫으면 삭제)
-  sessionStorage.setItem(CALENDAR_TOKEN_KEY, JSON.stringify({
-    access_token: accessToken,
-  }))
-}
-
-/**
- * 캘린더 토큰 로드
- * sessionStorage에서 로드 - 만료 체크 없음 (세션 종료 시 자동 삭제)
- */
-export const loadCalendarToken = (): string | null => {
-  const stored = sessionStorage.getItem(CALENDAR_TOKEN_KEY)
-  if (!stored) return null
-
-  try {
-    const { access_token } = JSON.parse(stored)
-    return access_token || null
-  } catch {
-    return null
-  }
-}
-
-/**
- * 캘린더 토큰 삭제
- */
-export const clearCalendarToken = () => {
-  sessionStorage.removeItem(CALENDAR_TOKEN_KEY)
-}
-
-/**
- * Google 로그인 (캘린더 토큰 포함)
+ * Google 로그인
  */
 export const signInWithGoogle = async (): Promise<User> => {
   const result = await signInWithPopup(auth, googleProvider)
-
-  // OAuth credential에서 access token 추출
-  const credential = GoogleAuthProvider.credentialFromResult(result)
-  console.log('🔍 로그인 credential:', credential)
-
-  if (credential) {
-    const oauthCredential = credential as OAuthCredential
-    console.log('🔍 accessToken 존재 여부:', !!oauthCredential.accessToken)
-
-    if (oauthCredential.accessToken) {
-      saveCalendarToken(oauthCredential.accessToken)
-      console.log('✅ 캘린더 토큰 저장 완료:', oauthCredential.accessToken.substring(0, 20) + '...')
-    } else {
-      console.warn('⚠️ accessToken이 없습니다. Google Cloud Console에서 Calendar API 활성화 필요')
-    }
-  } else {
-    console.warn('⚠️ credential이 없습니다')
-  }
-
   return result.user
 }
 
@@ -90,44 +24,7 @@ export const signInWithGoogle = async (): Promise<User> => {
  * 로그아웃
  */
 export const signOut = async (): Promise<void> => {
-  clearCalendarToken()
   await firebaseSignOut(auth)
-}
-
-/**
- * 캘린더 토큰 갱신 (기존 로그인 세션에서 토큰만 새로 획득)
- * @returns 새로운 access token 또는 null
- */
-export const refreshCalendarToken = async (): Promise<string | null> => {
-  const currentUser = auth.currentUser
-  if (!currentUser) {
-    console.warn('⚠️ 로그인된 사용자가 없습니다')
-    return null
-  }
-
-  try {
-    // 동의 화면 강제 표시로 새 토큰 획득
-    const result = await reauthenticateWithPopup(currentUser, googleProviderWithConsent)
-    const credential = GoogleAuthProvider.credentialFromResult(result)
-    console.log('🔍 갱신 credential:', credential)
-
-    if (credential) {
-      const oauthCredential = credential as OAuthCredential
-      console.log('🔍 갱신 accessToken 존재 여부:', !!oauthCredential.accessToken)
-
-      if (oauthCredential.accessToken) {
-        saveCalendarToken(oauthCredential.accessToken)
-        console.log('✅ 캘린더 토큰 갱신 완료:', oauthCredential.accessToken.substring(0, 20) + '...')
-        return oauthCredential.accessToken
-      }
-    }
-
-    console.warn('⚠️ 토큰 갱신 실패: credential 없음')
-    return null
-  } catch (error) {
-    console.error('❌ 캘린더 토큰 갱신 실패:', error)
-    return null
-  }
 }
 
 /**

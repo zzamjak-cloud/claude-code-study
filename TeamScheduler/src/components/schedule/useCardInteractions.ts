@@ -6,6 +6,7 @@ import { useState, useRef, useEffect, RefObject } from 'react'
 interface UseCardInteractionsOptions {
   isReadOnly?: boolean
   onDelete?: () => void
+  onDuplicate?: () => void  // Ctrl+D 카드 복제 콜백
 }
 
 interface UseCardInteractionsReturn {
@@ -45,6 +46,7 @@ export const CARD_MARGIN = 3
 
 export function useCardInteractions({
   isReadOnly = false,
+  onDuplicate,
 }: UseCardInteractionsOptions = {}): UseCardInteractionsReturn {
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -76,8 +78,8 @@ export function useCardInteractions({
         e.preventDefault()
         setShowDeleteConfirm(true)
       }
-      // Enter 키로 편집 팝업 열기
-      if (isSelected && e.key === 'Enter' && !editPopup && !isReadOnly) {
+      // Enter 키로 편집 팝업 열기 (삭제 확인 다이얼로그가 열려있으면 무시)
+      if (isSelected && e.key === 'Enter' && !editPopup && !showDeleteConfirm && !isReadOnly) {
         e.preventDefault()
         const rect = cardRef.current?.getBoundingClientRect()
         if (rect) {
@@ -107,6 +109,11 @@ export function useCardInteractions({
           setEditPopup({ x, y })
         }
       }
+      // Ctrl+D로 카드 복제
+      if (isSelected && (e.ctrlKey || e.metaKey) && e.key === 'd' && !editPopup && !isReadOnly) {
+        e.preventDefault()  // 브라우저 북마크 기본 동작 방지
+        onDuplicate?.()
+      }
       // Escape 키로 선택 해제
       if (e.key === 'Escape') {
         setIsSelected(false)
@@ -121,7 +128,7 @@ export function useCardInteractions({
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isSelected, editPopup, isReadOnly])
+  }, [isSelected, editPopup, showDeleteConfirm, isReadOnly, onDuplicate])
 
   // 카드 외부 클릭 시 선택 해제
   useEffect(() => {

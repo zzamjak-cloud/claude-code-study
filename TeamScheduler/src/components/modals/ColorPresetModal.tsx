@@ -115,7 +115,7 @@ export function ColorPresetModal({ onClose }: ColorPresetModalProps) {
           {/* 일정 프리셋 */}
           <div className="mb-4">
             <label className="block text-xs font-medium text-muted-foreground mb-1">프리셋</label>
-            <div className="grid grid-cols-6 gap-2">
+            <div className="grid grid-cols-8 gap-2">
               {EXTENDED_PRESETS.map((color) => (
                 <button
                   key={color}

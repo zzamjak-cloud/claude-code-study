@@ -1,6 +1,6 @@
 // 일정 카드 우클릭 컨텍스트 메뉴
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useLayoutEffect } from 'react'
 import { Palette, UserCog, ChevronRight, Search } from 'lucide-react'
 import { COLOR_PRESETS, DEFAULT_SCHEDULE_COLOR } from '../../lib/constants/colors'
 import { TeamMember } from '../../types/team'
@@ -65,6 +65,35 @@ export function ContextMenu({
     }
   }, [onClose])
 
+  // 커스텀 컬러 상태
+  const [customColor, setCustomColor] = useState(currentColor)
+
+  // 스마트 포지셔닝: 화면 경계를 벗어나지 않도록 위치 보정
+  const [adjustedPos, setAdjustedPos] = useState({ left: x, top: y })
+
+  useLayoutEffect(() => {
+    if (!menuRef.current) return
+    const rect = menuRef.current.getBoundingClientRect()
+    const MARGIN = 8
+
+    let left = x
+    let top = y
+
+    // 하단 벗어남 → 위로 올림
+    if (top + rect.height > window.innerHeight - MARGIN) {
+      top = y - rect.height
+    }
+    if (top < MARGIN) top = MARGIN
+
+    // 우측 벗어남 → 좌로 이동
+    if (left + rect.width > window.innerWidth - MARGIN) {
+      left = window.innerWidth - rect.width - MARGIN
+    }
+    if (left < MARGIN) left = MARGIN
+
+    setAdjustedPos({ left, top })
+  }, [x, y])
+
   // 확장된 컬러 프리셋 (기본 컬러 포함)
   const colorOptions = [DEFAULT_SCHEDULE_COLOR, ...COLOR_PRESETS]
 
@@ -73,8 +102,8 @@ export function ContextMenu({
       ref={menuRef}
       className="fixed bg-card border border-border rounded-lg shadow-xl p-3 z-[200]"
       style={{
-        left: `${x}px`,
-        top: `${y}px`,
+        left: `${adjustedPos.left}px`,
+        top: `${adjustedPos.top}px`,
       }}
     >
       {/* 색상 변경 섹션 */}
@@ -84,7 +113,7 @@ export function ContextMenu({
       </div>
 
       {/* 색상 그리드 */}
-      <div className="grid grid-cols-6 gap-2">
+      <div className="grid grid-cols-6 gap-1.5">
         {colorOptions.map((color) => (
           <button
             key={color}
@@ -92,7 +121,7 @@ export function ContextMenu({
               onColorChange(color)
               onClose()
             }}
-            className={`w-8 h-8 rounded-md border-2 transition-all hover:scale-110 ${
+            className={`w-7 h-7 rounded-md border-2 transition-all hover:scale-110 ${
               currentColor === color
                 ? 'border-white ring-2 ring-primary'
                 : 'border-transparent hover:border-muted-foreground/50'
@@ -101,6 +130,35 @@ export function ContextMenu({
             title={color}
           />
         ))}
+      </div>
+
+      {/* 커스텀 컬러 피커 */}
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border">
+        <input
+          type="color"
+          value={customColor}
+          onChange={(e) => setCustomColor(e.target.value)}
+          className="w-7 h-7 rounded-md border border-border cursor-pointer p-0"
+        />
+        <input
+          type="text"
+          value={customColor}
+          onChange={(e) => {
+            setCustomColor(e.target.value)
+          }}
+          className="flex-1 px-2 py-1 border border-border rounded-md bg-background text-foreground text-xs font-mono focus:outline-none focus:ring-1 focus:ring-primary w-20"
+        />
+        <button
+          onClick={() => {
+            if (/^#[0-9A-Fa-f]{6}$/.test(customColor)) {
+              onColorChange(customColor)
+              onClose()
+            }
+          }}
+          className="px-2 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          적용
+        </button>
       </div>
 
       {/* 업무 이관 섹션 (구성원이 있을 때만) */}

@@ -9,40 +9,44 @@ import { RichTextEditor } from '../common/RichTextEditor'
 
 interface MemberMemoProps {
   memberId: string
+  column?: 'left' | 'right'  // 왼쪽/오른쪽 컬럼 구분
 }
 
-export function MemberMemo({ memberId }: MemberMemoProps) {
+export function MemberMemo({ memberId, column = 'left' }: MemberMemoProps) {
   const { members, workspaceId } = useAppStore()
   const member = members.find((m) => m.id === memberId)
 
-  const [memo, setMemo] = useState(member?.memo || '')
+  // 컬럼에 따라 다른 필드 사용
+  const memoField = column === 'right' ? 'memo2' : 'memo'
+  const initialMemo = (column === 'right' ? member?.memo2 : member?.memo) || ''
+
+  const [memo, setMemo] = useState(initialMemo)
   const [isSaving, setIsSaving] = useState(false)
-  const lastSavedMemo = useRef(member?.memo || '')
+  const lastSavedMemo = useRef(initialMemo)
   const isEditingLocally = useRef(false)  // 로컬 편집 중 플래그
 
   // 멤버 변경 시 메모 동기화 (로컬 편집 중이 아닐 때만)
+  const serverMemo = (column === 'right' ? member?.memo2 : member?.memo) || ''
   useEffect(() => {
-    const newMemo = member?.memo || ''
-
     // 로컬 편집 중이거나 저장 중이면 동기화 건너뛰기
     if (isEditingLocally.current || isSaving) {
       return
     }
 
     // 실제로 서버에서 변경된 경우에만 동기화
-    if (newMemo !== lastSavedMemo.current) {
-      setMemo(newMemo)
-      lastSavedMemo.current = newMemo
+    if (serverMemo !== lastSavedMemo.current) {
+      setMemo(serverMemo)
+      lastSavedMemo.current = serverMemo
     }
-  }, [member?.memo, isSaving])
+  }, [serverMemo, isSaving])
 
-  // memberId 변경 시 초기화
+  // memberId 또는 컬럼 변경 시 초기화
   useEffect(() => {
-    const newMemo = member?.memo || ''
+    const newMemo = (column === 'right' ? member?.memo2 : member?.memo) || ''
     setMemo(newMemo)
     lastSavedMemo.current = newMemo
     isEditingLocally.current = false
-  }, [memberId])
+  }, [memberId, column])
 
   // Debounce 저장 (1초 후 자동 저장)
   const saveMemo = useCallback(
@@ -51,7 +55,7 @@ export function MemberMemo({ memberId }: MemberMemoProps) {
 
       setIsSaving(true)
       try {
-        await updateTeamMember(workspaceId, memberId, { memo: value })
+        await updateTeamMember(workspaceId, memberId, { [memoField]: value })
         lastSavedMemo.current = value
       } catch (error) {
         console.error('메모 저장 실패:', error)
@@ -63,7 +67,7 @@ export function MemberMemo({ memberId }: MemberMemoProps) {
         }, 500)
       }
     },
-    [workspaceId, memberId]
+    [workspaceId, memberId, memoField]
   )
 
   // Debounce 처리
@@ -96,13 +100,15 @@ export function MemberMemo({ memberId }: MemberMemoProps) {
     saveMemo(memo)
   }, [hasUnsavedChanges, isSaving, saveMemo, memo])
 
+  const columnLabel = column === 'right' ? '메모 2' : '메모 1'
+
   return (
     <div className="flex flex-col h-full">
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-border flex-shrink-0">
         <StickyNote className="w-4 h-4 text-amber-600" />
         <span className="text-sm font-medium text-foreground flex-1">
-          {member?.name || '구성원'}님의 메모
+          {member?.name || '구성원'}님의 {columnLabel}
         </span>
         {/* 저장 상태 표시 및 저장 버튼 */}
         <div className="flex items-center gap-2">

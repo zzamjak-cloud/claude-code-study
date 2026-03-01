@@ -18,7 +18,7 @@ import { ScheduleGrid } from './components/schedule/ScheduleGrid'
 import { MonthFilter } from './components/layout/MonthFilter'
 import { YearSelector } from './components/layout/YearSelector'
 import { JobTitleFilter } from './components/layout/JobTitleFilter'
-import { LogIn, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus } from 'lucide-react'
+import { LogIn, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus, CalendarDays } from 'lucide-react'
 
 // 코드 스플리팅: 모달 컴포넌트 lazy 로드 (초기 번들 크기 감소)
 const AdminPanel = lazy(() => import('./components/modals/AdminPanel'))
@@ -29,7 +29,7 @@ const GlobalNoticeManagerModal = lazy(() => import('./components/modals/GlobalNo
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear } =
+  const { currentUser, isLoading, workspaceId, setWorkspace, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear, scrollToToday, selectedMemberId } =
     useAppStore()
 
   // Firebase 동기화 (연도별 페이지네이션 적용)
@@ -213,11 +213,21 @@ function App() {
             {/* 월 바로가기 + 필터링 */}
             <MonthFilter />
 
-            {/* 직군 필터링 */}
-            <JobTitleFilter />
+            {/* 직군 필터링 (통합 탭에서만 표시) */}
+            {selectedMemberId === null && <JobTitleFilter />}
           </div>
 
           <div className="flex items-center gap-2">
+            {/* 오늘 버튼 */}
+            <button
+              onClick={scrollToToday}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent rounded-md transition-colors text-sm font-medium text-foreground"
+              title="오늘 날짜로 이동"
+            >
+              <CalendarDays className="w-4 h-4" />
+              오늘
+            </button>
+
             {/* 열너비 컨트롤 */}
             <div className="flex items-center gap-1 bg-muted rounded-md p-1">
               <Columns3 className="w-4 h-4 text-muted-foreground ml-1" />
