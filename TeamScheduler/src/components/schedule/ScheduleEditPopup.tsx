@@ -114,6 +114,7 @@ export function ScheduleEditPopup({
         left: `${position.x}px`,
         top: `${position.y}px`,
       }}
+      onMouseDown={(e) => e.stopPropagation()}
     >
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-3">
