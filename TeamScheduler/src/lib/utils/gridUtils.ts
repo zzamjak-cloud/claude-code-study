@@ -40,3 +40,17 @@ export const getCellWidth = (zoomLevel: number, columnWidthScale: number = 1.0):
 export const getCellHeight = (zoomLevel: number): number => {
   return CELL_HEIGHT_BASE * zoomLevel
 }
+
+/**
+ * 줌 미적용 셀 너비 (columnWidthScale만 적용, CSS transform 내부용)
+ */
+export const getCellWidthBase = (columnWidthScale: number = 1.0): number => {
+  return CELL_WIDTH_BASE * columnWidthScale
+}
+
+/**
+ * 줌 미적용 셀 높이 (CSS transform 내부용)
+ */
+export const getCellHeightBase = (): number => {
+  return CELL_HEIGHT_BASE
+}

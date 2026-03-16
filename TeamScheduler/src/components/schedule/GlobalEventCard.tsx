@@ -5,7 +5,7 @@ import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { ExternalLink } from 'lucide-react'
 import { GlobalEvent } from '../../types/globalEvent'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
-import { getCellWidth, getCellHeight, snapToGrid } from '../../lib/utils/gridUtils'
+import { getCellWidthBase, getCellHeightBase, snapToGrid } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
 import {
   updateGlobalEvent as updateGlobalEventFirebase,
@@ -83,8 +83,9 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     ? globalEvents.filter(e => !e.projectId || e.projectId === selectedProjectId)
     : globalEvents
 
-  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
-  const cellHeight = getCellHeight(zoomLevel)
+  // CSS transform 내부에서는 줌 미적용 기본 셀 크기 사용
+  const cellWidth = getCellWidthBase(columnWidthScale)
+  const cellHeight = getCellHeightBase()
 
   // 공통 상호작용 훅 사용
   const {
@@ -113,11 +114,11 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   // 충돌 상태
   const [isColliding, setIsColliding] = useState(false)
 
-  // 현재 위치/크기 계산
+  // 현재 위치/크기 계산 (transform 내부이므로 zoomLevel=1)
   const calculatedWidth = dateRangeToWidth(
     new Date(event.startDate),
     new Date(event.endDate),
-    zoomLevel,
+    1,
     columnWidthScale
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
@@ -204,10 +205,10 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     if (isReadOnly) return
     setIsDragging(false)
 
-    // x 좌표 계산 (그리드 스냅)
+    // x 좌표 계산 (그리드 스냅, transform 내부이므로 zoomLevel=1)
     const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
-    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(snappedX, currentYear, 1, columnWidthScale)
     const duration = event.endDate - event.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
@@ -268,8 +269,8 @@ export const GlobalEventCard = memo(function GlobalEventCard({
       ? snapToGrid(adjustedPosition, cellWidth)
       : x
 
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(newX, currentYear, 1, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, 1, columnWidthScale)
 
     const colliding = checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)
     setIsColliding(colliding)
@@ -324,6 +325,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
         key={`${event.id}-${event.startDate}-${event.endDate}-${event.rowIndex}`}
         position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
+        scale={zoomLevel}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}

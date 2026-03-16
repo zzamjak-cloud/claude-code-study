@@ -80,6 +80,7 @@ export function useBoxSelection(options: UseBoxSelectionOptions): UseBoxSelectio
     memberGroups,
     dayIndexToVisibleIndex,
     currentYear,
+    zoomLevel,
     contentYOffset,
   } = options
 
@@ -223,9 +224,11 @@ export function useBoxSelection(options: UseBoxSelectionOptions): UseBoxSelectio
       setMultiDragDeltaY(0)
       leaderIdRef.current = null
 
-      // 픽셀을 일수/행으로 변환
-      const daysMove = Math.round(deltaX / cellWidth)
-      const rowDelta = Math.round(deltaY / cellHeight)
+      // 픽셀을 일수/행으로 변환 (deltaX/Y는 transform 내부 좌표이므로 줌 미적용 셀 크기로 변환)
+      const baseCellWidth = cellWidth / zoomLevel
+      const baseCellHeight = cellHeight / zoomLevel
+      const daysMove = Math.round(deltaX / baseCellWidth)
+      const rowDelta = Math.round(deltaY / baseCellHeight)
       if (daysMove === 0 && rowDelta === 0) return null
 
       // 밀리초 변환
@@ -281,7 +284,7 @@ export function useBoxSelection(options: UseBoxSelectionOptions): UseBoxSelectio
 
       return updatedSchedules
     },
-    [cellWidth, cellHeight, memberGroups, selectedCardIds]
+    [cellWidth, cellHeight, zoomLevel, memberGroups, selectedCardIds]
   )
 
   // 선택 해제

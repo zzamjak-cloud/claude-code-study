@@ -4,7 +4,7 @@ import { useState, memo, useCallback, useRef } from 'react'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { Schedule } from '../../types/schedule'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
-import { getCellWidth, getCellHeight, snapToGrid } from '../../lib/utils/gridUtils'
+import { getCellWidthBase, getCellHeightBase, snapToGrid } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
 import {
   updateSchedule as updateScheduleFirebase,
@@ -97,8 +97,9 @@ export const ScheduleCard = memo(function ScheduleCard({
   const projects = useAppStore(state => state.projects)
   const pushHistory = useAppStore(state => state.pushHistory)
 
-  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
-  const cellHeight = getCellHeight(zoomLevel)
+  // CSS transform 내부에서는 줌 미적용 기본 셀 크기 사용
+  const cellWidth = getCellWidthBase(columnWidthScale)
+  const cellHeight = getCellHeightBase()
 
   // Ctrl+D 카드 복제
   const handleDuplicate = useCallback(async () => {
@@ -197,11 +198,11 @@ export const ScheduleCard = memo(function ScheduleCard({
   // 충돌 상태 (ScheduleCard 전용)
   const [isColliding, setIsColliding] = useState(false)
 
-  // 현재 위치/크기 계산
+  // 현재 위치/크기 계산 (transform 내부이므로 zoomLevel=1)
   const calculatedWidth = dateRangeToWidth(
     new Date(schedule.startDate),
     new Date(schedule.endDate),
-    zoomLevel,
+    1,
     columnWidthScale
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
@@ -348,10 +349,10 @@ export const ScheduleCard = memo(function ScheduleCard({
     }
   }
 
-  // 겹침 검사
+  // 겹침 검사 (transform 내부이므로 zoomLevel=1)
   const checkCollisionAt = (newX: number, newWidth: number, newRowIndex?: number): boolean => {
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(newX, currentYear, 1, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, 1, columnWidthScale)
 
     const tempSchedule: Schedule = {
       ...schedule,
@@ -411,10 +412,10 @@ export const ScheduleCard = memo(function ScheduleCard({
       return  // 개별 업데이트 건너뜀
     }
 
-    // x 좌표 계산 (그리드 스냅)
+    // x 좌표 계산 (그리드 스냅, transform 내부이므로 zoomLevel=1)
     const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
-    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(snappedX, currentYear, 1, columnWidthScale)
     const duration = schedule.endDate - schedule.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
@@ -507,8 +508,8 @@ export const ScheduleCard = memo(function ScheduleCard({
       ? snapToGrid(adjustedPosition, cellWidth)
       : x
 
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(newX, currentYear, 1, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, 1, columnWidthScale)
 
     const colliding = checkCollisionAt(newX, newWidth)
     setIsColliding(colliding)
@@ -595,6 +596,7 @@ export const ScheduleCard = memo(function ScheduleCard({
         key={`${schedule.id}-${schedule.startDate}-${schedule.endDate}-${schedule.rowIndex}`}
         position={{ x: effectiveX + CARD_MARGIN, y: effectiveY + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
+        scale={zoomLevel}
         onDragStart={handleDragStart}
         onDrag={handleDrag}
         onDragStop={handleDragStop}
@@ -637,8 +639,8 @@ export const ScheduleCard = memo(function ScheduleCard({
               <span className="text-sm font-medium leading-tight overflow-hidden whitespace-nowrap">
                 {schedule.title || '제목 없음'}
               </span>
-              {/* columnWidthScale 또는 zoomLevel이 0.75 미만일 때는 프로젝트명 숨김 */}
-              {columnWidthScale >= 0.75 && zoomLevel >= 0.75 && schedule.projectId && (() => {
+              {/* columnWidthScale이 0.75 미만일 때는 프로젝트명 숨김 (zoomLevel은 CSS transform으로 처리) */}
+              {columnWidthScale >= 0.75 && schedule.projectId && (() => {
                 const project = projects.find(p => p.id === schedule.projectId)
                 return project ? (
                   <span className="text-[10px] opacity-80 leading-tight overflow-hidden whitespace-nowrap">
