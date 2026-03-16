@@ -70,16 +70,31 @@ export function useCardInteractions({
   // 편집 팝업 상태
   const [editPopup, setEditPopup] = useState<{ x: number; y: number } | null>(null)
 
-  // 키보드 이벤트 핸들러
+  // Ref로 최신 상태 추적 (리스너 재등록 방지)
+  const editPopupRef = useRef(editPopup)
+  const showDeleteConfirmRef = useRef(showDeleteConfirm)
+  const isReadOnlyRef = useRef(isReadOnly)
+  const onDuplicateRef = useRef(onDuplicate)
+
+  // ref 동기화 - 상태 변경 시 ref 업데이트
+  useEffect(() => { editPopupRef.current = editPopup }, [editPopup])
+  useEffect(() => { showDeleteConfirmRef.current = showDeleteConfirm }, [showDeleteConfirm])
+  useEffect(() => { isReadOnlyRef.current = isReadOnly }, [isReadOnly])
+  useEffect(() => { onDuplicateRef.current = onDuplicate }, [onDuplicate])
+
+  // 키보드 + 외부 클릭: isSelected 변경 시에만 리스너 등록/해제
+  // editPopup, showDeleteConfirm 등 변경 시 리스너 재등록하지 않음 (ref로 참조)
   useEffect(() => {
+    if (!isSelected) return
+
     const handleKeyDown = (e: KeyboardEvent) => {
       // Delete/Backspace 키로 삭제
-      if (isSelected && (e.key === 'Delete' || e.key === 'Backspace') && !editPopup) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && !editPopupRef.current) {
         e.preventDefault()
         setShowDeleteConfirm(true)
       }
       // Enter 키로 편집 팝업 열기 (삭제 확인 다이얼로그가 열려있으면 무시)
-      if (isSelected && e.key === 'Enter' && !editPopup && !showDeleteConfirm && !isReadOnly) {
+      if (e.key === 'Enter' && !editPopupRef.current && !showDeleteConfirmRef.current && !isReadOnlyRef.current) {
         e.preventDefault()
         const rect = cardRef.current?.getBoundingClientRect()
         if (rect) {
@@ -110,9 +125,9 @@ export function useCardInteractions({
         }
       }
       // Ctrl+D로 카드 복제
-      if (isSelected && (e.ctrlKey || e.metaKey) && e.key === 'd' && !editPopup && !isReadOnly) {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'd' && !editPopupRef.current && !isReadOnlyRef.current) {
         e.preventDefault()  // 브라우저 북마크 기본 동작 방지
-        onDuplicate?.()
+        onDuplicateRef.current?.()
       }
       // Escape 키로 선택 해제
       if (e.key === 'Escape') {
@@ -121,31 +136,20 @@ export function useCardInteractions({
       }
     }
 
-    if (isSelected) {
-      window.addEventListener('keydown', handleKeyDown)
-    }
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isSelected, editPopup, showDeleteConfirm, isReadOnly, onDuplicate])
-
-  // 카드 외부 클릭 시 선택 해제
-  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (cardRef.current && !cardRef.current.contains(e.target as Node)) {
         setIsSelected(false)
       }
     }
 
-    if (isSelected) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
+    window.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('mousedown', handleClickOutside)
 
     return () => {
+      window.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isSelected])
+  }, [isSelected])  // isSelected만 의존 → 선택/해제 시에만 등록/해제
 
   // 더블 클릭: 편집 팝업 표시 (스마트 포지셔닝)
   const handleDoubleClick = (e: React.MouseEvent) => {
