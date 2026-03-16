@@ -24,6 +24,7 @@ export function ScheduleGrid() {
     selectedMemberId,
     members,
     schedules,
+    schedulesByMemberId,
     zoomLevel,
     currentYear,
     workspaceId,
@@ -398,9 +399,9 @@ export function ScheduleGrid() {
     }
   }, [workspaceId, currentUser, isUnifiedTab, globalEventRowCount, selectedProjectId, pushHistory, setGlobalEventRowCount, setPendingRowCountUpdate])
 
-  // 현재 선택된 탭의 일정만 필터링
+  // 현재 선택된 탭의 일정만 필터링 (인덱스 활용)
   const filteredSchedules = selectedMemberId
-    ? schedules.filter((s) => s.memberId === selectedMemberId)
+    ? (schedulesByMemberId[selectedMemberId] || [])
     : schedules
 
   // 선택된 프로젝트의 글로벌 이벤트만 필터링 (projectId가 없는 이벤트는 전역으로 모든 프로젝트에 표시)
@@ -485,7 +486,7 @@ export function ScheduleGrid() {
       }
 
       visibleMembers.forEach((m) => {
-        const memberSchedules = schedules.filter((s) => s.memberId === m.id)
+        const memberSchedules = schedulesByMemberId[m.id] || []
 
         // 구성원의 rowCount 사용 (로컬 상태 또는 멤버 데이터)
         const memberRowCount = memberRowCounts[m.id] ?? m.rowCount ?? 1
@@ -522,13 +523,14 @@ export function ScheduleGrid() {
         totalRows: number
       }> = []
 
+      const memberSchedules = schedulesByMemberId[selectedMemberId] || []
       for (let i = 0; i < rowCount; i++) {
         rowData.push({
           memberId: selectedMemberId,
           memberName: member?.name || '',
           memberColor: member?.color || DEFAULT_SCHEDULE_COLOR,
           rowIndex: i,
-          schedules: filteredSchedules.filter((s) => (s.rowIndex || 0) === i),
+          schedules: memberSchedules.filter((s) => (s.rowIndex || 0) === i),
           isFirstRow: i === 0,
           isLastRow: i === rowCount - 1,
           totalRows: rowCount,
@@ -537,7 +539,7 @@ export function ScheduleGrid() {
 
       return rowData
     }
-  }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
+  }, [isUnifiedTab, members, schedulesByMemberId, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
 
   // 구성원별 그룹화 데이터 (단일 컨테이너 렌더링용)
   const memberGroups = useMemo(() => {
@@ -589,7 +591,7 @@ export function ScheduleGrid() {
       }
 
       visibleMembers.forEach((m) => {
-        const memberSchedules = schedules.filter((s) => s.memberId === m.id)
+        const memberSchedules = schedulesByMemberId[m.id] || []
         const totalRows = memberRowCounts[m.id] ?? m.rowCount ?? 1
 
         const memberRows: typeof groups[0]['rows'] = []
@@ -629,13 +631,13 @@ export function ScheduleGrid() {
         memberName: member?.name || '',
         memberColor: member?.color || DEFAULT_SCHEDULE_COLOR,
         totalRows,
-        schedules: filteredSchedules,
+        schedules: schedulesByMemberId[selectedMemberId] || [],
         rows: memberRows,
       })
     }
 
     return groups
-  }, [isUnifiedTab, members, schedules, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
+  }, [isUnifiedTab, members, schedulesByMemberId, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
 
   // 박스 선택 훅
   const {

@@ -91,7 +91,6 @@ export const ScheduleCard = memo(function ScheduleCard({
   const columnWidthScale = useAppStore(state => state.columnWidthScale)
   const currentYear = useAppStore(state => state.currentYear)
   const workspaceId = useAppStore(state => state.workspaceId)
-  const schedules = useAppStore(state => state.schedules)
   const setDragging = useAppStore(state => state.setDragging)
   const members = useAppStore(state => state.members)
   const currentUser = useAppStore(state => state.currentUser)
@@ -107,7 +106,7 @@ export const ScheduleCard = memo(function ScheduleCard({
 
     const memberId = schedule.memberId
     const member = members.find(m => m.id === memberId)
-    const memberSchedules = schedules.filter(s => s.memberId === memberId)
+    const memberSchedules = useAppStore.getState().schedules.filter(s => s.memberId === memberId)
     const currentRowCount = member?.rowCount || 1
 
     // 빈 행 탐색: 같은 날짜 범위에서 겹치지 않는 행 찾기
@@ -165,7 +164,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     } catch (error) {
       console.error('일정 복제 실패:', error)
     }
-  }, [workspaceId, currentUser, schedule, members, schedules, pushHistory])
+  }, [workspaceId, currentUser, schedule, members, pushHistory])
 
   // Shift+드래그 복제용 Shift 키 상태 추적
   const isShiftDragRef = useRef(false)
@@ -298,7 +297,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     const targetMember = members.find((m) => m.id === targetMemberId)
     if (!targetMember) return
 
-    const targetSchedules = schedules.filter((s) => s.memberId === targetMemberId)
+    const targetSchedules = useAppStore.getState().schedules.filter((s) => s.memberId === targetMemberId)
     const targetRowCount = targetMember.rowCount || 1
 
     let availableRowIndex = -1
@@ -361,7 +360,7 @@ export const ScheduleCard = memo(function ScheduleCard({
       rowIndex: newRowIndex !== undefined ? newRowIndex : schedule.rowIndex,
     }
 
-    return hasCollision(tempSchedule, schedules)
+    return hasCollision(tempSchedule, useAppStore.getState().schedules)
   }
 
   // 드래그 시작
