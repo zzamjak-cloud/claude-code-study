@@ -65,6 +65,22 @@ export function ScheduleGrid() {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fixedColumnRef = useRef<HTMLDivElement>(null)
 
+  // 줌 변경 시 스크롤 위치 비례 보정 (현재 뷰포트 중심 유지)
+  const prevCellWidthRef = useRef(cellWidth)
+  useEffect(() => {
+    const prevCellWidth = prevCellWidthRef.current
+    prevCellWidthRef.current = cellWidth
+    if (prevCellWidth === cellWidth) return
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    // 뷰포트 중심이 보고 있던 날짜 위치를 유지
+    const viewportCenter = container.scrollLeft + container.clientWidth / 2
+    const ratio = cellWidth / prevCellWidth
+    const newCenter = viewportCenter * ratio
+    container.scrollLeft = newCenter - container.clientWidth / 2
+  }, [cellWidth])
+
   // 표시할 날짜 인덱스 (숨겨진 월 제외)
   const visibleDayIndices = useMemo(
     () => getVisibleDayIndices(currentYear, monthVisibility),
