@@ -147,6 +147,9 @@ const getInitialSelectedProjectId = (): string | null => {
   return null
 }
 
+// 줌 레벨 requestAnimationFrame 디바운싱용 ID
+let zoomRafId: number | null = null
+
 export const createViewSlice = (set: any): ViewSlice => ({
   // 초기 상태
   zoomLevel: getInitialZoomLevel(),
@@ -165,10 +168,14 @@ export const createViewSlice = (set: any): ViewSlice => ({
   selectedJobTitle: null,
   scrollToTodayTrigger: 0,
 
-  // 줌 레벨 설정 (localStorage에도 저장)
+  // 줌 레벨 설정 (requestAnimationFrame으로 디바운싱, localStorage에도 저장)
   setZoomLevel: (level) => {
-    storage.setString(STORAGE_KEYS.ZOOM_LEVEL, level.toString())
-    set({ zoomLevel: level })
+    if (zoomRafId !== null) cancelAnimationFrame(zoomRafId)
+    zoomRafId = requestAnimationFrame(() => {
+      zoomRafId = null
+      storage.setString(STORAGE_KEYS.ZOOM_LEVEL, level.toString())
+      set({ zoomLevel: level })
+    })
   },
 
   // 열너비 배율 설정 (localStorage에도 저장)
