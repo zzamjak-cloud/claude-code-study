@@ -6,7 +6,7 @@ import { useAppStore } from '../../store/useAppStore'
 import { YEAR_DAYS } from '../../lib/constants/grid'
 import { getCellWidth, getCellHeight } from '../../lib/utils/gridUtils'
 import { DateAxis } from './DateAxis'
-import { GridCell } from './GridCell'
+import { GridRow } from './GridRow'
 import { ScheduleCard } from './ScheduleCard'
 import { MemberMemo } from './MemberMemo'
 import { Announcement } from '../layout/Announcement'
@@ -16,7 +16,7 @@ import { createSchedule as createScheduleFirebase, updateSchedule as updateSched
 import { DEFAULT_SCHEDULE_COLOR, GLOBAL_EVENT_COLOR, ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
 import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
 import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
-import { addDays } from 'date-fns'
+import { addDays, isWeekend, isSameDay, isToday as isTodayFn, isBefore, startOfDay } from 'date-fns'
 import { useBoxSelection } from './useBoxSelection'
 
 export function ScheduleGrid() {
@@ -42,6 +42,8 @@ export function ScheduleGrid() {
     selectedJobTitle,
     updateMember,
     scrollToTodayTrigger,
+    weekendColor,
+    events,
   } = useAppStore()
 
   // 현재 프로젝트의 특이사항 행 개수 (프로젝트 미선택 시 'default' 사용)
@@ -94,6 +96,60 @@ export function ScheduleGrid() {
 
     return set
   }, [visibleDayIndices, currentYear])
+
+  // GridRow에 전달할 사전 계산 데이터 (모든 행에서 동일하게 사용)
+  const gridRowData = useMemo(() => {
+    const yearStart = new Date(currentYear, 0, 1)
+    const today = startOfDay(new Date())
+
+    const weekendIndices: number[] = []
+    const holidayIndices: number[] = []
+    let todayIndex: number | null = null
+    let pastDayCount = 0
+    const monthBoundaryIndices: number[] = []
+
+    // 공휴일 날짜 Set (빠른 검색용)
+    const holidayDates = events
+      .filter(e => e.type === 'holiday')
+      .map(e => startOfDay(new Date(e.date)))
+
+    visibleDayIndices.forEach((dayIndex, visibleIdx) => {
+      const date = addDays(yearStart, dayIndex)
+
+      // 주말 인덱스
+      if (isWeekend(date)) {
+        weekendIndices.push(visibleIdx)
+      }
+
+      // 공휴일 인덱스
+      if (holidayDates.some(hd => isSameDay(hd, date))) {
+        holidayIndices.push(visibleIdx)
+      }
+
+      // 오늘 날짜
+      if (isTodayFn(date)) {
+        todayIndex = visibleIdx
+      }
+
+      // 과거 날짜 카운트
+      if (isBefore(date, today)) {
+        pastDayCount++
+      }
+
+      // 월 첫날 (firstDayOfMonthIndices Set 활용)
+      if (firstDayOfMonthIndices.has(dayIndex)) {
+        monthBoundaryIndices.push(visibleIdx)
+      }
+    })
+
+    return {
+      weekendIndices,
+      holidayIndices,
+      todayIndex,
+      pastDayCount,
+      monthBoundaryIndices,
+    }
+  }, [visibleDayIndices, currentYear, events, firstDayOfMonthIndices])
 
   // 일정 생성 상태 (Ctrl + 드래그)
   const [isCreating, setIsCreating] = useState(false)
@@ -1180,18 +1236,24 @@ export function ScheduleGrid() {
                   if (isCreatingGlobal) resetGlobalCreation()
                 }}
               >
-                {/* 각 행의 그리드 셀 배경 */}
+                {/* 각 행의 그리드 배경 (CSS 패턴 기반 단일 div) */}
                 {globalRows.map((row) => (
                   <div
                     key={`grid-global-bg-${row.rowIndex}`}
                     className="absolute left-0 right-0 pointer-events-none"
                     style={{ top: `${row.rowIndex * cellHeight}px`, height: `${cellHeight}px` }}
                   >
-                    <div className="flex absolute inset-0">
-                      {visibleDayIndices.map((dayIndex) => (
-                        <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
-                      ))}
-                    </div>
+                    <GridRow
+                      cellWidth={cellWidth}
+                      cellHeight={cellHeight}
+                      visibleDayCount={visibleDayCount}
+                      weekendIndices={gridRowData.weekendIndices}
+                      holidayIndices={gridRowData.holidayIndices}
+                      todayIndex={gridRowData.todayIndex}
+                      pastDayCount={gridRowData.pastDayCount}
+                      firstDayOfMonthIndices={gridRowData.monthBoundaryIndices}
+                      weekendColor={weekendColor}
+                    />
                   </div>
                 ))}
 
@@ -1286,18 +1348,24 @@ export function ScheduleGrid() {
                   if (isBoxSelecting) handleBoxSelectEnd()
                 }}
               >
-                {/* 각 행의 그리드 셀 배경 */}
+                {/* 각 행의 그리드 배경 (CSS 패턴 기반 단일 div) */}
                 {group.rows.map((row) => (
                   <div
                     key={`grid-bg-${group.memberId}-${row.rowIndex}`}
                     className="absolute left-0 right-0"
                     style={{ top: `${row.rowIndex * cellHeight}px`, height: `${cellHeight}px` }}
                   >
-                    <div className="flex absolute inset-0">
-                      {visibleDayIndices.map((dayIndex) => (
-                        <GridCell key={dayIndex} dayIndex={dayIndex} isFirstDayOfMonth={firstDayOfMonthIndices.has(dayIndex)} />
-                      ))}
-                    </div>
+                    <GridRow
+                      cellWidth={cellWidth}
+                      cellHeight={cellHeight}
+                      visibleDayCount={visibleDayCount}
+                      weekendIndices={gridRowData.weekendIndices}
+                      holidayIndices={gridRowData.holidayIndices}
+                      todayIndex={gridRowData.todayIndex}
+                      pastDayCount={gridRowData.pastDayCount}
+                      firstDayOfMonthIndices={gridRowData.monthBoundaryIndices}
+                      weekendColor={weekendColor}
+                    />
                   </div>
                 ))}
 
