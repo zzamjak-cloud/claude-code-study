@@ -1,6 +1,7 @@
 // 글로벌 이벤트 카드 컴포넌트 (통합 탭에서만 편집 가능)
 
 import { memo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { ExternalLink } from 'lucide-react'
 import { GlobalEvent } from '../../types/globalEvent'
@@ -391,19 +392,19 @@ export const GlobalEventCard = memo(function GlobalEventCard({
         </div>
       </Rnd>
 
-      {/* 우클릭 컨텍스트 메뉴 */}
-      {contextMenu && (
+      {/* transform 내부에서 position:fixed가 깨지므로 portal로 렌더링 */}
+      {contextMenu && createPortal(
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           currentColor={event.color}
           onColorChange={handleColorChange}
           onClose={() => setContextMenu(null)}
-        />
+        />,
+        document.body
       )}
 
-      {/* 삭제 확인 다이얼로그 */}
-      {showDeleteConfirm && (
+      {showDeleteConfirm && createPortal(
         <ConfirmDialog
           title="글로벌 이벤트 삭제"
           message={`"${event.title || '제목 없음'}" 이벤트를 삭제하시겠습니까?`}
@@ -411,17 +412,17 @@ export const GlobalEventCard = memo(function GlobalEventCard({
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
           isDestructive
-        />
+        />,
+        document.body
       )}
 
-      {/* 호버 툴팁 */}
       {showTooltip && (event.comment || event.title) && (() => {
         const rect = cardRef.current?.getBoundingClientRect()
         if (!rect) return null
 
         const tooltipHeight = event.comment ? 52 : 28
 
-        return (
+        return createPortal(
           <div
             className="fixed bg-card border border-border rounded-md shadow-lg px-3 py-2 z-[250] max-w-xs pointer-events-none"
             style={{
@@ -437,12 +438,12 @@ export const GlobalEventCard = memo(function GlobalEventCard({
                 {event.comment}
               </div>
             )}
-          </div>
+          </div>,
+          document.body
         )
       })()}
 
-      {/* 편집 팝업 */}
-      {editPopup && (
+      {editPopup && createPortal(
         <ScheduleEditPopup
           title={event.title}
           comment={event.comment}
@@ -450,7 +451,8 @@ export const GlobalEventCard = memo(function GlobalEventCard({
           position={editPopup}
           onSave={handleEditSave}
           onCancel={() => setEditPopup(null)}
-        />
+        />,
+        document.body
       )}
     </>
   )

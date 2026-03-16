@@ -1,6 +1,7 @@
 // 일정 카드 컴포넌트 (Phase 2: 드래그 앤 드롭 + 리사이즈 핸들 + Delete 삭제)
 
 import { useState, memo, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { Schedule } from '../../types/schedule'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
@@ -679,8 +680,8 @@ export const ScheduleCard = memo(function ScheduleCard({
         </div>
       </Rnd>
 
-      {/* 삭제 확인 다이얼로그 */}
-      {showDeleteConfirm && (
+      {/* transform 내부에서 position:fixed가 깨지므로 portal로 렌더링 */}
+      {showDeleteConfirm && createPortal(
         <ConfirmDialog
           title="일정 삭제"
           message={`"${schedule.title || '제목 없음'}" 일정을 삭제하시겠습니까?`}
@@ -688,11 +689,11 @@ export const ScheduleCard = memo(function ScheduleCard({
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
           isDestructive
-        />
+        />,
+        document.body
       )}
 
-      {/* 우클릭 컨텍스트 메뉴 */}
-      {contextMenu && (
+      {contextMenu && createPortal(
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
@@ -702,29 +703,26 @@ export const ScheduleCard = memo(function ScheduleCard({
           members={members}
           currentMemberId={schedule.memberId}
           onTransfer={handleTransfer}
-        />
+        />,
+        document.body
       )}
 
-      {/* 호버 툴팁 */}
       {showTooltip && (schedule.comment || schedule.title || schedule.projectId) && (() => {
         const rect = cardRef.current?.getBoundingClientRect()
         if (!rect) return null
 
         const project = schedule.projectId ? projects.find(p => p.id === schedule.projectId) : null
-        // 각 요소별 높이를 넉넉하게 계산
-        let tooltipHeight = 36  // 기본 패딩 + 제목 높이
+        let tooltipHeight = 36
         if (project) tooltipHeight += 20
         if (schedule.comment) tooltipHeight += 24
-        const TOOLTIP_GAP = 6  // 카드와 툴팁 사이 간격
+        const TOOLTIP_GAP = 6
 
-        // 카드 위에 표시 (카드를 가리지 않도록 간격 확보)
         let tooltipTop = rect.top - tooltipHeight - TOOLTIP_GAP
-        // 화면 상단을 넘어가면 카드 아래에 표시
         if (tooltipTop < 4) {
           tooltipTop = rect.bottom + TOOLTIP_GAP
         }
 
-        return (
+        return createPortal(
           <div
             className="fixed bg-card border border-border rounded-md shadow-lg px-3 py-2.5 z-[250] max-w-xs pointer-events-none"
             style={{
@@ -745,12 +743,12 @@ export const ScheduleCard = memo(function ScheduleCard({
                 {schedule.comment}
               </div>
             )}
-          </div>
+          </div>,
+          document.body
         )
       })()}
 
-      {/* 편집 팝업 */}
-      {editPopup && (
+      {editPopup && createPortal(
         <ScheduleEditPopup
           title={schedule.title}
           comment={schedule.comment}
@@ -760,7 +758,8 @@ export const ScheduleCard = memo(function ScheduleCard({
           position={editPopup}
           onSave={handleEditSave}
           onCancel={() => setEditPopup(null)}
-        />
+        />,
+        document.body
       )}
     </>
   )
