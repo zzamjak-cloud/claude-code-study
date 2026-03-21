@@ -64,6 +64,7 @@ export function ScheduleGrid() {
 
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fixedColumnRef = useRef<HTMLDivElement>(null)
+  const transformWrapperRef = useRef<HTMLDivElement>(null)
 
   // 줌 변경 시 스크롤 위치 비례 보정 (현재 뷰포트 중심 유지)
   const prevCellWidthRef = useRef(cellWidth)
@@ -210,7 +211,7 @@ export function ScheduleGrid() {
     setMemberRowCounts(initialCounts)
   }, [members])
 
-  // 스크롤 이벤트 핸들러 - 세로 스크롤 동기화
+  // 스크롤 이벤트 핸들러 - 세로 스크롤 동기화 + 수평 스크롤 CSS 변수 업데이트
   const handleScroll = useCallback(() => {
     if (!scrollContainerRef.current || !fixedColumnRef.current) return
 
@@ -225,7 +226,13 @@ export function ScheduleGrid() {
 
     // 세로 스크롤 동기화
     fixedColumn.scrollTop = scrollTop
-  }, [])
+
+    // 수평 스크롤 위치를 CSS 변수로 전달 (카드 텍스트 스티키용)
+    if (transformWrapperRef.current) {
+      const scrollLeftBase = scrollContainer.scrollLeft / zoomLevel
+      transformWrapperRef.current.style.setProperty('--scroll-left-base', `${scrollLeftBase}`)
+    }
+  }, [zoomLevel])
 
   // 스크롤 이벤트 리스너 등록
   useEffect(() => {
@@ -1239,6 +1246,7 @@ export function ScheduleGrid() {
 
           {/* CSS transform 기반 줌 래퍼: 내부는 항상 zoomLevel=1 기준으로 렌더링 */}
           <div
+            ref={transformWrapperRef}
             style={{
               transform: `scale(${zoomLevel})`,
               transformOrigin: 'top left',

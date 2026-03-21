@@ -33,12 +33,13 @@ export function MemberMemo({ memberId, column = 'left' }: MemberMemoProps) {
       return
     }
 
-    // 실제로 서버에서 변경된 경우에만 동기화
-    if (serverMemo !== lastSavedMemo.current) {
+    // 현재 로컬 메모와 서버 메모가 다르고, 서버 값이 실제로 변경된 경우에만 동기화
+    // (자신이 저장한 값으로 다시 덮어쓰는 것을 방지)
+    if (serverMemo !== lastSavedMemo.current && serverMemo !== memo) {
       setMemo(serverMemo)
       lastSavedMemo.current = serverMemo
     }
-  }, [serverMemo, isSaving])
+  }, [serverMemo, isSaving, memo])
 
   // memberId 또는 컬럼 변경 시 초기화
   useEffect(() => {
@@ -61,10 +62,11 @@ export function MemberMemo({ memberId, column = 'left' }: MemberMemoProps) {
         console.error('메모 저장 실패:', error)
       } finally {
         setIsSaving(false)
-        // 저장 완료 후 잠시 후에 편집 플래그 해제
+        // 저장 완료 후 Firestore 동기화가 store를 업데이트할 시간을 충분히 기다린 뒤 플래그 해제
+        // (너무 일찍 해제하면 serverMemo 변경이 로컬 편집을 덮어쓸 수 있음)
         setTimeout(() => {
           isEditingLocally.current = false
-        }, 500)
+        }, 1500)
       }
     },
     [workspaceId, memberId, memoField]
@@ -107,7 +109,7 @@ export function MemberMemo({ memberId, column = 'left' }: MemberMemoProps) {
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border-b border-border flex-shrink-0">
         <StickyNote className="w-4 h-4 text-amber-600" />
-        <span className="text-sm font-medium text-foreground flex-1">
+        <span className="text-xs font-medium text-foreground flex-1">
           {member?.name || '구성원'}님의 {columnLabel}
         </span>
         {/* 저장 상태 표시 및 저장 버튼 */}

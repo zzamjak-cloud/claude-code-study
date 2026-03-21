@@ -335,7 +335,7 @@ export function TeamTabs() {
                   <button
                     onClick={() => selectMember(tab.id)}
                     className={`
-                      flex items-center gap-2 px-4 py-2 rounded-t-md transition-colors font-medium
+                      flex items-center gap-2 px-3 py-1.5 rounded-t-md transition-colors text-xs font-medium
                       ${
                         isSelected
                           ? 'bg-background text-foreground border-t border-x border-border'
@@ -369,7 +369,7 @@ export function TeamTabs() {
           {hiddenCount > 0 && (
             <button
               onClick={() => setShowHiddenModal(true)}
-              className="flex items-center gap-1 px-3 py-2 rounded-t-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center gap-1 px-2 py-1.5 rounded-t-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="숨긴 구성원 보관함"
             >
               <Archive className="w-4 h-4" />
@@ -390,7 +390,7 @@ export function TeamTabs() {
         >
           <button
             onClick={handleHideClick}
-            className="w-full flex items-center gap-2 px-4 py-2 text-sm text-foreground hover:bg-accent transition-colors"
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-foreground hover:bg-accent transition-colors"
           >
             <EyeOff className="w-4 h-4" />
             숨김

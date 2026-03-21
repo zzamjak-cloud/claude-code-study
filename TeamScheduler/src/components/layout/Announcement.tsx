@@ -124,7 +124,7 @@ export function Announcement() {
       {/* 헤더 */}
       <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border-b border-border flex-shrink-0">
         <Megaphone className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-foreground flex-1">
+        <span className="text-xs font-medium text-foreground flex-1">
           {currentProject ? `(${currentProject.name}) 공지사항` : '공지사항'}
         </span>
         {/* 저장 상태 표시 및 저장 버튼 */}
@@ -163,7 +163,7 @@ export function Announcement() {
           />
         ) : (
           // 일반 사용자: 읽기 전용
-          <div className="overflow-auto h-full text-sm">
+          <div className="overflow-auto h-full text-xs">
             {currentAnnouncement?.content ? (
               <RichTextViewer content={currentAnnouncement.content} />
             ) : (

@@ -1,6 +1,6 @@
 // 일정 카드 컴포넌트 (Phase 2: 드래그 앤 드롭 + 리사이즈 핸들 + Delete 삭제)
 
-import { useState, memo, useCallback, useRef } from 'react'
+import { useState, memo, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { Schedule } from '../../types/schedule'
@@ -101,6 +101,10 @@ export const ScheduleCard = memo(function ScheduleCard({
   // CSS transform 내부에서는 줌 미적용 기본 셀 크기 사용
   const cellWidth = getCellWidthBase(columnWidthScale)
   const cellHeight = getCellHeightBase()
+
+  // 스티키 텍스트용 ref (수평 스크롤 시 텍스트가 카드 내에서 따라다님)
+  const textContentRef = useRef<HTMLDivElement>(null)
+  const stickyRafRef = useRef<number | null>(null)
 
   // Ctrl+D 카드 복제
   const handleDuplicate = useCallback(async () => {
@@ -207,6 +211,56 @@ export const ScheduleCard = memo(function ScheduleCard({
     columnWidthScale
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
+
+  // 스티키 텍스트: 수평 스크롤 시 텍스트가 카드 내에서 뷰포트 좌측을 따라다님
+  useEffect(() => {
+    const textEl = textContentRef.current
+    if (!textEl) return
+
+    // transform 래퍼 찾기 (CSS 변수 --scroll-left-base가 설정된 요소)
+    const transformWrapper = textEl.closest('[style*="--scroll-left-base"]') ||
+      textEl.closest('[style*="scale"]')
+    if (!transformWrapper) return
+
+    const scrollContainer = transformWrapper.parentElement?.parentElement
+    if (!scrollContainer) return
+
+    const updateStickyOffset = () => {
+      const scrollLeftBase = parseFloat(
+        (transformWrapper as HTMLElement).style.getPropertyValue('--scroll-left-base') || '0'
+      )
+      const cardLeft = x + CARD_MARGIN
+      const cardContentWidth = currentWidth - CARD_MARGIN * 2
+      const minVisibleWidth = 30 // 텍스트가 최소한 보여야 할 너비
+
+      // 스크롤 위치가 카드 시작점보다 오른쪽일 때만 오프셋 적용
+      if (scrollLeftBase > cardLeft) {
+        const offset = Math.min(scrollLeftBase - cardLeft, cardContentWidth - minVisibleWidth)
+        if (offset > 0) {
+          textEl.style.transform = `translateX(${Math.round(offset)}px)`
+        } else {
+          textEl.style.transform = ''
+        }
+      } else {
+        textEl.style.transform = ''
+      }
+    }
+
+    // 스크롤 이벤트 리스너
+    const handleScroll = () => {
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+      stickyRafRef.current = requestAnimationFrame(updateStickyOffset)
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    // 초기 위치 설정
+    updateStickyOffset()
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+    }
+  }, [x, currentWidth])
 
   // 과거 일정 여부 확인 (연차는 제외 - 항상 원래 색상 유지)
   const isAnnualLeave = schedule.color === ANNUAL_LEAVE_COLOR
@@ -634,17 +688,27 @@ export const ScheduleCard = memo(function ScheduleCard({
             </div>
           )}
 
-          {/* 콘텐츠 영역 */}
+          {/* 콘텐츠 영역 - 줌이 낮을 때 텍스트 크기 역보정 */}
           <div className="flex items-center h-full px-1.5 overflow-hidden">
-            <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
-              <span className="text-sm font-medium leading-tight overflow-hidden whitespace-nowrap">
+            <div
+              ref={textContentRef}
+              className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden"
+              style={{ transformOrigin: 'left center' }}
+            >
+              <span
+                className="font-medium leading-tight overflow-hidden whitespace-nowrap"
+                style={{ fontSize: zoomLevel < 0.75 ? `${12 / zoomLevel}px` : '14px' }}
+              >
                 {schedule.title || '제목 없음'}
               </span>
               {/* columnWidthScale이 0.75 미만일 때는 프로젝트명 숨김 (zoomLevel은 CSS transform으로 처리) */}
               {columnWidthScale >= 0.75 && schedule.projectId && (() => {
                 const project = projects.find(p => p.id === schedule.projectId)
                 return project ? (
-                  <span className="text-[10px] opacity-80 leading-tight overflow-hidden whitespace-nowrap">
+                  <span
+                    className="opacity-80 leading-tight overflow-hidden whitespace-nowrap"
+                    style={{ fontSize: zoomLevel < 0.75 ? `${8 / zoomLevel}px` : '10px' }}
+                  >
                     {project.name}
                   </span>
                 ) : null

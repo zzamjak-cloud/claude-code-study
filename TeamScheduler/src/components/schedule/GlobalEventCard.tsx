@@ -1,6 +1,6 @@
 // 글로벌 이벤트 카드 컴포넌트 (통합 탭에서만 편집 가능)
 
-import { memo, useState } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { ExternalLink } from 'lucide-react'
@@ -123,6 +123,55 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     columnWidthScale
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
+
+  // 스티키 텍스트용 ref (수평 스크롤 시 텍스트가 카드 내에서 따라다님)
+  const textContentRef = useRef<HTMLDivElement>(null)
+  const stickyRafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const textEl = textContentRef.current
+    if (!textEl) return
+
+    const transformWrapper = textEl.closest('[style*="--scroll-left-base"]') ||
+      textEl.closest('[style*="scale"]')
+    if (!transformWrapper) return
+
+    const scrollContainer = transformWrapper.parentElement?.parentElement
+    if (!scrollContainer) return
+
+    const updateStickyOffset = () => {
+      const scrollLeftBase = parseFloat(
+        (transformWrapper as HTMLElement).style.getPropertyValue('--scroll-left-base') || '0'
+      )
+      const cardLeft = x + CARD_MARGIN
+      const cardContentWidth = currentWidth - CARD_MARGIN * 2
+      const minVisibleWidth = 30
+
+      if (scrollLeftBase > cardLeft) {
+        const offset = Math.min(scrollLeftBase - cardLeft, cardContentWidth - minVisibleWidth)
+        if (offset > 0) {
+          textEl.style.transform = `translateX(${Math.round(offset)}px)`
+        } else {
+          textEl.style.transform = ''
+        }
+      } else {
+        textEl.style.transform = ''
+      }
+    }
+
+    const handleScroll = () => {
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+      stickyRafRef.current = requestAnimationFrame(updateStickyOffset)
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    updateStickyOffset()
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+    }
+  }, [x, currentWidth])
 
   // 색상 변경
   const handleColorChange = async (color: string) => {
@@ -359,9 +408,16 @@ export const GlobalEventCard = memo(function GlobalEventCard({
             </div>
           )}
 
-          {/* 콘텐츠 영역 */}
-          <div className="flex items-center gap-1 h-full px-1.5">
-            <span className="text-sm font-medium truncate flex-1">
+          {/* 콘텐츠 영역 - 줌이 낮을 때 텍스트 크기 역보정 */}
+          <div
+            ref={textContentRef}
+            className="flex items-center gap-1 h-full px-1.5"
+            style={{ transformOrigin: 'left center' }}
+          >
+            <span
+              className="font-medium truncate flex-1"
+              style={{ fontSize: zoomLevel < 0.75 ? `${12 / zoomLevel}px` : '14px' }}
+            >
               {event.title || '제목 없음'}
             </span>
             {event.link && (
