@@ -89,14 +89,12 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'StyleStudio ${{ github.ref_name }}'
           releaseBody: |
-            ## StyleStudio v0.1.9 버그 픽스
+            ## StyleStudio v0.2.0 인증 수정
 
             ### 🐛 버그 수정
-
-            #### 일러스트 세션 생성 오류 수정
-            - 캐릭터 추가 후 "캐릭터 분석 필요" 오류 메시지가 표시되던 문제 수정
-            - 캐릭터 분석 기능 제거에 맞게 검증 로직 업데이트
-            - 이제 캐릭터와 참조 이미지만 등록하면 바로 이미지 생성 가능
+            - Google OAuth 토큰 갱신 시 앱이 무한 로딩되던 문제 수정
+            - Tauri HTTP 플러그인 대신 브라우저 네이티브 fetch로 OAuth 토큰 교환 변경
+            - 토큰 갱신에 10초 타임아웃 추가하여 무한 대기 방지
 
             ### 설치 방법
             - **macOS**: `.dmg` 파일을 다운로드하여 Applications 폴더에 드래그
@@ -119,11 +117,11 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'StyleStudio ${{ github.ref_name }}'
           releaseBody: |
-            ## StyleStudio v0.1.9 버그 픽스
+            ## StyleStudio v0.2.0 인증 수정
 
             ### 🐛 버그 수정
-            - 일러스트 세션에서 캐릭터 분석 오류 수정
-            - 캐릭터와 참조 이미지만 등록하면 바로 이미지 생성 가능
+            - Google OAuth 토큰 갱신 시 앱이 무한 로딩되던 문제 수정
+            - 토큰 갱신에 10초 타임아웃 추가하여 무한 대기 방지
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}

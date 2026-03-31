@@ -1,6 +1,5 @@
 import { Store } from '@tauri-apps/plugin-store'
 import { openUrl } from '@tauri-apps/plugin-opener'
-import { fetch } from '@tauri-apps/plugin-http'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 
@@ -151,41 +150,49 @@ function isTokenExpired(tokens: GoogleTokens): boolean {
   return Date.now() >= tokens.expires_at - 60000 // 1분 여유
 }
 
-// 토큰 갱신
+// 토큰 갱신 (10초 타임아웃)
 async function refreshAccessToken(refreshToken: string): Promise<GoogleTokens> {
-  const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      client_id: GOOGLE_CLIENT_ID,
-      client_secret: GOOGLE_CLIENT_SECRET,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }).toString(),
-  })
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-  if (!response.ok) {
-    throw new Error('Token refresh failed')
+  try {
+    const response = await window.fetch(GOOGLE_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }).toString(),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new Error('Token refresh failed')
+    }
+
+    const data = await response.json() as {
+      access_token: string
+      id_token: string
+      expires_in: number
+      refresh_token?: string
+    }
+
+    const tokens: GoogleTokens = {
+      access_token: data.access_token,
+      id_token: data.id_token,
+      refresh_token: refreshToken, // 기존 refresh token 유지
+      expires_at: Date.now() + data.expires_in * 1000,
+    }
+
+    await saveTokens(tokens)
+    return tokens
+  } finally {
+    clearTimeout(timeoutId)
   }
-
-  const data = await response.json() as {
-    access_token: string
-    id_token: string
-    expires_in: number
-    refresh_token?: string
-  }
-
-  const tokens: GoogleTokens = {
-    access_token: data.access_token,
-    id_token: data.id_token,
-    refresh_token: refreshToken, // 기존 refresh token 유지
-    expires_at: Date.now() + data.expires_in * 1000,
-  }
-
-  await saveTokens(tokens)
-  return tokens
 }
 
 // 인증 코드를 토큰으로 교환

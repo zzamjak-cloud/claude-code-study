@@ -16,6 +16,19 @@ Style Studio 관련 수정 및 개선 작업 시 **반드시** 다음 문서를 
 
 **중요**: Style Studio의 모든 수정 작업 전에 이 문서를 먼저 읽고 현재 구현 상태와 설계 의도를 파악하세요.
 
+##### Tauri 빌드 시 `createUpdaterArtifacts` 설정 규칙
+
+`StyleStudio-Tauri/src-tauri/tauri.conf.json`의 `bundle.createUpdaterArtifacts` 값을 빌드 목적에 따라 반드시 확인/변경해야 합니다:
+
+| 빌드 목적 | `createUpdaterArtifacts` 값 | 이유 |
+|-----------|---------------------------|------|
+| **로컬 테스트 빌드** (`npm run tauri build`) | `false` | 서명 키가 로컬에 없어 빌드 실패 방지 |
+| **태그 푸시 (정식 릴리스)** | `true` | GitHub Actions에서 서명 키로 자동 업데이트 아티팩트 생성 필요 |
+
+- 로컬 빌드 전: `false`로 변경 → 빌드 → 테스트
+- 태그 푸시 전: **반드시 `true`로 되돌린 후** 커밋 & 태그 푸시
+- 실수로 `false`인 채 태그 푸시하면 기존 사용자의 자동 업데이트가 작동하지 않음
+
 #### Game Planner (GamePlanner-Tauri)
 
 Game Planner 관련 수정 및 개선 작업 시 **반드시** 다음 문서를 참조하세요:
