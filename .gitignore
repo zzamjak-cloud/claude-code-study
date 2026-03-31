@@ -22,3 +22,6 @@ venv/
 .idea/
 .vscode/
 *.swp
+
+# Git worktrees
+.worktrees/

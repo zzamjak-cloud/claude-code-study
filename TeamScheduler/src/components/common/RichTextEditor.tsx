@@ -259,7 +259,7 @@ export function RichTextEditor({
     },
     editorProps: {
       attributes: {
-        class: `prose prose-sm dark:prose-invert max-w-none focus:outline-none px-3 py-2 overflow-y-auto`,
+        class: `prose prose-xs dark:prose-invert max-w-none focus:outline-none px-3 py-2 overflow-y-auto text-xs`,
         style: `min-height: ${minHeight}; max-height: ${maxHeight}`,
       },
       handleKeyDown: (_view, event) => {
@@ -275,9 +275,13 @@ export function RichTextEditor({
     immediatelyRender: false, // SSR 호환 및 중복 경고 방지
   }, [])
 
-  // 외부에서 content가 변경될 때 에디터 업데이트
+  // 외부에서 content가 변경될 때 에디터 업데이트 (포커스 중에는 동기화 차단)
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (!editor) return
+    // 에디터에 포커스가 있을 때는 외부 content 동기화를 차단하여
+    // 편집 중 내용이 이전 값으로 되돌려지는 버그 방지
+    if (editor.isFocused) return
+    if (content !== editor.getHTML()) {
       editor.commands.setContent(content)
     }
   }, [content, editor])

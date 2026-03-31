@@ -1,10 +1,11 @@
 // 일정 카드 컴포넌트 (Phase 2: 드래그 앤 드롭 + 리사이즈 핸들 + Delete 삭제)
 
-import { useState, memo, useCallback, useRef } from 'react'
+import { useState, memo, useCallback, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { Schedule } from '../../types/schedule'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
-import { getCellWidth, getCellHeight, snapToGrid } from '../../lib/utils/gridUtils'
+import { getCellWidthBase, getCellHeightBase, snapToGrid } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
 import {
   updateSchedule as updateScheduleFirebase,
@@ -91,15 +92,19 @@ export const ScheduleCard = memo(function ScheduleCard({
   const columnWidthScale = useAppStore(state => state.columnWidthScale)
   const currentYear = useAppStore(state => state.currentYear)
   const workspaceId = useAppStore(state => state.workspaceId)
-  const schedules = useAppStore(state => state.schedules)
   const setDragging = useAppStore(state => state.setDragging)
   const members = useAppStore(state => state.members)
   const currentUser = useAppStore(state => state.currentUser)
   const projects = useAppStore(state => state.projects)
   const pushHistory = useAppStore(state => state.pushHistory)
 
-  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
-  const cellHeight = getCellHeight(zoomLevel)
+  // CSS transform 내부에서는 줌 미적용 기본 셀 크기 사용
+  const cellWidth = getCellWidthBase(columnWidthScale)
+  const cellHeight = getCellHeightBase()
+
+  // 스티키 텍스트용 ref (수평 스크롤 시 텍스트가 카드 내에서 따라다님)
+  const textContentRef = useRef<HTMLDivElement>(null)
+  const stickyRafRef = useRef<number | null>(null)
 
   // Ctrl+D 카드 복제
   const handleDuplicate = useCallback(async () => {
@@ -107,7 +112,7 @@ export const ScheduleCard = memo(function ScheduleCard({
 
     const memberId = schedule.memberId
     const member = members.find(m => m.id === memberId)
-    const memberSchedules = schedules.filter(s => s.memberId === memberId)
+    const memberSchedules = useAppStore.getState().schedules.filter(s => s.memberId === memberId)
     const currentRowCount = member?.rowCount || 1
 
     // 빈 행 탐색: 같은 날짜 범위에서 겹치지 않는 행 찾기
@@ -165,7 +170,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     } catch (error) {
       console.error('일정 복제 실패:', error)
     }
-  }, [workspaceId, currentUser, schedule, members, schedules, pushHistory])
+  }, [workspaceId, currentUser, schedule, members, pushHistory])
 
   // Shift+드래그 복제용 Shift 키 상태 추적
   const isShiftDragRef = useRef(false)
@@ -198,14 +203,64 @@ export const ScheduleCard = memo(function ScheduleCard({
   // 충돌 상태 (ScheduleCard 전용)
   const [isColliding, setIsColliding] = useState(false)
 
-  // 현재 위치/크기 계산
+  // 현재 위치/크기 계산 (transform 내부이므로 zoomLevel=1)
   const calculatedWidth = dateRangeToWidth(
     new Date(schedule.startDate),
     new Date(schedule.endDate),
-    zoomLevel,
+    1,
     columnWidthScale
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
+
+  // 스티키 텍스트: 수평 스크롤 시 텍스트가 카드 내에서 뷰포트 좌측을 따라다님
+  useEffect(() => {
+    const textEl = textContentRef.current
+    if (!textEl) return
+
+    // transform 래퍼 찾기 (CSS 변수 --scroll-left-base가 설정된 요소)
+    const transformWrapper = textEl.closest('[style*="--scroll-left-base"]') ||
+      textEl.closest('[style*="scale"]')
+    if (!transformWrapper) return
+
+    const scrollContainer = transformWrapper.parentElement?.parentElement
+    if (!scrollContainer) return
+
+    const updateStickyOffset = () => {
+      const scrollLeftBase = parseFloat(
+        (transformWrapper as HTMLElement).style.getPropertyValue('--scroll-left-base') || '0'
+      )
+      const cardLeft = x + CARD_MARGIN
+      const cardContentWidth = currentWidth - CARD_MARGIN * 2
+      const minVisibleWidth = 30 // 텍스트가 최소한 보여야 할 너비
+
+      // 스크롤 위치가 카드 시작점보다 오른쪽일 때만 오프셋 적용
+      if (scrollLeftBase > cardLeft) {
+        const offset = Math.min(scrollLeftBase - cardLeft, cardContentWidth - minVisibleWidth)
+        if (offset > 0) {
+          textEl.style.transform = `translateX(${Math.round(offset)}px)`
+        } else {
+          textEl.style.transform = ''
+        }
+      } else {
+        textEl.style.transform = ''
+      }
+    }
+
+    // 스크롤 이벤트 리스너
+    const handleScroll = () => {
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+      stickyRafRef.current = requestAnimationFrame(updateStickyOffset)
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    // 초기 위치 설정
+    updateStickyOffset()
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+    }
+  }, [x, currentWidth])
 
   // 과거 일정 여부 확인 (연차는 제외 - 항상 원래 색상 유지)
   const isAnnualLeave = schedule.color === ANNUAL_LEAVE_COLOR
@@ -298,7 +353,7 @@ export const ScheduleCard = memo(function ScheduleCard({
     const targetMember = members.find((m) => m.id === targetMemberId)
     if (!targetMember) return
 
-    const targetSchedules = schedules.filter((s) => s.memberId === targetMemberId)
+    const targetSchedules = useAppStore.getState().schedules.filter((s) => s.memberId === targetMemberId)
     const targetRowCount = targetMember.rowCount || 1
 
     let availableRowIndex = -1
@@ -349,10 +404,10 @@ export const ScheduleCard = memo(function ScheduleCard({
     }
   }
 
-  // 겹침 검사
+  // 겹침 검사 (transform 내부이므로 zoomLevel=1)
   const checkCollisionAt = (newX: number, newWidth: number, newRowIndex?: number): boolean => {
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(newX, currentYear, 1, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, 1, columnWidthScale)
 
     const tempSchedule: Schedule = {
       ...schedule,
@@ -361,7 +416,7 @@ export const ScheduleCard = memo(function ScheduleCard({
       rowIndex: newRowIndex !== undefined ? newRowIndex : schedule.rowIndex,
     }
 
-    return hasCollision(tempSchedule, schedules)
+    return hasCollision(tempSchedule, useAppStore.getState().schedules)
   }
 
   // 드래그 시작
@@ -412,10 +467,10 @@ export const ScheduleCard = memo(function ScheduleCard({
       return  // 개별 업데이트 건너뜀
     }
 
-    // x 좌표 계산 (그리드 스냅)
+    // x 좌표 계산 (그리드 스냅, transform 내부이므로 zoomLevel=1)
     const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
-    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(snappedX, currentYear, 1, columnWidthScale)
     const duration = schedule.endDate - schedule.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
@@ -508,8 +563,8 @@ export const ScheduleCard = memo(function ScheduleCard({
       ? snapToGrid(adjustedPosition, cellWidth)
       : x
 
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(newX, currentYear, 1, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, 1, columnWidthScale)
 
     const colliding = checkCollisionAt(newX, newWidth)
     setIsColliding(colliding)
@@ -596,6 +651,7 @@ export const ScheduleCard = memo(function ScheduleCard({
         key={`${schedule.id}-${schedule.startDate}-${schedule.endDate}-${schedule.rowIndex}`}
         position={{ x: effectiveX + CARD_MARGIN, y: effectiveY + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
+        scale={zoomLevel}
         onDragStart={handleDragStart}
         onDrag={handleDrag}
         onDragStop={handleDragStop}
@@ -632,17 +688,27 @@ export const ScheduleCard = memo(function ScheduleCard({
             </div>
           )}
 
-          {/* 콘텐츠 영역 */}
+          {/* 콘텐츠 영역 - 줌이 낮을 때 텍스트 크기 역보정 */}
           <div className="flex items-center h-full px-1.5 overflow-hidden">
-            <div className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden">
-              <span className="text-sm font-medium leading-tight overflow-hidden whitespace-nowrap">
+            <div
+              ref={textContentRef}
+              className="flex-1 min-w-0 flex flex-col justify-center overflow-hidden"
+              style={{ transformOrigin: 'left center' }}
+            >
+              <span
+                className="font-medium leading-tight overflow-hidden whitespace-nowrap"
+                style={{ fontSize: zoomLevel < 0.75 ? `${12 / zoomLevel}px` : '14px' }}
+              >
                 {schedule.title || '제목 없음'}
               </span>
-              {/* columnWidthScale 또는 zoomLevel이 0.75 미만일 때는 프로젝트명 숨김 */}
-              {columnWidthScale >= 0.75 && zoomLevel >= 0.75 && schedule.projectId && (() => {
+              {/* columnWidthScale이 0.75 미만일 때는 프로젝트명 숨김 (zoomLevel은 CSS transform으로 처리) */}
+              {columnWidthScale >= 0.75 && schedule.projectId && (() => {
                 const project = projects.find(p => p.id === schedule.projectId)
                 return project ? (
-                  <span className="text-[10px] opacity-80 leading-tight overflow-hidden whitespace-nowrap">
+                  <span
+                    className="opacity-80 leading-tight overflow-hidden whitespace-nowrap"
+                    style={{ fontSize: zoomLevel < 0.75 ? `${8 / zoomLevel}px` : '10px' }}
+                  >
                     {project.name}
                   </span>
                 ) : null
@@ -678,8 +744,8 @@ export const ScheduleCard = memo(function ScheduleCard({
         </div>
       </Rnd>
 
-      {/* 삭제 확인 다이얼로그 */}
-      {showDeleteConfirm && (
+      {/* transform 내부에서 position:fixed가 깨지므로 portal로 렌더링 */}
+      {showDeleteConfirm && createPortal(
         <ConfirmDialog
           title="일정 삭제"
           message={`"${schedule.title || '제목 없음'}" 일정을 삭제하시겠습니까?`}
@@ -687,11 +753,11 @@ export const ScheduleCard = memo(function ScheduleCard({
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
           isDestructive
-        />
+        />,
+        document.body
       )}
 
-      {/* 우클릭 컨텍스트 메뉴 */}
-      {contextMenu && (
+      {contextMenu && createPortal(
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
@@ -701,29 +767,26 @@ export const ScheduleCard = memo(function ScheduleCard({
           members={members}
           currentMemberId={schedule.memberId}
           onTransfer={handleTransfer}
-        />
+        />,
+        document.body
       )}
 
-      {/* 호버 툴팁 */}
       {showTooltip && (schedule.comment || schedule.title || schedule.projectId) && (() => {
         const rect = cardRef.current?.getBoundingClientRect()
         if (!rect) return null
 
         const project = schedule.projectId ? projects.find(p => p.id === schedule.projectId) : null
-        // 각 요소별 높이를 넉넉하게 계산
-        let tooltipHeight = 36  // 기본 패딩 + 제목 높이
+        let tooltipHeight = 36
         if (project) tooltipHeight += 20
         if (schedule.comment) tooltipHeight += 24
-        const TOOLTIP_GAP = 6  // 카드와 툴팁 사이 간격
+        const TOOLTIP_GAP = 6
 
-        // 카드 위에 표시 (카드를 가리지 않도록 간격 확보)
         let tooltipTop = rect.top - tooltipHeight - TOOLTIP_GAP
-        // 화면 상단을 넘어가면 카드 아래에 표시
         if (tooltipTop < 4) {
           tooltipTop = rect.bottom + TOOLTIP_GAP
         }
 
-        return (
+        return createPortal(
           <div
             className="fixed bg-card border border-border rounded-md shadow-lg px-3 py-2.5 z-[250] max-w-xs pointer-events-none"
             style={{
@@ -744,12 +807,12 @@ export const ScheduleCard = memo(function ScheduleCard({
                 {schedule.comment}
               </div>
             )}
-          </div>
+          </div>,
+          document.body
         )
       })()}
 
-      {/* 편집 팝업 */}
-      {editPopup && (
+      {editPopup && createPortal(
         <ScheduleEditPopup
           title={schedule.title}
           comment={schedule.comment}
@@ -759,7 +822,8 @@ export const ScheduleCard = memo(function ScheduleCard({
           position={editPopup}
           onSave={handleEditSave}
           onCancel={() => setEditPopup(null)}
-        />
+        />,
+        document.body
       )}
     </>
   )

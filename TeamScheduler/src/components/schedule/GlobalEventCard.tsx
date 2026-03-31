@@ -1,11 +1,12 @@
 // 글로벌 이벤트 카드 컴포넌트 (통합 탭에서만 편집 가능)
 
-import { memo, useState } from 'react'
+import { memo, useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Rnd, DraggableData, ResizableDelta, Position } from 'react-rnd'
 import { ExternalLink } from 'lucide-react'
 import { GlobalEvent } from '../../types/globalEvent'
 import { dateRangeToWidth, pixelsToDate } from '../../lib/utils/dateUtils'
-import { getCellWidth, getCellHeight, snapToGrid } from '../../lib/utils/gridUtils'
+import { getCellWidthBase, getCellHeightBase, snapToGrid } from '../../lib/utils/gridUtils'
 import { useAppStore } from '../../store/useAppStore'
 import {
   updateGlobalEvent as updateGlobalEventFirebase,
@@ -83,8 +84,9 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     ? globalEvents.filter(e => !e.projectId || e.projectId === selectedProjectId)
     : globalEvents
 
-  const cellWidth = getCellWidth(zoomLevel, columnWidthScale)
-  const cellHeight = getCellHeight(zoomLevel)
+  // CSS transform 내부에서는 줌 미적용 기본 셀 크기 사용
+  const cellWidth = getCellWidthBase(columnWidthScale)
+  const cellHeight = getCellHeightBase()
 
   // 공통 상호작용 훅 사용
   const {
@@ -113,14 +115,63 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   // 충돌 상태
   const [isColliding, setIsColliding] = useState(false)
 
-  // 현재 위치/크기 계산
+  // 현재 위치/크기 계산 (transform 내부이므로 zoomLevel=1)
   const calculatedWidth = dateRangeToWidth(
     new Date(event.startDate),
     new Date(event.endDate),
-    zoomLevel,
+    1,
     columnWidthScale
   )
   const currentWidth = visibleWidth !== undefined ? visibleWidth : calculatedWidth
+
+  // 스티키 텍스트용 ref (수평 스크롤 시 텍스트가 카드 내에서 따라다님)
+  const textContentRef = useRef<HTMLDivElement>(null)
+  const stickyRafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    const textEl = textContentRef.current
+    if (!textEl) return
+
+    const transformWrapper = textEl.closest('[style*="--scroll-left-base"]') ||
+      textEl.closest('[style*="scale"]')
+    if (!transformWrapper) return
+
+    const scrollContainer = transformWrapper.parentElement?.parentElement
+    if (!scrollContainer) return
+
+    const updateStickyOffset = () => {
+      const scrollLeftBase = parseFloat(
+        (transformWrapper as HTMLElement).style.getPropertyValue('--scroll-left-base') || '0'
+      )
+      const cardLeft = x + CARD_MARGIN
+      const cardContentWidth = currentWidth - CARD_MARGIN * 2
+      const minVisibleWidth = 30
+
+      if (scrollLeftBase > cardLeft) {
+        const offset = Math.min(scrollLeftBase - cardLeft, cardContentWidth - minVisibleWidth)
+        if (offset > 0) {
+          textEl.style.transform = `translateX(${Math.round(offset)}px)`
+        } else {
+          textEl.style.transform = ''
+        }
+      } else {
+        textEl.style.transform = ''
+      }
+    }
+
+    const handleScroll = () => {
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+      stickyRafRef.current = requestAnimationFrame(updateStickyOffset)
+    }
+
+    scrollContainer.addEventListener('scroll', handleScroll)
+    updateStickyOffset()
+
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll)
+      if (stickyRafRef.current) cancelAnimationFrame(stickyRafRef.current)
+    }
+  }, [x, currentWidth])
 
   // 색상 변경
   const handleColorChange = async (color: string) => {
@@ -204,10 +255,10 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     if (isReadOnly) return
     setIsDragging(false)
 
-    // x 좌표 계산 (그리드 스냅)
+    // x 좌표 계산 (그리드 스냅, transform 내부이므로 zoomLevel=1)
     const adjustedX = data.x - CARD_MARGIN
     const snappedX = snapToGrid(adjustedX, cellWidth)
-    const newStartDate = pixelsToDate(snappedX, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(snappedX, currentYear, 1, columnWidthScale)
     const duration = event.endDate - event.startDate
     const newEndDate = new Date(newStartDate.getTime() + duration)
 
@@ -268,8 +319,8 @@ export const GlobalEventCard = memo(function GlobalEventCard({
       ? snapToGrid(adjustedPosition, cellWidth)
       : x
 
-    const newStartDate = pixelsToDate(newX, currentYear, zoomLevel, columnWidthScale)
-    const newEndDate = pixelsToDate(newX + newWidth, currentYear, zoomLevel, columnWidthScale)
+    const newStartDate = pixelsToDate(newX, currentYear, 1, columnWidthScale)
+    const newEndDate = pixelsToDate(newX + newWidth, currentYear, 1, columnWidthScale)
 
     const colliding = checkCollision(newStartDate.getTime(), newEndDate.getTime(), event.rowIndex || 0)
     setIsColliding(colliding)
@@ -324,6 +375,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
         key={`${event.id}-${event.startDate}-${event.endDate}-${event.rowIndex}`}
         position={{ x: x + CARD_MARGIN, y: y + CARD_MARGIN }}
         size={{ width: currentWidth - CARD_MARGIN * 2, height: cellHeight - CARD_MARGIN * 2 }}
+        scale={zoomLevel}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
         onResizeStart={() => !isReadOnly && setIsResizing(true)}
@@ -356,9 +408,16 @@ export const GlobalEventCard = memo(function GlobalEventCard({
             </div>
           )}
 
-          {/* 콘텐츠 영역 */}
-          <div className="flex items-center gap-1 h-full px-1.5">
-            <span className="text-sm font-medium truncate flex-1">
+          {/* 콘텐츠 영역 - 줌이 낮을 때 텍스트 크기 역보정 */}
+          <div
+            ref={textContentRef}
+            className="flex items-center gap-1 h-full px-1.5"
+            style={{ transformOrigin: 'left center' }}
+          >
+            <span
+              className="font-medium truncate flex-1"
+              style={{ fontSize: zoomLevel < 0.75 ? `${12 / zoomLevel}px` : '14px' }}
+            >
               {event.title || '제목 없음'}
             </span>
             {event.link && (
@@ -389,19 +448,19 @@ export const GlobalEventCard = memo(function GlobalEventCard({
         </div>
       </Rnd>
 
-      {/* 우클릭 컨텍스트 메뉴 */}
-      {contextMenu && (
+      {/* transform 내부에서 position:fixed가 깨지므로 portal로 렌더링 */}
+      {contextMenu && createPortal(
         <ContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
           currentColor={event.color}
           onColorChange={handleColorChange}
           onClose={() => setContextMenu(null)}
-        />
+        />,
+        document.body
       )}
 
-      {/* 삭제 확인 다이얼로그 */}
-      {showDeleteConfirm && (
+      {showDeleteConfirm && createPortal(
         <ConfirmDialog
           title="글로벌 이벤트 삭제"
           message={`"${event.title || '제목 없음'}" 이벤트를 삭제하시겠습니까?`}
@@ -409,17 +468,17 @@ export const GlobalEventCard = memo(function GlobalEventCard({
           onConfirm={handleDelete}
           onCancel={() => setShowDeleteConfirm(false)}
           isDestructive
-        />
+        />,
+        document.body
       )}
 
-      {/* 호버 툴팁 */}
       {showTooltip && (event.comment || event.title) && (() => {
         const rect = cardRef.current?.getBoundingClientRect()
         if (!rect) return null
 
         const tooltipHeight = event.comment ? 52 : 28
 
-        return (
+        return createPortal(
           <div
             className="fixed bg-card border border-border rounded-md shadow-lg px-3 py-2 z-[250] max-w-xs pointer-events-none"
             style={{
@@ -435,12 +494,12 @@ export const GlobalEventCard = memo(function GlobalEventCard({
                 {event.comment}
               </div>
             )}
-          </div>
+          </div>,
+          document.body
         )
       })()}
 
-      {/* 편집 팝업 */}
-      {editPopup && (
+      {editPopup && createPortal(
         <ScheduleEditPopup
           title={event.title}
           comment={event.comment}
@@ -448,7 +507,8 @@ export const GlobalEventCard = memo(function GlobalEventCard({
           position={editPopup}
           onSave={handleEditSave}
           onCancel={() => setEditPopup(null)}
-        />
+        />,
+        document.body
       )}
     </>
   )
