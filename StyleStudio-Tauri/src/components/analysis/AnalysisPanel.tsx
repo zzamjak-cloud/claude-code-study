@@ -7,64 +7,46 @@ import { CharacterCard } from './CharacterCard';
 import { CompositionCard } from './CompositionCard';
 import { NegativePromptCard } from './NegativePromptCard';
 import { UnifiedPromptCard } from './UnifiedPromptCard';
-import { CustomPromptCard } from './CustomPromptCard';
 import { UICard } from './UICard';
 import { LogoCard } from './LogoCard';
 import { Session } from '../../types/session';
 
 import { StyleAnalysis, CharacterAnalysis, CompositionAnalysis, UISpecificAnalysis, LogoSpecificAnalysis } from '../../types/analysis';
-import { KoreanAnalysisCache } from '../../types/session';
 
 interface AnalysisPanelProps {
   images: string[];
   isAnalyzing: boolean;
   analysisResult: ImageAnalysisResult | null;
-  koreanAnalysis?: KoreanAnalysisCache;
   onAnalyze: () => void;
   onSaveSession?: () => void;
   onAddImage?: (imageData: string) => void;
   onRemoveImage?: (index: number) => void;
   onGenerateImage?: () => void;
   currentSession?: Session | null;
-  onCustomPromptChange?: (customPrompt: string) => void;
   onStyleUpdate?: (style: StyleAnalysis) => void;
   onCharacterUpdate?: (character: CharacterAnalysis) => void;
   onCompositionUpdate?: (composition: CompositionAnalysis) => void;
   onNegativePromptUpdate?: (negativePrompt: string) => void;
-  onStyleKoreanUpdate?: (koreanStyle: StyleAnalysis) => void;
-  onCharacterKoreanUpdate?: (koreanCharacter: CharacterAnalysis) => void;
-  onCompositionKoreanUpdate?: (koreanComposition: CompositionAnalysis) => void;
-  onNegativePromptKoreanUpdate?: (koreanNegativePrompt: string) => void;
   onUIAnalysisUpdate?: (uiAnalysis: UISpecificAnalysis) => void;
-  onUIAnalysisKoreanUpdate?: (koreanUIAnalysis: UISpecificAnalysis) => void;
   onLogoAnalysisUpdate?: (logoAnalysis: LogoSpecificAnalysis) => void;
-  onLogoAnalysisKoreanUpdate?: (koreanLogoAnalysis: LogoSpecificAnalysis) => void;
 }
 
 export function AnalysisPanel({
   images,
   isAnalyzing,
   analysisResult,
-  koreanAnalysis,
   onAnalyze,
   onSaveSession,
   onAddImage,
   onRemoveImage,
   onGenerateImage,
   currentSession,
-  onCustomPromptChange,
   onStyleUpdate,
   onCharacterUpdate,
   onCompositionUpdate,
   onNegativePromptUpdate,
-  onStyleKoreanUpdate,
-  onCharacterKoreanUpdate,
-  onCompositionKoreanUpdate,
-  onNegativePromptKoreanUpdate,
   onUIAnalysisUpdate,
-  onUIAnalysisKoreanUpdate,
   onLogoAnalysisUpdate,
-  onLogoAnalysisKoreanUpdate,
 }: AnalysisPanelProps) {
   const [deleteImageConfirm, setDeleteImageConfirm] = useState<number | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -229,70 +211,51 @@ export function AnalysisPanel({
               )}
             </div>
 
-            {/* 1. 사용자 맞춤 프롬프트 카드 */}
-            <CustomPromptCard
-              analysis={analysisResult}
-              onCustomPromptChange={onCustomPromptChange}
-            />
-
-            {/* 2. 스타일 카드 */}
+            {/* 1. 스타일 카드 */}
             <StyleCard
               style={analysisResult.style}
-              koreanStyle={koreanAnalysis?.style}
               onUpdate={onStyleUpdate}
-              onKoreanUpdate={onStyleKoreanUpdate}
             />
 
-            {/* 2.5. UI 디자인 카드 (UI 타입에서만) */}
+            {/* 2. UI 디자인 카드 (UI 타입에서만) */}
             {isUIType && analysisResult.ui_specific && (
               <UICard
                 uiAnalysis={analysisResult.ui_specific}
-                koreanUIAnalysis={koreanAnalysis?.uiAnalysis}
                 onUpdate={onUIAnalysisUpdate}
-                onKoreanUpdate={onUIAnalysisKoreanUpdate}
               />
             )}
 
-            {/* 2.6. 로고 특화 카드 (LOGO 타입에서만) */}
+            {/* 3. 로고 특화 카드 (LOGO 타입에서만) */}
             {isLogoType && analysisResult.logo_specific && (
               <LogoCard
                 logoAnalysis={analysisResult.logo_specific}
-                koreanLogoAnalysis={koreanAnalysis?.logoAnalysis}
                 onUpdate={onLogoAnalysisUpdate}
-                onKoreanUpdate={onLogoAnalysisKoreanUpdate}
               />
             )}
 
-            {/* 3. 캐릭터 카드 (배경, UI, LOGO 타입에서는 숨김) */}
+            {/* 4. 캐릭터 카드 (배경, UI, LOGO 타입에서는 숨김) */}
             {!isBackgroundType && !isUIType && !isLogoType && (
               <CharacterCard
                 character={analysisResult.character}
-                koreanCharacter={koreanAnalysis?.character}
                 onUpdate={onCharacterUpdate}
-                onKoreanUpdate={onCharacterKoreanUpdate}
               />
             )}
 
-            {/* 4. 구도 카드 */}
+            {/* 5. 구도 카드 */}
             <CompositionCard
               composition={analysisResult.composition}
-              koreanComposition={koreanAnalysis?.composition}
               onUpdate={onCompositionUpdate}
-              onKoreanUpdate={onCompositionKoreanUpdate}
             />
 
-            {/* 5. 부정 프롬프트 카드 */}
+            {/* 6. 부정 프롬프트 카드 */}
             <NegativePromptCard
               negativePrompt={analysisResult.negative_prompt}
-              koreanNegativePrompt={koreanAnalysis?.negativePrompt}
               onUpdate={onNegativePromptUpdate}
-              onKoreanUpdate={onNegativePromptKoreanUpdate}
             />
 
-            {/* 6. 통합 프롬프트 카드 (최하단) */}
+            {/* 7. 통합 프롬프트 카드 (최하단) */}
             <UnifiedPromptCard
               analysis={analysisResult}
-              koreanAnalysis={koreanAnalysis}
             />
           </div>
         )}
@@ -480,13 +443,6 @@ export function AnalysisPanel({
                       <div>
                         <p className="font-semibold text-green-900">세션 타입 활용</p>
                         <p className="text-gray-600">캐릭터, 배경, 아이콘, 픽셀아트 등 목적에 맞는 세션 타입을 선택하세요.</p>
-                      </div>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-green-600 font-bold text-lg">5.</span>
-                      <div>
-                        <p className="font-semibold text-green-900">사용자 맞춤 프롬프트</p>
-                        <p className="text-gray-600">이미지 분석 후 추가 프롬프트로 세부 사항을 조정할 수 있습니다.</p>
                       </div>
                     </li>
                   </ul>

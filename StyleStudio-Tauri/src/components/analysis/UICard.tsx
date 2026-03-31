@@ -4,12 +4,10 @@ import { AnalysisCard } from './AnalysisCard';
 
 interface UICardProps {
   uiAnalysis: UISpecificAnalysis;
-  koreanUIAnalysis?: UISpecificAnalysis;
   onUpdate?: (uiAnalysis: UISpecificAnalysis) => void;
-  onKoreanUpdate?: (koreanUIAnalysis: UISpecificAnalysis) => void;
 }
 
-export function UICard({ uiAnalysis, koreanUIAnalysis, onUpdate, onKoreanUpdate }: UICardProps) {
+export function UICard({ uiAnalysis, onUpdate }: UICardProps) {
   const fields: Array<{ key: keyof UISpecificAnalysis; label: string; icon?: string }> = [
     { key: 'platform_type', label: '플랫폼 및 유형', icon: '📱' },
     { key: 'visual_style', label: '비주얼 스타일', icon: '🎨' },
@@ -27,10 +25,8 @@ export function UICard({ uiAnalysis, koreanUIAnalysis, onUpdate, onKoreanUpdate 
       hoverColor="hover:text-pink-600 hover:bg-pink-50"
       focusColor="border-pink-500 focus:ring-pink-500"
       data={uiAnalysis}
-      koreanData={koreanUIAnalysis}
       fields={fields}
       onUpdate={onUpdate}
-      onKoreanUpdate={onKoreanUpdate}
     />
   );
 }

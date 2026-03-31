@@ -8,11 +8,10 @@ import {
   addSessionToList,
   persistSessions,
 } from '../utils/sessionHelpers';
-import { useTranslation } from './useTranslation';
 import { logger } from '../lib/logger';
 
 interface SaveProgress {
-  stage: 'idle' | 'translating' | 'saving' | 'complete';
+  stage: 'idle' | 'saving' | 'complete';
   message: string;
   percentage: number;
   estimatedSecondsLeft: number;
@@ -35,7 +34,6 @@ interface UseSessionPersistenceReturn {
 
 /**
  * 세션 저장 및 지속성 관리 Hook
- * 번역과 세션 저장을 함께 처리
  */
 export function useSessionPersistence(
   props: UseSessionPersistenceProps
@@ -47,11 +45,8 @@ export function useSessionPersistence(
     estimatedSecondsLeft: 0,
   });
 
-  const { translateAnalysisResult, hasChangesToTranslate, translateAndUpdateCache } =
-    useTranslation();
-
   /**
-   * 세션 저장 (번역 포함)
+   * 세션 저장
    */
   const saveSession = async (sessionName: string, sessionType: SessionType) => {
     if (!props.analysisResult || props.uploadedImages.length === 0) {
@@ -59,61 +54,11 @@ export function useSessionPersistence(
       return;
     }
 
-    setSaveProgress({
-      stage: 'idle',
-      message: '',
-      percentage: 0,
-      estimatedSecondsLeft: 0,
-    });
-
     try {
-      let koreanCache = props.currentSession?.koreanAnalysis;
-
-      if (props.currentSession) {
-        // 기존 세션 업데이트: 변경된 내용만 번역
-        if (hasChangesToTranslate(props.analysisResult, props.currentSession)) {
-          setSaveProgress({
-            stage: 'translating',
-            message: '변경된 내용 번역 중...',
-            percentage: 0,
-            estimatedSecondsLeft: 0,
-          });
-          const { updatedKoreanCache } = await translateAndUpdateCache(
-            props.apiKey,
-            props.analysisResult,
-            props.currentSession,
-            (progress) => {
-              setSaveProgress({
-                stage: progress.stage as 'translating' | 'saving' | 'complete',
-                message: progress.message,
-                percentage: progress.percentage,
-                estimatedSecondsLeft: 0,
-              });
-            }
-          );
-          koreanCache = updatedKoreanCache;
-        }
-
-        // 사용자 맞춤 프롬프트는 세션 저장 시 번역하지 않음
-        // 이미지 생성 시에만 번역됨
-      } else {
-        // 새 세션 생성: 전체 번역
-        setSaveProgress({
-          stage: 'translating',
-          message: '전체 번역 중...',
-          percentage: 0,
-          estimatedSecondsLeft: 0,
-        });
-        koreanCache = await translateAnalysisResult(props.apiKey, props.analysisResult);
-
-        // 사용자 맞춤 프롬프트는 세션 저장 시 번역하지 않음
-        // 이미지 생성 시에만 번역됨
-      }
-
       setSaveProgress({
         stage: 'saving',
         message: '세션 저장 중...',
-        percentage: 95,
+        percentage: 50,
         estimatedSecondsLeft: 0,
       });
 
@@ -127,7 +72,6 @@ export function useSessionPersistence(
           type: sessionType,
           referenceImages: props.uploadedImages,
           analysis: props.analysisResult,
-          koreanAnalysis: koreanCache || props.currentSession.koreanAnalysis,
           imageCount: props.uploadedImages.length,
         });
         updatedSessions = updateSessionInList(props.sessions, props.currentSession.id, sessionToSave);
@@ -136,7 +80,6 @@ export function useSessionPersistence(
         sessionToSave = createNewSession(
           props.analysisResult,
           props.uploadedImages,
-          koreanCache,
           sessionType
         );
         sessionToSave.name = sessionName;
@@ -176,7 +119,6 @@ export function useSessionPersistence(
         percentage: 0,
         estimatedSecondsLeft: 0,
       });
-      // 에러는 로깅만 하고 진행 상태로 사용자에게 피드백
     }
   };
 
@@ -185,4 +127,3 @@ export function useSessionPersistence(
     saveSession,
   };
 }
-

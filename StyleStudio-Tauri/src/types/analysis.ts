@@ -20,6 +20,7 @@ export interface CharacterAnalysis {
   limb_proportions: string; // 팔과 다리의 비례 (예: short stubby arms, normal proportions, elongated limbs)
   torso_shape: string;   // 몸통 형태 (예: compact rounded torso, rectangular body, slim waist)
   hand_style: string;    // 손 표현 방식 (예: simplified 3-finger, detailed 5-finger, mitten style)
+  feet_style: string;    // 발 표현 방식 (예: simplified rounded feet, detailed toes, stubby paws, pointed shoes)
 }
 
 // 구도 분석 결과
@@ -75,7 +76,6 @@ export interface ImageAnalysisResult {
   character: CharacterAnalysis;
   composition: CompositionAnalysis;
   negative_prompt: string; // 피해야 할 요소들 (예: realistic hands, detailed fingers, 8-head proportions)
-  user_custom_prompt?: string; // 사용자가 직접 입력한 맞춤형 프롬프트 (분석 강화 시 유지)
   pixelart_specific?: PixelArtSpecificAnalysis; // 픽셀아트 타입일 때만 존재
   ui_specific?: UISpecificAnalysis; // UI 타입일 때만 존재
   logo_specific?: LogoSpecificAnalysis; // LOGO 타입일 때만 존재

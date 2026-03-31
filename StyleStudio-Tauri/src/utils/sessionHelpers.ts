@@ -1,4 +1,4 @@
-import { Session, KoreanAnalysisCache, SessionType } from '../types/session';
+import { Session, SessionType } from '../types/session';
 import { ImageAnalysisResult } from '../types/analysis';
 import { saveSessions } from '../lib/storage';
 
@@ -8,7 +8,6 @@ import { saveSessions } from '../lib/storage';
 export function createNewSession(
   analysis: ImageAnalysisResult,
   referenceImages: string[],
-  koreanAnalysis?: KoreanAnalysisCache,
   sessionType: SessionType = 'STYLE'
 ): Session {
   return {
@@ -19,7 +18,6 @@ export function createNewSession(
     updatedAt: new Date().toISOString(),
     referenceImages,
     analysis,
-    koreanAnalysis,
     imageCount: referenceImages.length,
   };
 }

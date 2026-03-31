@@ -1,5 +1,5 @@
 import { useState, useEffect, startTransition } from 'react';
-import { Session, GenerationHistoryEntry, KoreanAnalysisCache } from '../types/session';
+import { Session, GenerationHistoryEntry } from '../types/session';
 import { ReferenceDocument } from '../types/referenceDocument';
 import { ImageAnalysisResult } from '../types/analysis';
 import {
@@ -41,7 +41,6 @@ interface UseSessionManagementReturn {
   handleDocumentDelete: (documentId: string) => void;
   handleAutoSavePathChange: (path: string) => Promise<void>;
   saveSessionWithoutTranslation: (updatedAnalysis: ImageAnalysisResult) => Promise<void>;
-  updateKoreanCache: (updates: Partial<KoreanAnalysisCache>) => void;
 }
 
 /**
@@ -291,28 +290,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
     }
   };
 
-  const updateKoreanCache = (updates: Partial<KoreanAnalysisCache>) => {
-    if (!currentSession) return;
-
-    const updatedKoreanAnalysis: KoreanAnalysisCache = {
-      ...(currentSession.koreanAnalysis || {}),
-      ...updates,
-    };
-
-    const updatedSession = updateSession(currentSession, {
-      koreanAnalysis: updatedKoreanAnalysis,
-    });
-    const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-
-    // 배치 업데이트: 2회 리렌더링 → 1회로 최적화
-    startTransition(() => {
-      setSessions(updatedSessions);
-      setCurrentSession(updatedSession);
-    });
-
-    persistSessions(updatedSessions);
-  };
-
   const handleDocumentAdd = (document: ReferenceDocument) => {
     if (!currentSession) return;
 
@@ -394,7 +371,6 @@ export function useSessionManagement(): UseSessionManagementReturn {
     handleDocumentDelete,
     handleAutoSavePathChange,
     saveSessionWithoutTranslation,
-    updateKoreanCache,
   };
 }
 

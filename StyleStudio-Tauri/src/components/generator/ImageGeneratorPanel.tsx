@@ -4,7 +4,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { join, downloadDir } from '@tauri-apps/api/path';
 import { ImageAnalysisResult } from '../../types/analysis';
-import { SessionType, GenerationHistoryEntry, KoreanAnalysisCache } from '../../types/session';
+import { SessionType, GenerationHistoryEntry } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
 import { ReferenceDocument } from '../../types/referenceDocument';
 import { IllustrationSessionData, ILLUSTRATION_LIMITS } from '../../types/illustration';
@@ -12,8 +12,9 @@ import { getCameraAnglePrompt } from '../../types/cameraAngle';
 import { getCameraLensPrompt } from '../../types/cameraLens';
 import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { buildPromptForSession } from '../../lib/prompts/sessionPrompts';
-import { useGeminiImageGenerator } from '../../hooks/api/useGeminiImageGenerator';
-import { useTranslation } from '../../hooks/useTranslation';
+import { useGeminiImageGenerator, DEFAULT_IMAGE_MODEL } from '../../hooks/api/useGeminiImageGenerator';
+import type { ImageGenerationModel } from '../../hooks/api/useGeminiImageGenerator';
+import { useGeminiTranslator } from '../../hooks/api/useGeminiTranslator';
 import { logger } from '../../lib/logger';
 import { GeneratorSettings } from './GeneratorSettings';
 import { GeneratorPreview } from './GeneratorPreview';
@@ -24,14 +25,8 @@ import {
   HISTORY_PANEL,
 } from '../../types/constants';
 
-// 흰색 배경 제거 대상 세션 타입
-const TRANSPARENT_BACKGROUND_SESSION_TYPES: SessionType[] = [
-  'CHARACTER',
-  'PIXELART_CHARACTER',
-  'ICON',
-  'PIXELART_ICON',
-  'LOGO',
-];
+// 흰색 배경 제거 대상 세션 타입 (없음 - 모든 타입 JPG 저장)
+const TRANSPARENT_BACKGROUND_SESSION_TYPES: SessionType[] = [];
 
 /**
  * 이미지에서 흰색/밝은 배경을 투명하게 변환 (Flood Fill + Defringe 알고리즘)
@@ -317,7 +312,6 @@ interface ImageGeneratorPanelProps {
   analysis: ImageAnalysisResult;
   referenceImages: string[];
   sessionType: SessionType;
-  koreanAnalysis?: KoreanAnalysisCache; // 한글 캐시 (사용자 맞춤 프롬프트 번역 포함)
   generationHistory?: GenerationHistoryEntry[];
   onHistoryAdd?: (entry: GenerationHistoryEntry) => void;
   onHistoryUpdate?: (entryId: string, updates: Partial<GenerationHistoryEntry>) => void;
@@ -355,6 +349,7 @@ interface GeneratorState {
   topP: number;
   referenceStrength: number;
   historyHeight: number;
+  imageModel: ImageGenerationModel;
 }
 
 export function ImageGeneratorPanel({
@@ -362,7 +357,6 @@ export function ImageGeneratorPanel({
   analysis,
   referenceImages,
   sessionType,
-  koreanAnalysis,
   generationHistory = [],
   onHistoryAdd,
   onHistoryUpdate,
@@ -380,7 +374,7 @@ export function ImageGeneratorPanel({
     [analysis]
   );
   const { generateImage } = useGeminiImageGenerator();
-  const { translateCustomPrompt, containsKorean } = useTranslation();
+  const { translateToEnglish, containsKorean } = useGeminiTranslator();
 
   // 통합 상태 관리
   const [state, setState] = useState<GeneratorState>({
@@ -406,6 +400,7 @@ export function ImageGeneratorPanel({
     topP: ADVANCED_SETTINGS_DEFAULTS.TOP_P,
     referenceStrength: ADVANCED_SETTINGS_DEFAULTS.REFERENCE_STRENGTH,
     historyHeight: HISTORY_PANEL.DEFAULT_HEIGHT,
+    imageModel: DEFAULT_IMAGE_MODEL,
   });
 
   // 상태 업데이트 헬퍼 함수
@@ -437,6 +432,7 @@ export function ImageGeneratorPanel({
     topP,
     referenceStrength,
     historyHeight,
+    imageModel,
   } = state;
 
   // 기존 코드 호환성을 위한 개별 setter 함수들
@@ -451,6 +447,7 @@ export function ImageGeneratorPanel({
   const setPixelArtGrid = (value: PixelArtGridLayout) => updateState({ pixelArtGrid: value });
   const setCameraAngle = (value: string) => updateState({ cameraAngle: value });
   const setCameraLens = (value: string) => updateState({ cameraLens: value });
+  const setImageModel = (value: ImageGenerationModel) => updateState({ imageModel: value });
   const setZoomLevel = (value: 'fit' | 'actual' | number) => updateState({ zoomLevel: value });
   const setShowZoomMenu = (value: boolean) => updateState({ showZoomMenu: value });
   const setShowPathTooltip = (value: boolean) => updateState({ showPathTooltip: value });
@@ -493,40 +490,19 @@ export function ImageGeneratorPanel({
       setIsTranslating(true);
       setProgressMessage('프롬프트를 영어로 변환 중...');
 
-      // 사용자 맞춤 프롬프트: 캐시에서 가져오기 (이미 세션 저장 시 번역됨)
-      let translatedUserCustomPrompt = '';
-      if (analysis.user_custom_prompt) {
-        // 캐시에 번역된 영어가 있으면 사용
-        if (koreanAnalysis?.customPromptEnglish) {
-          logger.debug('♻️ 사용자 맞춤 프롬프트 캐시 사용');
-          translatedUserCustomPrompt = koreanAnalysis.customPromptEnglish;
-        } else if (containsKorean(analysis.user_custom_prompt)) {
-          // 캐시가 없고 한글이면 번역 (예외 상황)
-          logger.debug('🌐 사용자 맞춤 프롬프트 번역 중... (캐시 없음)');
-          translatedUserCustomPrompt = await translateCustomPrompt(apiKey, analysis.user_custom_prompt);
-        } else {
-          // 이미 영어인 경우
-          logger.debug('♻️ 사용자 맞춤 프롬프트는 이미 영어입니다');
-          translatedUserCustomPrompt = analysis.user_custom_prompt;
-        }
-      }
-
-      // 추가 프롬프트: 항상 번역 (매번 새로 입력되는 값)
+      // 추가 프롬프트: 한글이면 번역, 영어면 그대로 사용
       let translatedAdditionalPrompt = '';
       if (additionalPrompt.trim()) {
-        // 한글이 포함되어 있으면 번역, 영어면 그대로 사용
         if (containsKorean(additionalPrompt.trim())) {
           logger.debug('🌐 추가 프롬프트 번역 중...');
-          translatedAdditionalPrompt = await translateCustomPrompt(apiKey, additionalPrompt.trim());
+          translatedAdditionalPrompt = await translateToEnglish(apiKey, additionalPrompt.trim());
         } else {
-          logger.debug('♻️ 추가 프롬프트는 이미 영어입니다');
           translatedAdditionalPrompt = additionalPrompt.trim();
         }
       }
 
       setIsTranslating(false);
-      logger.debug('✅ 번역 완료');
-      logger.debug('   - 사용자 맞춤 프롬프트:', translatedUserCustomPrompt);
+      logger.debug('✅ 프롬프트 준비 완료');
       logger.debug('   - 추가 프롬프트:', translatedAdditionalPrompt);
 
       // 2단계: 최종 프롬프트 구성 (영어 사용)
@@ -542,7 +518,7 @@ export function ImageGeneratorPanel({
       if (sessionType === 'ILLUSTRATION' && illustrationData) {
         // 일러스트 세션: 카메라 설정을 basePrompt에 포함하지 않고 별도로 전달
         // 캐릭터 복제가 최우선이므로 카메라 설정은 별도 섹션으로 처리
-        const basePromptParts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+        const basePromptParts = [translatedAdditionalPrompt].filter(Boolean);
         const basePrompt = basePromptParts.join(', ');
         finalPrompt = buildPromptForSession({
           basePrompt: basePrompt || 'Create an illustration with the characters',
@@ -552,48 +528,31 @@ export function ImageGeneratorPanel({
           pixelArtGrid: pixelArtGrid, // 그리드 레이아웃 전달
           cameraSettings: cameraSettingsStr || undefined, // 카메라 설정 별도 전달
         });
-      } else if (sessionType === 'CHARACTER') {
-        // 캐릭터 세션: 참조 이미지가 캐릭터 외형을 완벽히 유지하므로
-        // 포즈/표정/동작만 프롬프트로 전달
-        const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
+      } else {
+        // 모든 세션 타입: buildPromptForSession으로 통합 처리
+        const hasRefImages = useReferenceImages && referenceImages.length > 0;
+        const basePromptParts = [translatedAdditionalPrompt].filter(Boolean);
+
         // 카메라 설정 추가
         if (cameraSettingsStr) {
-          parts.push(cameraSettingsStr);
+          basePromptParts.push(cameraSettingsStr);
         }
-        finalPrompt = parts.length > 0 ? parts.join(', ') : 'standing naturally, neutral expression';
-      } else if (sessionType === 'BACKGROUND') {
-        // 배경 세션: 카메라 설정 추가
-        const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
-        if (cameraSettingsStr) {
-          parts.push(cameraSettingsStr);
-        }
-        if (useReferenceImages && referenceImages.length > 0) {
-          finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
-        } else {
-          parts.push(positivePrompt);
-          finalPrompt = parts.filter(Boolean).join(', ');
-        }
-      } else {
-        // 기타 세션 (STYLE, ICON, PIXELART_BACKGROUND, PIXELART_ICON 등)
-        // 카메라 설정 적용 가능한 세션 타입 확인
-        const cameraEnabledSessions: SessionType[] = ['STYLE', 'ICON', 'PIXELART_BACKGROUND', 'PIXELART_ICON'];
-        const shouldAddCameraSettings = cameraEnabledSessions.includes(sessionType) && cameraSettingsStr;
 
-        if (useReferenceImages && referenceImages.length > 0) {
-          // 참조 이미지로 스타일 유지, 사용자 프롬프트만 사용
-          const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt].filter(Boolean);
-          if (shouldAddCameraSettings) {
-            parts.push(cameraSettingsStr);
-          }
-          finalPrompt = parts.length > 0 ? parts.join(', ') : positivePrompt;
-        } else {
-          // 참조 이미지 없으면 AI 분석 프롬프트도 포함
-          const parts = [translatedUserCustomPrompt, translatedAdditionalPrompt, positivePrompt].filter(Boolean);
-          if (shouldAddCameraSettings) {
-            parts.push(cameraSettingsStr);
-          }
-          finalPrompt = parts.join(', ');
+        // 참조 이미지가 없으면 분석 프롬프트도 포함
+        if (!hasRefImages) {
+          basePromptParts.push(positivePrompt);
         }
+
+        const basePrompt = basePromptParts.filter(Boolean).join(', ') || positivePrompt;
+
+        finalPrompt = buildPromptForSession({
+          basePrompt,
+          hasReferenceImages: hasRefImages,
+          sessionType,
+          pixelArtGrid,
+          analysis,
+          referenceDocuments,
+        });
       }
 
       logger.debug('🎨 최종 프롬프트 (영어):', finalPrompt);
@@ -641,6 +600,7 @@ export function ImageGeneratorPanel({
           pixelArtGrid: pixelArtGrid, // 픽셀아트 그리드 레이아웃
           // UI 세션 전용 설정
           referenceDocuments: referenceDocuments, // 참조 문서 (UI 세션에서 기획 내용 반영)
+          imageModel: imageModel, // 이미지 생성 모델
         },
         {
           onProgress: (message) => {
@@ -1268,7 +1228,6 @@ export function ImageGeneratorPanel({
         <GeneratorSettings
           apiKey={apiKey}
           sessionType={sessionType}
-          analysis={analysis}
           additionalPrompt={additionalPrompt}
           isGenerating={isGenerating}
           isTranslating={isTranslating}
@@ -1302,7 +1261,8 @@ export function ImageGeneratorPanel({
           onCameraLensChange={setCameraLens}
           onDocumentAdd={onDocumentAdd}
           onDocumentDelete={onDocumentDelete}
-          containsKorean={containsKorean}
+          imageModel={imageModel}
+          onImageModelChange={setImageModel}
         />
 
 

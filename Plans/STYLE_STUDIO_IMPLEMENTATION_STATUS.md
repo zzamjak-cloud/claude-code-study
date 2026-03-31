@@ -1,8 +1,8 @@
 # Style & Character Studio - 구현 현황 문서
 
-> **최종 업데이트**: 2026-02-03
-> **버전**: 10.0
-> **상태**: ILLUSTRATION 세션 + 카메라 앵글/렌즈 설정 추가
+> **최종 업데이트**: 2026-03-31
+> **버전**: 11.0
+> **상태**: 캐릭터 프롬프트 강화 + 번역 시스템 제거 + 모델 선택 기능 추가
 
 ---
 
@@ -13,7 +13,8 @@
 ### 핵심 역할
 
 - **Gemini 2.5 Flash**: 이미지 분석 (스타일, 캐릭터, 구도)
-- **Gemini 3 Pro Image Preview**: 참조 이미지 기반 이미지 생성
+- **Gemini 3 Pro Image Preview** (나노바나나 프로): 참조 이미지 기반 이미지 생성
+- **Gemini 3.1 Flash Image Preview** (나노바나나2): 신규 이미지 생성 모델 (선택 가능)
 - **앱**: 분석과 생성을 조율하고 세션으로 관리
 
 ---
@@ -27,7 +28,7 @@
 | **Styling** | TailwindCSS |
 | **State** | React Hooks |
 | **Storage** | Tauri Store (토큰, 설정), LocalStorage (세션, 이미지) |
-| **AI** | Gemini 2.5 Flash (분석), Gemini 3 Pro Image (생성) |
+| **AI** | Gemini 2.5 Flash (분석), Gemini 3 Pro Image / Gemini 3.1 Flash Image (생성, 선택 가능) |
 | **Auth** | Google OAuth 2.0 (PKCE) |
 | **Update** | Tauri Updater Plugin (GitHub Releases) |
 
@@ -57,22 +58,13 @@
 - **드래그 앤 드롭** 또는 **파일 선택**으로 이미지 업로드
 - Gemini 2.5 Flash가 JSON 형식으로 분석:
   - **Style**: art_style, technique, color_palette, lighting, mood
-  - **Character**: gender, age_group, hair, eyes, face, outfit, accessories, body_proportions, limb_proportions, torso_shape, hand_style
+  - **Character**: gender, age_group, hair, eyes, face, outfit, accessories, body_proportions, limb_proportions, torso_shape, hand_style, feet_style
   - **Composition**: pose, angle, background, depth_of_field
   - **Negative Prompt**: 피해야 할 요소 자동 생성
-  - **User Custom Prompt**: 사용자 맞춤 프롬프트 (선택)
 - **분석 강화**: 기존 세션에 새 이미지 추가하여 분석 정확도 향상
+- **캐릭터 프롬프트 강화**: 분석된 캐릭터 외형 정보(눈 간격, 체형, 손/발 표현 등)를 이미지 생성 프롬프트에 자동 주입
 
-### 2. 번역 시스템
-
-- **자동 번역**: 분석 결과 영어 → 한국어 자동 번역
-- **변경 감지**: 수정된 섹션만 선택적 번역
-- **성능 최적화**:
-  - 최초 분석 + 번역: 7-10초
-  - 변경 없이 저장: <0.01초 (99.9% 단축)
-  - 변경 후 저장: 1-3초 (86-90% 단축)
-
-### 3. 세션 관리
+### 2. 세션 관리
 
 - **신규 세션 생성**: 모달에서 타입 선택 + 이름 입력
 - **세션 저장**: LocalStorage에 자동 저장 (이미지 Base64 포함)
@@ -82,7 +74,7 @@
 - **세션 이름 변경**: 더블클릭으로 인라인 이름 변경 (Enter 저장, Blur/ESC 취소)
 - **삭제 확인**: 커스텀 다이얼로그 (Tauri 환경 최적화)
 
-### 3.1 폴더 관리 시스템 (신규)
+### 2.1 폴더 관리 시스템
 
 - **폴더 생성**: 상단 버튼 또는 Ctrl+Shift+N / Cmd+Shift+N (Mac)
 - **폴더 네비게이션**: 폴더 더블클릭으로 내부 진입, 뒤로가기 버튼으로 상위 이동
@@ -95,7 +87,7 @@
 - **중첩 폴더 지원**: 무제한 깊이의 폴더 구조
 - **기본 저장 폴더**: 설정에서 세션 export 시 기본 폴더 지정 가능
 
-### 4. 이미지 생성
+### 3. 이미지 생성
 
 #### 세션 타입별 생성 전략
 
@@ -160,6 +152,7 @@
 
 #### 고급 설정
 
+- **생성 모델 선택**: 나노바나나 프로 (gemini-3-pro-image-preview) / 나노바나나2 (gemini-3.1-flash-image-preview)
 - **이미지 설정**: 비율 (1:1, 16:9, 9:16, 4:3, 3:4), 크기 (1K, 2K, 4K)
 - **참조 영향력**: 0.0 (영감만) ~ 1.0 (완벽 복사)
 - **고급 파라미터**: Seed, Temperature (0.0~2.0), Top-K (1~100), Top-P (0.0~1.0)
@@ -211,7 +204,6 @@ interface Session {
   referenceImages: string[];       // Base64 data URL 배열 또는 IndexedDB 키 배열
   imageKeys?: string[];            // IndexedDB 키 배열 (신규 방식)
   analysis: ImageAnalysisResult;   // 분석 결과 (영어 원본)
-  koreanAnalysis?: KoreanAnalysisCache; // 번역 캐시
   imageCount: number;              // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리
   folderId?: string | null;        // 소속 폴더 ID (null/undefined면 루트)
@@ -265,6 +257,7 @@ interface ImageAnalysisResult {
     limb_proportions: string;
     torso_shape: string;
     hand_style: string;
+    feet_style: string;
   };
   composition: {
     pose: string;
@@ -273,20 +266,6 @@ interface ImageAnalysisResult {
     depth_of_field: string;
   };
   negative_prompt: string;
-  user_custom_prompt?: string;
-}
-```
-
-### KoreanAnalysisCache
-
-```typescript
-interface KoreanAnalysisCache {
-  style?: StyleAnalysis;
-  character?: CharacterAnalysis;
-  composition?: CompositionAnalysis;
-  negativePrompt?: string;
-  positivePrompt?: string;
-  customPromptEnglish?: string;    // 이미지 생성용 영어 번역
 }
 ```
 
@@ -369,7 +348,6 @@ StyleStudio-Tauri/
 │   │   │   ├── CharacterCard.tsx
 │   │   │   ├── CompositionCard.tsx
 │   │   │   ├── NegativePromptCard.tsx
-│   │   │   ├── CustomPromptCard.tsx
 │   │   │   └── UnifiedPromptCard.tsx
 │   │   ├── generator/             # 이미지 생성
 │   │   │   ├── ImageGeneratorPanel.tsx  # 877줄 (최적화 완료)
@@ -394,8 +372,7 @@ StyleStudio-Tauri/
 │   │   │   ├── useGeminiAnalyzer.ts
 │   │   │   ├── useGeminiImageGenerator.ts   # 352줄 (최적화 완료)
 │   │   │   └── useGeminiTranslator.ts
-│   │   ├── useTranslation.ts               # 번역 로직 중앙화
-│   │   ├── useSessionPersistence.ts        # 세션 저장 + 번역 통합
+│   │   ├── useSessionPersistence.ts        # 세션 저장
 │   │   ├── useSessionManagement.ts         # 339줄 (배치 업데이트 최적화)
 │   │   ├── useFolderManagement.ts          # 폴더 관리 (CRUD, 네비게이션, 드래그앤드롭)
 │   │   ├── useImageHandling.ts
@@ -1158,7 +1135,7 @@ if (entry.settings.pixelArtGrid) {
   - 선택적 배경 스타일 참조
 - ✅ **카메라 앵글 프리셋 (v10.0)**: 20가지 앵글 (눈높이~익스트림 롱샷)
 - ✅ **렌즈/화각 프리셋 (v10.0)**: 15가지 렌즈 (14mm~틸트 시프트)
-- ✅ **투명 배경 PNG 저장** (CHARACTER, PIXELART_CHARACTER, ICON, PIXELART_ICON, LOGO)
+- ✅ **투명 배경 PNG 저장** (LOGO만 해당)
   - 흰색 배경 자동 제거 후 투명 PNG 저장
   - Canvas API 기반 실시간 처리
   - Flood Fill + Distance Map + Defringe + Feather 알고리즘
@@ -1169,9 +1146,16 @@ if (entry.settings.pixelArtGrid) {
 - ✅ 이미지 분석 (Gemini 2.5 Flash)
   - 픽셀아트 전용 분석 프롬프트
   - 현대 픽셀아트 음영 기법 (Hue shifting, Color banding)
-- ✅ 번역 시스템 (변경 감지 기반 선택적 번역)
 - ✅ 세션 관리 (신규 생성, 저장, 로드, 내보내기/가져오기)
-- ✅ 이미지 생성 (Gemini 3 Pro Image Preview)
+- ✅ 이미지 생성 (Gemini 3 Pro Image / Gemini 3.1 Flash Image, 모델 선택 가능)
+- ✅ **캐릭터 프롬프트 강화 (v11.0)**
+  - 분석된 캐릭터 외형 정보(눈 간격, 체형, 손/발 표현 등)를 CHARACTER/PIXELART_CHARACTER 프롬프트에 자동 주입
+  - `buildCharacterDetailSection()`으로 12개 캐릭터 필드를 ANATOMY SPEC으로 변환
+  - feet_style 필드 추가 (분석/번역/UI/프롬프트 전체 파이프라인)
+- ✅ **자동 번역 제거 (v11.0)**: 분석 후 자동 번역, 부분 수정 번역, 사용자 맞춤 프롬프트 기능 제거
+  - 이미지 생성 시 추가 프롬프트 한→영 번역만 유지 (useGeminiTranslator 직접 사용)
+- ✅ **이미지 생성 모델 선택 (v11.0)**: 나노바나나 프로 / 나노바나나2 라디오 버튼
+- ✅ **이미지 생성 버튼 속도 개선 (v11.0)**: 세션 저장을 비동기 처리, 즉시 화면 전환
   - Grid 시스템 (1x1 ~ 8x8): 전체 세션 타입
   - 픽셀아트 비율 정확도 향상 (레터박스 방지)
 - ✅ 고급 설정 (Seed, Temperature, Top-K, Top-P, Reference Strength)

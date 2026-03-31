@@ -7,17 +7,14 @@ import { logger } from '../lib/logger';
  */
 
 interface UseFieldEditorProps<T> {
-  analysisData: T; // 영어 원본 데이터
-  koreanData: T; // 한글 번역 데이터 (로컬 상태)
-  onUpdate: (updated: T) => void; // 영어 값 업데이트 콜백
-  onKoreanUpdate: (updated: T) => void; // 한글 캐시 업데이트 콜백
+  analysisData: T;
+  onUpdate: (updated: T) => void;
 }
 
 interface UseFieldEditorReturn<T> {
   editingField: keyof T | null;
   editedValue: string;
   setEditedValue: (value: string) => void;
-  isTranslating: boolean;
   startEdit: (field: keyof T) => void;
   saveField: () => Promise<void>;
   cancelEdit: () => void;
@@ -28,25 +25,18 @@ export function useFieldEditor<T extends Record<string, any>>(
 ): UseFieldEditorReturn<T> {
   const [editingField, setEditingField] = useState<keyof T | null>(null);
   const [editedValue, setEditedValue] = useState('');
-  const [isTranslating] = useState(false); // 번역 없이 저장하므로 항상 false
 
   /**
    * 편집 모드 진입
-   * 한글 번역된 값으로 초기화 (없으면 영어 원본 사용)
    */
   const startEdit = (field: keyof T) => {
     logger.debug('✏️ [useFieldEditor] 편집 시작:', field);
     setEditingField(field);
-    // 한글 값으로 초기화 (사용자가 한글로 편집할 수 있도록)
-    // 한글 캐시가 있으면 사용, 없으면 영어 원본 사용
-    const koreanValue = props.koreanData?.[field];
-    const englishValue = props.analysisData[field];
-    setEditedValue(String(koreanValue || englishValue || ''));
+    setEditedValue(String(props.analysisData[field] || ''));
   };
 
   /**
    * 필드 저장
-   * 번역 없이 입력한 값을 그대로 저장 (영어 원본은 세션 저장 시에만 번역)
    */
   const saveField = async () => {
     if (!editingField) {
@@ -57,33 +47,17 @@ export function useFieldEditor<T extends Record<string, any>>(
     try {
       const trimmedValue = editedValue.trim();
 
-      logger.debug(`💾 [useFieldEditor] 저장 시작 (${editingField as string}):`, {
-        value: trimmedValue,
-      });
-
-      // 1. 입력한 값을 그대로 영어 원본에 저장 (번역 없이)
-      // 영어 원본은 세션 저장 시에만 번역됨
       const updatedAnalysis = {
         ...props.analysisData,
-        [editingField]: trimmedValue, // 입력한 값 그대로 저장 (번역 없이)
+        [editingField]: trimmedValue,
       };
       props.onUpdate(updatedAnalysis);
-      logger.debug('✅ [useFieldEditor] 분석 결과 업데이트 완료 (번역 없이)');
+      logger.debug('✅ [useFieldEditor] 분석 결과 업데이트 완료');
 
-      // 2. 한글 값은 입력한 그대로 저장 (통합 프롬프트에서 한글 캐시 사용)
-      const updatedKorean = {
-        ...props.koreanData,
-        [editingField]: trimmedValue, // 한글 값 그대로 저장
-      };
-      props.onKoreanUpdate(updatedKorean);
-      logger.debug('✅ [useFieldEditor] 한글 캐시 업데이트 (한글 값 그대로 저장)');
-
-      // 3. 편집 모드 종료
       setEditingField(null);
       setEditedValue('');
     } catch (error) {
       logger.error('❌ [useFieldEditor] 저장 오류:', error);
-      // 에러는 로깅만 하고 편집 모드는 유지 (사용자가 재시도 가능)
     }
   };
 
@@ -91,7 +65,6 @@ export function useFieldEditor<T extends Record<string, any>>(
    * 편집 취소
    */
   const cancelEdit = () => {
-    logger.debug('❌ [useFieldEditor] 편집 취소');
     setEditingField(null);
     setEditedValue('');
   };
@@ -100,7 +73,6 @@ export function useFieldEditor<T extends Record<string, any>>(
     editingField,
     editedValue,
     setEditedValue,
-    isTranslating,
     startEdit,
     saveField,
     cancelEdit,

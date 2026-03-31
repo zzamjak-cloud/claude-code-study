@@ -28,6 +28,16 @@ interface GeminiGenerationConfig {
   topP?: number;
 }
 
+// 이미지 생성 모델 정의
+export type ImageGenerationModel = 'gemini-3-pro-image-preview' | 'gemini-3.1-flash-image-preview';
+
+export const IMAGE_MODELS: { id: ImageGenerationModel; label: string }[] = [
+  { id: 'gemini-3-pro-image-preview', label: '나노바나나 프로' },
+  { id: 'gemini-3.1-flash-image-preview', label: '나노바나나2' },
+];
+
+export const DEFAULT_IMAGE_MODEL: ImageGenerationModel = 'gemini-3-pro-image-preview';
+
 interface ImageGenerationParams {
   prompt: string; // 서술적 문장 권장
   referenceImages?: string[]; // base64 이미지 배열 (최대 14개)
@@ -38,6 +48,7 @@ interface ImageGenerationParams {
   analysis?: ImageAnalysisResult; // 이미지 분석 결과 (픽셀아트 해상도 추출용)
   pixelArtGrid?: PixelArtGridLayout; // 픽셀아트 그리드 레이아웃 (선택)
   referenceDocuments?: ReferenceDocument[]; // 참조 문서 (UI 세션 전용)
+  imageModel?: ImageGenerationModel; // 이미지 생성 모델
 
   // 고급 설정
   seed?: number; // 재현성을 위한 시드 값
@@ -110,8 +121,8 @@ export function useGeminiImageGenerator() {
 
       callbacks.onProgress?.('이미지 생성 요청 중...');
 
-      // Gemini 이미지 생성 모델 (2026-01-06 기준)
-      const MODEL_NAME = 'gemini-3-pro-image-preview';
+      // 이미지 생성 모델 선택
+      const MODEL_NAME = params.imageModel || DEFAULT_IMAGE_MODEL;
       logger.debug(`📦 사용 모델: ${MODEL_NAME}`);
 
       // 첫 시도 시 모델 사용 가능 여부 확인

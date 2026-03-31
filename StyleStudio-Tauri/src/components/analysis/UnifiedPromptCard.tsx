@@ -1,32 +1,20 @@
 import { useState } from 'react';
 import { Copy, Check, Sparkles } from 'lucide-react';
 import { ImageAnalysisResult } from '../../types/analysis';
-import { buildUnifiedPrompt, buildUnifiedPromptFromKorean } from '../../lib/promptBuilder';
-import { KoreanAnalysisCache } from '../../types/session';
+import { buildUnifiedPrompt } from '../../lib/promptBuilder';
 import { logger } from '../../lib/logger';
 
 interface UnifiedPromptCardProps {
   analysis: ImageAnalysisResult;
-  koreanAnalysis?: KoreanAnalysisCache; // 한글 캐시 정보
 }
 
 export function UnifiedPromptCard({
   analysis,
-  koreanAnalysis,
 }: UnifiedPromptCardProps) {
   const [copiedPositive, setCopiedPositive] = useState(false);
   const [copiedNegative, setCopiedNegative] = useState(false);
 
-  // 영어 원본 프롬프트 (API 전달용)
-  const { positivePrompt: englishPositivePrompt, negativePrompt: englishNegativePrompt } = buildUnifiedPrompt(analysis);
-  
-  // 한글 프롬프트 (화면 표시용) - 한글 캐시가 있으면 사용, 없으면 영어 원본 표시
-  const koreanPrompts = koreanAnalysis 
-    ? buildUnifiedPromptFromKorean(analysis, koreanAnalysis)
-    : { positivePrompt: englishPositivePrompt, negativePrompt: englishNegativePrompt };
-  
-  const displayPositivePrompt = koreanPrompts.positivePrompt || englishPositivePrompt;
-  const displayNegativePrompt = koreanPrompts.negativePrompt || englishNegativePrompt;
+  const { positivePrompt, negativePrompt } = buildUnifiedPrompt(analysis);
 
   const handleCopy = async (text: string, type: 'positive' | 'negative') => {
     try {
@@ -60,23 +48,18 @@ export function UnifiedPromptCard({
       {/* Positive Prompt */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-gray-700">✅ Positive Prompt</label>
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 rounded text-xs text-blue-700">
-              <span>한국어 표시</span>
-            </div>
-          </div>
+          <label className="text-sm font-semibold text-gray-700">✅ Positive Prompt</label>
           <button
-            onClick={() => handleCopy(englishPositivePrompt, 'positive')}
+            onClick={() => handleCopy(positivePrompt, 'positive')}
             className="p-2 text-green-600 hover:bg-green-100 hover:text-green-700 rounded-lg transition-all"
-            title="영어 원본 복사 (API 전달용)"
+            title="복사"
           >
             {copiedPositive ? <Check size={18} /> : <Copy size={18} />}
           </button>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200 max-h-40 overflow-y-auto">
           <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">
-            {displayPositivePrompt}
+            {positivePrompt}
           </p>
         </div>
       </div>
@@ -84,23 +67,18 @@ export function UnifiedPromptCard({
       {/* Negative Prompt */}
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-semibold text-gray-700">❌ Negative Prompt</label>
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-50 rounded text-xs text-blue-700">
-              <span>한국어 표시</span>
-            </div>
-          </div>
+          <label className="text-sm font-semibold text-gray-700">❌ Negative Prompt</label>
           <button
-            onClick={() => handleCopy(englishNegativePrompt, 'negative')}
+            onClick={() => handleCopy(negativePrompt, 'negative')}
             className="p-2 text-red-600 hover:bg-red-100 hover:text-red-700 rounded-lg transition-all"
-            title="영어 원본 복사 (API 전달용)"
+            title="복사"
           >
             {copiedNegative ? <Check size={18} /> : <Copy size={18} />}
           </button>
         </div>
         <div className="bg-white rounded-lg p-4 border border-gray-200 max-h-40 overflow-y-auto">
           <p className="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">
-            {displayNegativePrompt}
+            {negativePrompt}
           </p>
         </div>
       </div>
@@ -110,7 +88,7 @@ export function UnifiedPromptCard({
         <p className="text-xs text-blue-800">
           <strong>💡 사용법:</strong> 통합 프롬프트는 모든 분석 카드의 정보를 모아서 표시합니다.
           <br />각 분석 카드를 수정하면 통합 프롬프트가 자동으로 갱신됩니다.
-          <br />복사 버튼을 클릭하면 API 전달용 영어 원본이 복사됩니다.
+          <br />복사 버튼을 클릭하면 영어 원본이 복사됩니다.
         </p>
       </div>
     </div>

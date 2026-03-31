@@ -357,12 +357,9 @@ export function useGeminiAnalyzer() {
         if (!analysisResult.character.hand_style) {
           analysisResult.character.hand_style = 'not specified';
         }
-      }
-
-      // 분석 강화 모드인 경우 기존 사용자 맞춤 프롬프트 유지
-      if (options?.previousAnalysis?.user_custom_prompt) {
-        analysisResult.user_custom_prompt = options.previousAnalysis.user_custom_prompt;
-        logger.debug('✅ 사용자 맞춤 프롬프트 유지:', analysisResult.user_custom_prompt);
+        if (!analysisResult.character.feet_style) {
+          analysisResult.character.feet_style = 'not specified';
+        }
       }
 
       logger.debug('✅ 분석 완료!');

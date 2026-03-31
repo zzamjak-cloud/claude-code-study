@@ -3,10 +3,11 @@ import { Languages, Wand2, Dices, HelpCircle, X, Award, AlertTriangle, Camera, C
 import { SessionType } from '../../types/session';
 import { PixelArtGridLayout } from '../../types/pixelart';
 import { ReferenceDocument } from '../../types/referenceDocument';
-import { ImageAnalysisResult } from '../../types/analysis';
 import { CAMERA_ANGLES } from '../../types/cameraAngle';
 import { CAMERA_LENSES } from '../../types/cameraLens';
 import { DocumentManager } from './DocumentManager';
+import { IMAGE_MODELS } from '../../hooks/api/useGeminiImageGenerator';
+import type { ImageGenerationModel } from '../../hooks/api/useGeminiImageGenerator';
 import {
   getGridButtonStyle,
   getGridDescription,
@@ -19,8 +20,6 @@ interface GeneratorSettingsProps {
   // 기본 정보
   apiKey: string;
   sessionType: SessionType;
-  analysis: ImageAnalysisResult;
-
   // 상태
   additionalPrompt: string;
   isGenerating: boolean;
@@ -62,14 +61,14 @@ interface GeneratorSettingsProps {
   onDocumentAdd?: (document: ReferenceDocument) => void;
   onDocumentDelete?: (documentId: string) => void;
 
-  // 유틸리티
-  containsKorean: (text: string) => boolean;
+  // 이미지 생성 모델
+  imageModel: ImageGenerationModel;
+  onImageModelChange: (model: ImageGenerationModel) => void;
 }
 
 export function GeneratorSettings({
   apiKey,
   sessionType,
-  analysis,
   additionalPrompt,
   isGenerating,
   isTranslating,
@@ -103,7 +102,8 @@ export function GeneratorSettings({
   onCameraLensChange,
   onDocumentAdd,
   onDocumentDelete,
-  containsKorean,
+  imageModel,
+  onImageModelChange,
 }: GeneratorSettingsProps) {
   // textarea 자동 확장을 위한 ref
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -149,12 +149,6 @@ export function GeneratorSettings({
             <label className="text-sm font-semibold text-gray-700">
               추가 프롬프트 (선택)
             </label>
-            {containsKorean(additionalPrompt) && (
-              <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 rounded text-xs text-blue-700">
-                <Languages size={14} />
-                <span>한→영 자동 변환</span>
-              </div>
-            )}
           </div>
           <textarea
             ref={textareaRef}
@@ -166,8 +160,33 @@ export function GeneratorSettings({
             style={{ minHeight: '72px', maxHeight: '200px' }}
           />
           <p className="text-xs text-gray-500 mt-1">
-            한글/영어 모두 입력 가능 (한글은 자동으로 영어로 번역됩니다)
+            한글/영어 모두 입력 가능 (한글은 생성 시 자동으로 영어 변환)
           </p>
+        </div>
+
+        {/* 생성 모델 선택 */}
+        <div className="flex items-center gap-3">
+          {IMAGE_MODELS.map((model) => (
+            <label
+              key={model.id}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm ${
+                imageModel === model.id
+                  ? 'bg-purple-100 text-purple-700 font-semibold border border-purple-300'
+                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
+              }`}
+            >
+              <input
+                type="radio"
+                name="imageModel"
+                value={model.id}
+                checked={imageModel === model.id}
+                onChange={() => onImageModelChange(model.id)}
+                className="sr-only"
+              />
+              <span className={`w-2 h-2 rounded-full ${imageModel === model.id ? 'bg-purple-600' : 'bg-gray-400'}`} />
+              {model.label}
+            </label>
+          ))}
         </div>
 
         {/* 이미지 생성 버튼 */}
@@ -188,25 +207,6 @@ export function GeneratorSettings({
       {/* 스크롤 가능 영역: 설정들 */}
       <div className="flex-1 overflow-y-auto p-6 pt-6">
         <div className="space-y-6">
-          {/* 사용자 맞춤 프롬프트 안내 (자동 적용) */}
-          {analysis.user_custom_prompt && (
-            <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-semibold text-purple-800">
-                  ✅ 사용자 맞춤 프롬프트 (자동 적용됨)
-                </p>
-                {containsKorean(analysis.user_custom_prompt) && (
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-purple-100 rounded text-xs text-purple-700">
-                    <Languages size={12} />
-                    <span>한→영</span>
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-purple-700 whitespace-pre-wrap break-words">
-                {analysis.user_custom_prompt}
-              </p>
-            </div>
-          )}
 
           {/* UI 세션 전용: 참조 문서 */}
           {sessionType === 'UI' && (

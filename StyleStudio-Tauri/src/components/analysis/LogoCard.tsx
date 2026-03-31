@@ -4,12 +4,10 @@ import { AnalysisCard } from './AnalysisCard';
 
 interface LogoCardProps {
   logoAnalysis: LogoSpecificAnalysis;
-  koreanLogoAnalysis?: LogoSpecificAnalysis;
   onUpdate?: (logoAnalysis: LogoSpecificAnalysis) => void;
-  onKoreanUpdate?: (koreanLogoAnalysis: LogoSpecificAnalysis) => void;
 }
 
-export function LogoCard({ logoAnalysis, koreanLogoAnalysis, onUpdate, onKoreanUpdate }: LogoCardProps) {
+export function LogoCard({ logoAnalysis, onUpdate }: LogoCardProps) {
   const fields: Array<{ key: keyof LogoSpecificAnalysis; label: string; icon?: string }> = [
     { key: 'typography_style', label: '타이포그래피 스타일', icon: '✍️' },
     { key: 'text_warping', label: '텍스트 변형', icon: '🌊' },
@@ -38,10 +36,8 @@ export function LogoCard({ logoAnalysis, koreanLogoAnalysis, onUpdate, onKoreanU
       hoverColor="hover:text-red-600 hover:bg-red-50"
       focusColor="border-red-500 focus:ring-red-500"
       data={logoAnalysis}
-      koreanData={koreanLogoAnalysis}
       fields={fields}
       onUpdate={onUpdate}
-      onKoreanUpdate={onKoreanUpdate}
     />
   );
 }

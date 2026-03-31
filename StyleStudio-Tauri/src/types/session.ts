@@ -1,21 +1,9 @@
-import { ImageAnalysisResult, StyleAnalysis, CharacterAnalysis, CompositionAnalysis } from './analysis';
+import { ImageAnalysisResult } from './analysis';
 import { PixelArtGridLayout } from './pixelart';
 import { ReferenceDocument } from './referenceDocument';
 import { IllustrationSessionData } from './illustration';
 
 export type SessionType = 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI' | 'LOGO' | 'ILLUSTRATION';
-
-// 번역된 분석 결과 (캐싱용)
-export interface KoreanAnalysisCache {
-  style?: StyleAnalysis;
-  character?: CharacterAnalysis;
-  composition?: CompositionAnalysis;
-  negativePrompt?: string; // 한국어 번역
-  positivePrompt?: string; // 한국어 번역
-  customPromptEnglish?: string; // 사용자 맞춤 프롬프트의 영어 번역 (이미지 생성용)
-  uiAnalysis?: import('./analysis').UISpecificAnalysis; // UI 디자인 분석 결과 (한국어 번역)
-  logoAnalysis?: import('./analysis').LogoSpecificAnalysis; // 로고 특화 분석 결과 (한국어 번역)
-}
 
 export interface Session {
   id: string;
@@ -26,7 +14,6 @@ export interface Session {
   referenceImages: string[]; // Base64 data URL 배열 (레거시) 또는 IndexedDB 키 배열 (신규)
   imageKeys?: string[]; // IndexedDB 키 배열 (신규 방식, 있으면 우선 사용)
   analysis: ImageAnalysisResult;
-  koreanAnalysis?: KoreanAnalysisCache; // 번역된 결과 캐시
   imageCount: number; // 참조 이미지 개수
   generationHistory?: GenerationHistoryEntry[]; // 생성 히스토리 (선택)
   autoSavePath?: string; // 자동 저장 폴더 경로 (선택)

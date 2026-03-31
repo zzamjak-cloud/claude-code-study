@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ImageAnalysisResult } from '../types/analysis';
-import { Session, KoreanAnalysisCache } from '../types/session';
+import { Session } from '../types/session';
 import { detectChangedSections } from '../lib/analysisComparator';
 import { logger } from '../lib/logger';
 
@@ -19,7 +19,7 @@ interface UseAutoSaveProps {
 interface UseAutoSaveReturn {
   isSaving: boolean;
   progress: {
-    stage: 'idle' | 'translating' | 'saving' | 'complete';
+    stage: 'idle' | 'saving' | 'complete';
     message: string;
     percentage: number;
     estimatedSecondsLeft: number;
@@ -29,40 +29,13 @@ interface UseAutoSaveReturn {
 
 
 /**
- * 선택적 번역 함수 (변경된 섹션만 번역)
- * 현재는 번역을 수행하지 않고 기존 캐시를 반환 (번역은 세션 저장 시에만 수행)
- */
-async function translateChangedSections(
-  changedSections: ('style' | 'character' | 'composition' | 'prompts')[],
-  oldKoreanCache: KoreanAnalysisCache | undefined
-): Promise<KoreanAnalysisCache> {
-  // 변경되지 않은 섹션은 기존 캐시 재사용
-  const mergedCache: KoreanAnalysisCache = {
-    style: oldKoreanCache?.style,
-    character: oldKoreanCache?.character,
-    composition: oldKoreanCache?.composition,
-    positivePrompt: oldKoreanCache?.positivePrompt,
-    negativePrompt: oldKoreanCache?.negativePrompt,
-    customPromptEnglish: oldKoreanCache?.customPromptEnglish,
-  };
-
-  logger.debug('📋 [선택적 번역] 변경된 섹션:', changedSections);
-
-  // style, character, composition, prompts는 세션 저장 시에만 번역하므로 자동 저장에서는 번역하지 않음
-  // 변경 감지만 하고 기존 캐시 반환
-
-  logger.debug('✅ [선택적 번역] 변경 사항 없음 - 기존 캐시 반환');
-  return mergedCache;
-}
-
-/**
  * 자동 저장 Hook
- * 분석 결과 변경 감지 → 선택적 번역 → 자동 저장
+ * 분석 결과 변경 감지 → 자동 저장
  */
 export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
   const [isSaving, setIsSaving] = useState(false);
   const [progress, setProgress] = useState({
-    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
+    stage: 'idle' as 'idle' | 'saving' | 'complete',
     message: '',
     percentage: 0,
     estimatedSecondsLeft: 0,
@@ -79,9 +52,9 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
 
     setIsSaving(true);
     setProgress({
-      stage: 'translating',
-      message: '번역 중',
-      percentage: 0,
+      stage: 'saving',
+      message: '저장 중',
+      percentage: 50,
       estimatedSecondsLeft: 0,
     });
 
@@ -105,19 +78,6 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
         return;
       }
 
-      // 선택적 번역 (현재는 번역하지 않고 기존 캐시 반환)
-      const updatedKoreanAnalysis = await translateChangedSections(
-        changedSections,
-        props.currentSession?.koreanAnalysis
-      );
-
-      setProgress({
-        stage: 'saving',
-        message: '저장 중',
-        percentage: 80,
-        estimatedSecondsLeft: 0,
-      });
-
       // 세션 생성 또는 업데이트
       const now = new Date().toISOString();
       const sessionToSave: Session = props.currentSession
@@ -126,7 +86,6 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
             ...props.currentSession,
             updatedAt: now,
             analysis: analysisToSave,
-            koreanAnalysis: updatedKoreanAnalysis,
             referenceImages: props.uploadedImages,
             imageCount: props.uploadedImages.length,
           }
@@ -139,7 +98,6 @@ export function useAutoSave(props: UseAutoSaveProps): UseAutoSaveReturn {
             updatedAt: now,
             referenceImages: props.uploadedImages,
             analysis: analysisToSave,
-            koreanAnalysis: updatedKoreanAnalysis,
             imageCount: props.uploadedImages.length,
           };
 

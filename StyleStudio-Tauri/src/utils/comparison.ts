@@ -45,7 +45,8 @@ export function hasCharacterChanged(
     old.body_proportions !== current.body_proportions ||
     old.limb_proportions !== current.limb_proportions ||
     old.torso_shape !== current.torso_shape ||
-    old.hand_style !== current.hand_style
+    old.hand_style !== current.hand_style ||
+    old.feet_style !== current.feet_style
   );
 }
 

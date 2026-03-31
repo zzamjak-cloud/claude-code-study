@@ -1,81 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AlertTriangle, Edit2, Save, X } from 'lucide-react';
-import { logger } from '../../lib/logger';
 
 interface NegativePromptCardProps {
   negativePrompt: string;
-  koreanNegativePrompt?: string; // 캐시된 한국어 번역
   onUpdate?: (negativePrompt: string) => void;
-  onKoreanUpdate?: (koreanNegativePrompt: string) => void;
 }
 
 export function NegativePromptCard({
   negativePrompt,
-  koreanNegativePrompt: koreanNegativeProp,
   onUpdate,
-  onKoreanUpdate,
 }: NegativePromptCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedPrompt, setEditedPrompt] = useState(negativePrompt);
-  // 로컬 한글 상태 (즉시 업데이트용)
-  // 초기값: 캐시된 한국어가 있으면 사용, 없으면 영어 원본 사용
-  const [koreanPromptDisplay, setKoreanPromptDisplay] = useState(
-    koreanNegativeProp || negativePrompt
-  );
   const [isSaving, setIsSaving] = useState(false);
-
-  // 캐시가 업데이트되면 반영 (번역 완료 시)
-  useEffect(() => {
-    if (koreanNegativeProp) {
-      logger.debug('♻️ [NegativePromptCard] 캐시된 번역 사용:', koreanNegativeProp);
-      if (!isEditing) {
-        setKoreanPromptDisplay(koreanNegativeProp);
-      }
-    } else if (!isEditing) {
-      // 캐시가 없으면 영어 원본 표시
-      logger.debug('⚠️ [NegativePromptCard] 캐시 없음, 영어 원본 사용');
-      setKoreanPromptDisplay(negativePrompt);
-    }
-  }, [koreanNegativeProp, isEditing]);
 
   const handleSave = async () => {
     if (!onUpdate) return;
-
     setIsSaving(true);
-
     try {
-      const trimmedValue = editedPrompt.trim();
-
-      logger.debug(`💾 [NegativePromptCard] 저장 시작:`, {
-        value: trimmedValue,
-      });
-
-      // 1. 입력한 값을 그대로 저장 (번역 없이)
-      // 영어 원본은 세션 저장 시에만 번역됨
-      onUpdate(trimmedValue);
-      logger.debug('✅ [NegativePromptCard] 값 저장 완료 (번역 없이)');
-
-      // 2. 한글 값은 입력한 그대로 저장 (통합 프롬프트에서 한글 캐시 사용)
-      setKoreanPromptDisplay(trimmedValue);
-      
-      // 세션의 한글 캐시도 업데이트
-      if (onKoreanUpdate) {
-        onKoreanUpdate(trimmedValue);
-      }
-
-      // 3. 편집 모드 종료
+      onUpdate(editedPrompt.trim());
       setIsEditing(false);
-    } catch (error) {
-      logger.error('❌ [NegativePromptCard] 저장 오류:', error);
-      alert('저장 중 오류가 발생했습니다. 다시 시도해주세요.');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleEdit = () => {
-    // 편집 모드 진입시 한글 번역된 값으로 초기화
-    setEditedPrompt(koreanPromptDisplay);
+    setEditedPrompt(negativePrompt);
     setIsEditing(true);
   };
 
@@ -92,11 +43,9 @@ export function NegativePromptCard({
           <div className="p-2 bg-red-100 rounded-lg">
             <AlertTriangle size={24} className="text-red-600" />
           </div>
-          <div className="flex items-center gap-2">
-            <div>
-              <h3 className="text-xl font-bold text-gray-800">부정 프롬프트</h3>
-              <p className="text-xs text-gray-500">이 스타일에서 피해야 할 요소</p>
-            </div>
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">부정 프롬프트</h3>
+            <p className="text-xs text-gray-500">이 스타일에서 피해야 할 요소</p>
           </div>
         </div>
 
@@ -106,7 +55,7 @@ export function NegativePromptCard({
             <>
               <button
                 onClick={handleSave}
-                className="p-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors disabled:opacity-50"
                 title="저장"
                 disabled={isSaving}
               >
@@ -114,7 +63,7 @@ export function NegativePromptCard({
               </button>
               <button
                 onClick={handleCancel}
-                className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="p-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-colors disabled:opacity-50"
                 title="취소"
                 disabled={isSaving}
               >
@@ -135,20 +84,18 @@ export function NegativePromptCard({
 
       {/* 내용 */}
       {isEditing ? (
-        <div>
-          <textarea
-            value={editedPrompt}
-            onChange={(e) => setEditedPrompt(e.target.value)}
-            className="w-full px-3 py-2 border-2 border-red-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
-            rows={8}
-            placeholder="피해야 할 요소들을 한글 또는 영어로 입력하세요 (예: 사실적인 비율, 상세한 해부학, 5개 손가락 손)"
-            disabled={isSaving}
-            autoFocus
-          />
-        </div>
+        <textarea
+          value={editedPrompt}
+          onChange={(e) => setEditedPrompt(e.target.value)}
+          className="w-full px-3 py-2 border-2 border-red-500 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent resize-none"
+          rows={8}
+          placeholder="피해야 할 요소들을 입력하세요 (예: realistic proportions, detailed anatomy, 5-finger hands)"
+          disabled={isSaving}
+          autoFocus
+        />
       ) : (
         <div className="px-3 py-2 bg-red-50 rounded-lg text-gray-700 whitespace-pre-wrap break-words">
-          {koreanPromptDisplay}
+          {negativePrompt}
         </div>
       )}
 

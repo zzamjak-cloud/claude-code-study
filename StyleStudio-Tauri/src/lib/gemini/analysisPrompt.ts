@@ -15,14 +15,15 @@ export const STYLE_ANALYZER_PROMPT = `
     "gender": "성별",
     "age_group": "연령대",
     "hair": "머리 스타일과 색상 (고정 특징)",
-    "eyes": "눈 색상과 형태 (고정 특징)",
-    "face": "얼굴 특징 (고정 특징)",
+    "eyes": "눈 색상, 형태, 크기, 눈 간격 (고정 특징) - 눈 사이 간격을 얼굴 너비 대비 비율로 명시 (예: wide-set eyes ~40% of face width apart, close-set eyes ~20% apart, normal spacing ~30%)",
+    "face": "얼굴 특징 (고정 특징) - 얼굴 형태, 얼굴 내 각 요소의 위치 비율 (예: eyes at upper 1/3, large forehead, small chin, round face with wide cheeks)",
     "outfit": "의상 (고정 특징)",
     "accessories": "액세서리나 특징적인 아이템",
     "body_proportions": "등신대 비율 (예: 2-head chibi, 3-head stylized, 6-head anime, 8-head realistic) - 머리 크기 대비 전체 신체 비율을 정확히 명시",
-    "limb_proportions": "팔과 다리의 비례 (예: short stubby arms, normal proportions, elongated limbs) - 팔 길이는 몸통의 몇 배인지, 다리 길이는 전체 신체의 몇 퍼센트인지 상세히 기술",
-    "torso_shape": "몸통 형태 (예: compact rounded torso, rectangular body, slim waist) - 몸통의 길이와 너비 비율",
-    "hand_style": "손 표현 방식 (예: simplified 3-finger, mitten style, detailed 5-finger, hand omitted) - 손가락 개수와 디테일 수준"
+    "limb_proportions": "팔과 다리의 비례 - 매우 정밀하게 기술: 팔 길이(몸통 대비 비율), 다리 길이(전체 신체 대비 퍼센트), 앞다리/뒷다리 구분(동물인 경우). 예: legs are 30% of total height, very short stubby legs barely extending beyond torso",
+    "torso_shape": "몸통 형태 (예: compact rounded torso, rectangular body, slim waist) - 몸통의 길이와 너비 비율, 몸통 대 다리 길이 비율",
+    "hand_style": "손/앞발 표현 방식 (예: simplified 3-finger, mitten style, detailed 5-finger, rounded paws) - 손가락/발가락 개수와 디테일 수준",
+    "feet_style": "발/뒷발 표현 방식 (예: simplified rounded feet, detailed toes, stubby paws, pointed shoes, no visible feet) - 발의 크기, 형태, 디테일 수준을 정확히 기술"
   },
   "composition": {
     "pose": "현재 포즈/자세",
@@ -43,7 +44,9 @@ export const STYLE_ANALYZER_PROMPT = `
   - 다리 길이: 전체 신체 대비 다리 비율 (예: 신체의 50%, 60%, 70%)
   - 팔/다리가 짧은지, 정상인지, 긴지 명확히 표현
 - **torso_shape**: 몸통의 형태와 비율을 상세히 관찰
-- **hand_style**: 손이 어떻게 표현되는지 세밀히 관찰 (손가락 개수, 생략 여부, 디테일 수준)
+- **hand_style**: 손/앞발이 어떻게 표현되는지 세밀히 관찰 (손가락 개수, 생략 여부, 디테일 수준)
+- **feet_style**: 발/뒷발이 어떻게 표현되는지 세밀히 관찰 (발 크기, 형태, 디테일 수준)
+- **eyes (눈 간격 매우 중요!)**: 눈의 크기, 형태뿐 아니라 **두 눈 사이의 간격**을 얼굴 너비 대비 비율로 정확히 측정. 이 간격이 캐릭터의 인상을 결정하므로 매우 중요함
 - **negative_prompt**: 이 스타일을 유지하려면 피해야 할 요소를 명시 (특히 신체 비율 관련: "realistic proportions, anatomically correct limbs, elongated arms" 등)
 - composition 섹션은 현재 이미지의 상황/포즈만 포함
 - 반드시 유효한 JSON 형식으로만 응답할 것
@@ -69,14 +72,15 @@ export const MULTI_IMAGE_ANALYZER_PROMPT = `
     "gender": "공통 성별 (동일 캐릭터일 경우)",
     "age_group": "공통 연령대",
     "hair": "일관된 머리 스타일과 색상",
-    "eyes": "공통된 눈 색상과 형태",
-    "face": "공통된 얼굴 특징",
+    "eyes": "공통된 눈 색상, 형태, 크기, 눈 간격 - 눈 사이 간격을 얼굴 너비 대비 비율로 명시 (예: wide-set ~40%, close-set ~20%, normal ~30%)",
+    "face": "공통된 얼굴 특징 - 얼굴 형태, 얼굴 내 요소 위치 비율 (예: eyes at upper 1/3, round face)",
     "outfit": "일관되거나 유사한 의상 스타일",
     "accessories": "공통적으로 나타나는 액세서리",
     "body_proportions": "일관된 등신대 비율 (예: 2-head, 3-head 등) - 모든 이미지에서 공통되는 머리 대 몸 비율을 정확히 명시",
-    "limb_proportions": "일관된 팔과 다리의 비례 - 모든 이미지에서 팔과 다리의 길이가 어떻게 표현되는지 상세히 기술",
-    "torso_shape": "일관된 몸통 형태 - 모든 이미지에서 공통되는 몸통 비율과 형태",
-    "hand_style": "공통된 손 표현 방식 (예: simplified, mitten style, detailed) - 모든 이미지에서 일관되게 나타나는 손 표현"
+    "limb_proportions": "일관된 팔과 다리의 비례 - 매우 정밀하게 기술: 팔/다리 길이(몸통 대비 비율), 전체 신체 대비 퍼센트, 동물인 경우 앞다리/뒷다리 구분",
+    "torso_shape": "일관된 몸통 형태 - 모든 이미지에서 공통되는 몸통 비율과 형태, 몸통 대 다리 길이 비율",
+    "hand_style": "공통된 손/앞발 표현 방식 (예: simplified, mitten style, detailed, rounded paws) - 모든 이미지에서 일관되게 나타나는 표현",
+    "feet_style": "공통된 발/뒷발 표현 방식 (예: simplified rounded, detailed toes, stubby paws) - 발의 크기, 형태, 디테일 수준"
   },
   "composition": {
     "pose": "자주 사용되는 포즈나 구도 패턴",
@@ -97,8 +101,10 @@ export const MULTI_IMAGE_ANALYZER_PROMPT = `
    - 팔 길이가 짧은지, 정상인지, 긴지 명확히 표현
    - 다리 길이가 전체 신체의 몇 퍼센트인지 파악
 7. **torso_shape**: 몸통의 형태와 비율을 상세히 관찰
-8. **hand_style**: 모든 이미지에서 손이 어떻게 표현되는지 관찰 (손가락 개수, 생략 여부)
-9. **negative_prompt**: 이 스타일이 피하고 있는 요소 파악 (특히 신체 비율 관련: "realistic proportions, elongated limbs" 등)
+8. **hand_style**: 모든 이미지에서 손/앞발이 어떻게 표현되는지 관찰 (손가락 개수, 생략 여부)
+9. **feet_style**: 모든 이미지에서 발/뒷발이 어떻게 표현되는지 관찰 (발 크기, 형태, 디테일 수준)
+10. **eyes (눈 간격 매우 중요!)**: 눈의 크기, 형태뿐 아니라 **두 눈 사이의 간격**을 얼굴 너비 대비 비율로 정확히 측정
+11. **negative_prompt**: 이 스타일이 피하고 있는 요소 파악 (특히 신체 비율 관련: "realistic proportions, elongated limbs" 등)
 
 **중요:**
 - 각 항목은 모든 이미지에서 공통적으로 발견되는 특징만 작성
@@ -118,7 +124,8 @@ ${previousAnalysis}
 - 일치하는 부분: 더 구체적으로 표현
 - 불일치하는 부분: 모든 이미지를 포괄하는 일반화된 표현으로 수정
 - 새로운 공통 특징 발견 시: 추가
-- **특히 body_proportions와 hand_style을 정확히 파악**
+- **특히 body_proportions, hand_style, feet_style을 정확히 파악**
+- **eyes의 눈 간격(얼굴 너비 대비 비율)을 정확히 측정**
 - **negative_prompt를 강화하여 스타일 일관성 유지**
 
 **출력 (JSON만):**
@@ -134,14 +141,15 @@ ${previousAnalysis}
     "gender": "성별",
     "age_group": "연령대",
     "hair": "머리",
-    "eyes": "눈",
-    "face": "얼굴",
+    "eyes": "눈 (색상, 형태, 크기, 눈 간격 비율)",
+    "face": "얼굴 (형태, 비율)",
     "outfit": "의상",
     "accessories": "액세서리",
     "body_proportions": "등신대 비율 (2-head, 3-head, 6-head 등)",
-    "limb_proportions": "팔과 다리의 비례 (상세히 기술)",
+    "limb_proportions": "팔과 다리의 비례 (정밀 비율 기술)",
     "torso_shape": "몸통 형태",
-    "hand_style": "손 표현 방식 (simplified, mitten, detailed 등)"
+    "hand_style": "손/앞발 표현 방식 (simplified, mitten, detailed 등)",
+    "feet_style": "발/뒷발 표현 방식 (크기, 형태, 디테일 수준)"
   },
   "composition": {
     "pose": "포즈",
@@ -179,7 +187,8 @@ export const BACKGROUND_ANALYZER_PROMPT = `
     "body_proportions": "N/A - background only",
     "limb_proportions": "N/A - background only",
     "torso_shape": "N/A - background only",
-    "hand_style": "N/A - background only"
+    "hand_style": "N/A - background only",
+    "feet_style": "N/A - background only"
   },
   "composition": {
     "pose": "N/A - background only",
@@ -220,14 +229,15 @@ export const PIXELART_ANALYZER_PROMPT = `
     "gender": "성별",
     "age_group": "연령대",
     "hair": "머리 (픽셀로 표현된 스타일)",
-    "eyes": "눈 (픽셀 단위 크기와 형태)",
-    "face": "얼굴 (픽셀 표현 특징)",
+    "eyes": "눈 (픽셀 단위 크기, 형태, 눈 간격 - 두 눈 사이 픽셀 수와 얼굴 너비 대비 비율)",
+    "face": "얼굴 (픽셀 표현 특징, 얼굴 내 요소 위치 비율)",
     "outfit": "의상 (픽셀 디테일)",
     "accessories": "액세서리",
     "body_proportions": "등신대 비율 (예: 2-head chibi pixel style, 3-head stylized pixel character)",
-    "limb_proportions": "팔다리 비율 (픽셀 단위)",
+    "limb_proportions": "팔다리 비율 (픽셀 단위, 정밀 비율 기술)",
     "torso_shape": "몸통 형태 (픽셀 표현)",
-    "hand_style": "손 표현 (예: simplified pixel hands, 3-pixel fingers, mitten pixel style)"
+    "hand_style": "손/앞발 표현 (예: simplified pixel hands, 3-pixel fingers, mitten pixel style, rounded pixel paws)",
+    "feet_style": "발/뒷발 표현 (예: 2-pixel stubby feet, detailed pixel shoes, rounded pixel paws)"
   },
   "composition": {
     "pose": "현재 포즈",
@@ -341,7 +351,8 @@ export const PIXELART_BACKGROUND_ANALYZER_PROMPT = `
     "body_proportions": "N/A - background only",
     "limb_proportions": "N/A - background only",
     "torso_shape": "N/A - background only",
-    "hand_style": "N/A - background only"
+    "hand_style": "N/A - background only",
+    "feet_style": "N/A - background only"
   },
   "composition": {
     "pose": "N/A - background only",
@@ -438,7 +449,8 @@ export const UI_ANALYZER_PROMPT = `
     "body_proportions": "N/A - UI design only",
     "limb_proportions": "N/A - UI design only",
     "torso_shape": "N/A - UI design only",
-    "hand_style": "N/A - UI design only"
+    "hand_style": "N/A - UI design only",
+    "feet_style": "N/A - UI design only"
   },
   "composition": {
     "pose": "N/A - UI design only",
@@ -544,7 +556,8 @@ Respond with this EXACT JSON structure:
     "body_proportions": "N/A - Logo only",
     "limb_proportions": "N/A - Logo only",
     "torso_shape": "N/A - Logo only",
-    "hand_style": "N/A - Logo only"
+    "hand_style": "N/A - Logo only",
+    "feet_style": "N/A - Logo only"
   },
   "composition": {
     "pose": "N/A - Logo only",

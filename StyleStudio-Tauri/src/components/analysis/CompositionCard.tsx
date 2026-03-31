@@ -4,12 +4,10 @@ import { AnalysisCard } from './AnalysisCard';
 
 interface CompositionCardProps {
   composition: CompositionAnalysis;
-  koreanComposition?: CompositionAnalysis;
   onUpdate?: (composition: CompositionAnalysis) => void;
-  onKoreanUpdate?: (koreanComposition: CompositionAnalysis) => void;
 }
 
-export function CompositionCard({ composition, koreanComposition, onUpdate, onKoreanUpdate }: CompositionCardProps) {
+export function CompositionCard({ composition, onUpdate }: CompositionCardProps) {
   const fields: Array<{ key: keyof CompositionAnalysis; label: string; icon?: string }> = [
     { key: 'pose', label: '포즈', icon: '🧍' },
     { key: 'angle', label: '앵글', icon: '📐' },
@@ -27,10 +25,8 @@ export function CompositionCard({ composition, koreanComposition, onUpdate, onKo
       hoverColor="hover:text-green-600 hover:bg-green-50"
       focusColor="border-green-500 focus:ring-green-500"
       data={composition}
-      koreanData={koreanComposition}
       fields={fields}
       onUpdate={onUpdate}
-      onKoreanUpdate={onKoreanUpdate}
     />
   );
 }

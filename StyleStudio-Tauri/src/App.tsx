@@ -20,7 +20,6 @@ import { IllustrationSessionData } from './types/illustration';
 import { useImageHandling } from './hooks/useImageHandling';
 import { useSessionManagement } from './hooks/useSessionManagement';
 import { useSessionPersistence } from './hooks/useSessionPersistence';
-import { useTranslation } from './hooks/useTranslation';
 import { useFolderManagement } from './hooks/useFolderManagement';
 import {
   createNewSession,
@@ -38,18 +37,6 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<ImageAnalysisResult | null>(null);
   const [currentView, setCurrentView] = useState<'analysis' | 'generator'>('analysis');
-  const [generateProgress, setGenerateProgress] = useState({
-    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
-    message: '',
-    percentage: 0,
-    estimatedSecondsLeft: 0,
-  });
-  const [initialTranslationProgress, setInitialTranslationProgress] = useState({
-    stage: 'idle' as 'idle' | 'translating' | 'saving' | 'complete',
-    message: '',
-    percentage: 0,
-    estimatedSecondsLeft: 0,
-  });
   const [refineConfirm, setRefineConfirm] = useState(false);
   const [damagedSessionsWarning, setDamagedSessionsWarning] = useState<string | null>(null);
   const [errorDialog, setErrorDialog] = useState<{ title: string; message: string } | null>(null);
@@ -97,14 +84,8 @@ function App() {
     handleDocumentDelete,
     handleAutoSavePathChange,
     saveSessionWithoutTranslation,
-    updateKoreanCache,
   } = useSessionManagement();
   const { analyzeImages } = useGeminiAnalyzer();
-  const {
-    translateAnalysisResult,
-    hasChangesToTranslate,
-    translateAndUpdateCache,
-  } = useTranslation();
 
   // 폴더 관리 Hook
   const {
@@ -302,16 +283,6 @@ function App() {
     }
   }, [currentSession]); // currentSession이 변경될 때 실행
 
-  const handleCustomPromptChange = useCallback((customPrompt: string) => {
-    if (analysisResult) {
-      const updated = {
-        ...analysisResult,
-        user_custom_prompt: customPrompt,
-      };
-      setAnalysisResult(updated);
-    }
-  }, [analysisResult]);
-
   // 실제 분석 수행 함수
   const performAnalysis = async () => {
     setIsAnalyzing(true);
@@ -340,34 +311,12 @@ function App() {
           setAnalysisResult(result);
           setIsAnalyzing(false);
 
-          // 빈 세션이거나 신규 분석인 경우 또는 분석 강화인 경우 - 모두 번역 수행
           try {
-            setInitialTranslationProgress({
-              stage: 'translating',
-              message: '번역 준비 중...',
-              percentage: 0,
-              estimatedSecondsLeft: 0,
-            });
-
-            const koreanCache = await translateAnalysisResult(
-              apiKey,
-              result,
-              (progress) => {
-                setInitialTranslationProgress({
-                  stage: progress.stage as 'translating' | 'saving' | 'complete',
-                  message: progress.message,
-                  percentage: progress.percentage,
-                  estimatedSecondsLeft: 0,
-                });
-              }
-            );
-
             if (isEmptySession && currentSession) {
               // 빈 세션인 경우 기존 세션 업데이트
               const updatedSession = updateSession(currentSession, {
                 analysis: result,
                 referenceImages: uploadedImages,
-                koreanAnalysis: koreanCache,
                 imageCount: uploadedImages.length,
               });
               const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
@@ -379,7 +328,6 @@ function App() {
               const updatedSession = updateSession(currentSession, {
                 analysis: result,
                 referenceImages: uploadedImages,
-                koreanAnalysis: koreanCache,
                 imageCount: uploadedImages.length,
               });
               const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
@@ -388,36 +336,14 @@ function App() {
               await persistSessions(updatedSessions);
             } else {
               // 신규 세션 생성
-              const newSession = createNewSession(result, uploadedImages, koreanCache);
+              const newSession = createNewSession(result, uploadedImages);
               const updatedSessions = addSessionToList(sessions, newSession);
               setSessions(updatedSessions);
               setCurrentSession(newSession);
               await persistSessions(updatedSessions);
             }
-
-            setInitialTranslationProgress({
-              stage: 'complete',
-              message: '완료!',
-              percentage: 100,
-              estimatedSecondsLeft: 0,
-            });
-
-            setTimeout(() => {
-              setInitialTranslationProgress({
-                stage: 'idle',
-                message: '',
-                percentage: 0,
-                estimatedSecondsLeft: 0,
-              });
-            }, 2000);
           } catch (error) {
-            logger.error('❌ [분석 후] 번역 오류:', error);
-            setInitialTranslationProgress({
-              stage: 'idle',
-              message: '',
-              percentage: 0,
-              estimatedSecondsLeft: 0,
-            });
+            logger.error('❌ [분석 후] 세션 저장 오류:', error);
           }
         },
         onError: (error) => {
@@ -830,6 +756,7 @@ function App() {
         limb_proportions: '',
         torso_shape: '',
         hand_style: '',
+        feet_style: '',
       },
       composition: {
         pose: '',
@@ -841,7 +768,7 @@ function App() {
     };
 
     // 빈 세션 생성
-    const newSession = createNewSession(emptyAnalysis, [], undefined, type);
+    const newSession = createNewSession(emptyAnalysis, [], type);
     // 세션 이름 설정
     newSession.name = name;
     // 현재 폴더 ID 설정
@@ -917,6 +844,7 @@ function App() {
         limb_proportions: 'varies per character',
         torso_shape: 'varies per character',
         hand_style: 'varies',
+        feet_style: 'varies',
       },
       composition: {
         pose: 'scene-dependent',
@@ -940,108 +868,25 @@ function App() {
       return;
     }
 
-    setGenerateProgress({
-      stage: 'idle',
-      message: '',
-      percentage: 0,
-      estimatedSecondsLeft: 0,
-    });
-
-    try {
-      let koreanCache = currentSession?.koreanAnalysis;
-
-      // 변경된 내용이 있으면 번역
-      if (currentSession && hasChangesToTranslate(analysisResult, currentSession)) {
-        setGenerateProgress({
-          stage: 'translating',
-          message: '변경된 내용 번역 중...',
-          percentage: 0,
-          estimatedSecondsLeft: 0,
-        });
-        const { updatedAnalysis, updatedKoreanCache } = await translateAndUpdateCache(
-          apiKey,
-          analysisResult,
-          currentSession,
-          (progress) => {
-            setGenerateProgress({
-              stage: progress.stage as 'translating' | 'saving' | 'complete',
-              message: progress.message,
-              percentage: progress.percentage,
-              estimatedSecondsLeft: 0,
-            });
-          }
-        );
-        setAnalysisResult(updatedAnalysis);
-        koreanCache = updatedKoreanCache;
-      } else if (!currentSession) {
-        // 새 세션인 경우 전체 번역
-        setGenerateProgress({
-          stage: 'translating',
-          message: '전체 번역 중...',
-          percentage: 0,
-          estimatedSecondsLeft: 0,
-        });
-        koreanCache = await translateAnalysisResult(apiKey, analysisResult);
-      }
-
-      // 사용자 맞춤 프롬프트는 이미 세션 저장 시 번역되어 캐시에 저장됨
-      // 이미지 생성 화면 이동 시에는 추가 번역 불필요
-
-      // 세션 저장
-      setGenerateProgress({
-        stage: 'saving',
-        message: '세션 저장 중...',
-        percentage: 95,
-        estimatedSecondsLeft: 0,
+    // 세션 저장 (비동기, 화면 전환 차단하지 않음)
+    if (!currentSession) {
+      const newSession = createNewSession(analysisResult, uploadedImages);
+      const updatedSessions = addSessionToList(sessions, newSession);
+      setSessions(updatedSessions);
+      setCurrentSession(newSession);
+      persistSessions(updatedSessions).catch(err => logger.error('❌ 세션 저장 오류:', err));
+    } else {
+      const updatedSession = updateSession(currentSession, {
+        analysis: analysisResult,
       });
-
-      if (!currentSession) {
-        const newSession = createNewSession(analysisResult, uploadedImages, koreanCache);
-        const updatedSessions = addSessionToList(sessions, newSession);
-        setSessions(updatedSessions);
-        setCurrentSession(newSession);
-        await persistSessions(updatedSessions);
-      } else if (currentSession) {
-        const updatedSession = updateSession(currentSession, {
-          analysis: analysisResult,
-          koreanAnalysis: koreanCache,
-        });
-        const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
-        setSessions(updatedSessions);
-        setCurrentSession(updatedSession);
-        await persistSessions(updatedSessions);
-      }
-
-      setGenerateProgress({
-        stage: 'complete',
-        message: '완료!',
-        percentage: 100,
-        estimatedSecondsLeft: 0,
-      });
-
-      // 잠시 후 화면 이동
-      setTimeout(() => {
-        setCurrentView('generator');
-        setGenerateProgress({
-          stage: 'idle',
-          message: '',
-          percentage: 0,
-          estimatedSecondsLeft: 0,
-        });
-      }, 500);
-    } catch (error) {
-      logger.error('❌ [이미지 생성] 번역/저장 오류:', error);
-      setGenerateProgress({
-        stage: 'idle',
-        message: '',
-        percentage: 0,
-        estimatedSecondsLeft: 0,
-      });
-      setErrorDialog({
-        title: '오류 발생',
-        message: '번역 또는 저장 중 오류가 발생했습니다.'
-      });
+      const updatedSessions = updateSessionInList(sessions, currentSession.id, updatedSession);
+      setSessions(updatedSessions);
+      setCurrentSession(updatedSession);
+      persistSessions(updatedSessions).catch(err => logger.error('❌ 세션 저장 오류:', err));
     }
+
+    // 즉시 화면 전환
+    setCurrentView('generator');
   };
 
   const handleBackToAnalysis = () => {
@@ -1215,8 +1060,7 @@ function App() {
                 analysis={analysisResult}
                 referenceImages={currentSession.illustrationData?.characters.flatMap(c => c.images) || []}
                 sessionType="ILLUSTRATION"
-                koreanAnalysis={currentSession?.koreanAnalysis}
-                generationHistory={currentSession?.generationHistory}
+                                generationHistory={currentSession?.generationHistory}
                 onHistoryAdd={handleHistoryAdd}
                 onHistoryUpdate={handleHistoryUpdate}
                 onHistoryDelete={handleHistoryDelete}
@@ -1233,14 +1077,12 @@ function App() {
               images={uploadedImages}
               isAnalyzing={isAnalyzing}
               analysisResult={analysisResult}
-              koreanAnalysis={currentSession?.koreanAnalysis}
-              onAnalyze={handleAnalyze}
+                            onAnalyze={handleAnalyze}
               onSaveSession={handleSaveSessionClick}
               onAddImage={handleImageSelect}
               onRemoveImage={handleRemoveImage}
               onGenerateImage={analysisResult ? handleGenerateImage : undefined}
               currentSession={currentSession}
-              onCustomPromptChange={handleCustomPromptChange}
               onStyleUpdate={(style) => {
                 if (analysisResult) {
                   const updated = { ...analysisResult, style };
@@ -1269,18 +1111,6 @@ function App() {
                   saveSessionWithoutTranslation(updated);
                 }
               }}
-              onStyleKoreanUpdate={(koreanStyle) => {
-                updateKoreanCache({ style: koreanStyle });
-              }}
-              onCharacterKoreanUpdate={(koreanCharacter) => {
-                updateKoreanCache({ character: koreanCharacter });
-              }}
-              onCompositionKoreanUpdate={(koreanComposition) => {
-                updateKoreanCache({ composition: koreanComposition });
-              }}
-              onNegativePromptKoreanUpdate={(koreanNegativePrompt) => {
-                updateKoreanCache({ negativePrompt: koreanNegativePrompt });
-              }}
               onUIAnalysisUpdate={(uiAnalysis) => {
                 if (analysisResult) {
                   const updated = { ...analysisResult, ui_specific: uiAnalysis };
@@ -1288,18 +1118,12 @@ function App() {
                   saveSessionWithoutTranslation(updated);
                 }
               }}
-              onUIAnalysisKoreanUpdate={(koreanUIAnalysis) => {
-                updateKoreanCache({ uiAnalysis: koreanUIAnalysis });
-              }}
               onLogoAnalysisUpdate={(logoAnalysis) => {
                 if (analysisResult) {
                   const updated = { ...analysisResult, logo_specific: logoAnalysis };
                   setAnalysisResult(updated);
                   saveSessionWithoutTranslation(updated);
                 }
-              }}
-              onLogoAnalysisKoreanUpdate={(koreanLogoAnalysis) => {
-                updateKoreanCache({ logoAnalysis: koreanLogoAnalysis });
               }}
             />
           ) : (
@@ -1309,8 +1133,7 @@ function App() {
                 analysis={analysisResult}
                 referenceImages={uploadedImages}
                 sessionType={currentSession?.type || 'STYLE'}
-                koreanAnalysis={currentSession?.koreanAnalysis}
-                generationHistory={currentSession?.generationHistory}
+                                generationHistory={currentSession?.generationHistory}
                 onHistoryAdd={handleHistoryAdd}
                 onHistoryUpdate={handleHistoryUpdate}
                 onHistoryDelete={handleHistoryDelete}
@@ -1352,8 +1175,6 @@ function App() {
 
       <ProgressIndicator {...progress} />
       {saveProgress.stage !== 'idle' && <ProgressIndicator {...saveProgress} />}
-      {generateProgress.stage !== 'idle' && <ProgressIndicator {...generateProgress} />}
-      {initialTranslationProgress.stage !== 'idle' && <ProgressIndicator {...initialTranslationProgress} />}
       {importProgress.stage !== 'idle' && <ProgressIndicator {...importProgress} />}
 
       {/* 분석 강화 확인 다이얼로그 */}

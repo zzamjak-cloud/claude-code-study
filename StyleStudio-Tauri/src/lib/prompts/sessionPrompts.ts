@@ -66,23 +66,68 @@ export function buildPromptForSession(params: PromptGenerationParams): string {
 }
 
 /**
+ * 분석 결과에서 캐릭터 외형 상세 정보를 프롬프트 섹션으로 변환
+ */
+function buildCharacterDetailSection(analysis?: ImageAnalysisResult): string {
+  if (!analysis?.character) return '';
+
+  const c = analysis.character;
+  const details: string[] = [];
+
+  if (c.body_proportions) details.push(`Body proportions: ${c.body_proportions}`);
+  if (c.limb_proportions) details.push(`Limb proportions: ${c.limb_proportions}`);
+  if (c.torso_shape) details.push(`Torso shape: ${c.torso_shape}`);
+  if (c.hand_style) details.push(`Hand style: ${c.hand_style}`);
+  if (c.feet_style) details.push(`Feet style: ${c.feet_style}`);
+  if (c.eyes) details.push(`Eyes: ${c.eyes}`);
+  if (c.face) details.push(`Face: ${c.face}`);
+  if (c.hair) details.push(`Hair: ${c.hair}`);
+  if (c.outfit) details.push(`Outfit: ${c.outfit}`);
+  if (c.accessories) details.push(`Accessories: ${c.accessories}`);
+  if (c.gender) details.push(`Gender: ${c.gender}`);
+  if (c.age_group) details.push(`Age group: ${c.age_group}`);
+
+  if (details.length === 0) return '';
+
+  return `\n\n📋 CHARACTER ANATOMY SPEC (from analysis - MUST match exactly):\n${details.map(d => `- ${d}`).join('\n')}`;
+}
+
+/**
  * CHARACTER 세션 프롬프트 생성
  */
 function generateCharacterPrompt(params: PromptGenerationParams): string {
-  const { basePrompt, pixelArtGrid } = params;
+  const { basePrompt, pixelArtGrid, analysis } = params;
+
+  // 분석 결과에서 캐릭터 상세 정보 추출
+  const characterDetails = buildCharacterDetailSection(analysis);
 
   // Grid 지원 추가
   if (pixelArtGrid && pixelArtGrid !== '1x1') {
     const gridInfo = getPixelArtGridInfo(pixelArtGrid);
     const gridLayout = `${gridInfo.rows}x${gridInfo.cols}`;
     const frameCount = gridInfo.rows * gridInfo.cols;
-    return `🎯 POSE VARIATIONS GRID (${frameCount} cells in ${gridLayout} layout)
+    return `⚠️ CRITICAL: CHARACTER ACCURACY IS THE #1 PRIORITY ⚠️
+
+🎯 POSE VARIATIONS GRID (${frameCount} cells in ${gridLayout} layout)
+
+🔴 MANDATORY - CHARACTER REPRODUCTION (HIGHEST PRIORITY):
+You MUST draw the EXACT same character from the reference images.
+Copy the character IDENTICALLY - not similar, not inspired by, but IDENTICAL.
+${characterDetails}
 
 🎨 STYLE CONSISTENCY REQUIREMENTS:
 ✓ Use EXACTLY the same character design from the reference images
-✓ Match: face shape, eye style, hair style/color, outfit, body proportions
+✓ Match: face shape, eye style & spacing, hair style/color, outfit, body proportions
 ✓ Keep all distinctive features (accessories, patterns, colors) identical
 ✓ Same art style and rendering technique across all poses
+✓ Maintain EXACT same body proportions, limb lengths, and hand/foot style
+
+🚫 DO NOT CHANGE:
+- Eye size, shape, spacing, or color
+- Body height ratio or limb proportions
+- Hand/foot rendering style (keep same level of detail/simplification)
+- Torso shape or body build
+- Any distinctive anatomical features
 
 🖼️ BACKGROUND: Pure white background (#FFFFFF) for all cells. No gradients, no patterns, no other colors.
 
@@ -93,18 +138,40 @@ ${basePrompt || 'Various action poses and expressions'}
 
 CRITICAL: Each cell shows the SAME character in a different pose/angle.
 Do NOT change the character's appearance, colors, or outfit between cells.
+If someone compared the character side by side with the reference, they should look IDENTICAL.
 
 Generate the ${gridLayout} grid of character pose variations now.`;
   }
 
   // 단일 포즈 (1x1)
-  return `Maintain the exact same character design (face, hair, outfit, proportions, colors) from the reference images.
+  return `⚠️ CRITICAL: CHARACTER ACCURACY IS THE #1 PRIORITY ⚠️
+
+🔴 MANDATORY - CHARACTER REPRODUCTION (HIGHEST PRIORITY):
+You MUST draw the EXACT same character from the reference images.
+Copy the character IDENTICALLY - not similar, not inspired by, but IDENTICAL.
+${characterDetails}
+
+✅ WHAT TO COPY FROM REFERENCE IMAGES:
+- The EXACT face (same shape, same features, same proportions)
+- The EXACT eyes (same color, same style, same size, same spacing between eyes)
+- The EXACT hair (same style, same color, same length, same details)
+- The EXACT body (same proportions, same build, same limb lengths)
+- The EXACT hands/feet (same level of detail or simplification)
+- The EXACT clothing (same outfit, same colors, same patterns)
+- The EXACT art style (same line work, same coloring technique)
+
+🚫 DO NOT CHANGE:
+- Eye size, shape, spacing, or color
+- Body height ratio or limb proportions
+- Hand/foot rendering style
+- Torso shape or body build
+- Any distinctive anatomical features
 
 BACKGROUND: Pure white background (#FFFFFF). No gradients, no patterns, no other colors.
 
 New pose: ${basePrompt}
 
-Keep all distinctive features identical. Only change the pose/expression.`;
+⚠️ FINAL REMINDER: The character must be VISUALLY IDENTICAL to the reference. Only the pose/expression should change. If compared side by side, the character should look like the same character drawn by the same artist.`;
 }
 
 /**

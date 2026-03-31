@@ -4,12 +4,10 @@ import { AnalysisCard } from './AnalysisCard';
 
 interface CharacterCardProps {
   character: CharacterAnalysis;
-  koreanCharacter?: CharacterAnalysis;
   onUpdate?: (character: CharacterAnalysis) => void;
-  onKoreanUpdate?: (koreanCharacter: CharacterAnalysis) => void;
 }
 
-export function CharacterCard({ character, koreanCharacter, onUpdate, onKoreanUpdate }: CharacterCardProps) {
+export function CharacterCard({ character, onUpdate }: CharacterCardProps) {
   const fields: Array<{ key: keyof CharacterAnalysis; label: string; icon?: string }> = [
     { key: 'gender', label: '성별', icon: '👤' },
     { key: 'age_group', label: '연령대', icon: '📅' },
@@ -22,6 +20,7 @@ export function CharacterCard({ character, koreanCharacter, onUpdate, onKoreanUp
     { key: 'limb_proportions', label: '팔다리 비율', icon: '🦵' },
     { key: 'torso_shape', label: '몸통 형태', icon: '🫁' },
     { key: 'hand_style', label: '손 표현', icon: '✋' },
+    { key: 'feet_style', label: '발 표현', icon: '🦶' },
   ];
 
   return (
@@ -34,10 +33,8 @@ export function CharacterCard({ character, koreanCharacter, onUpdate, onKoreanUp
       hoverColor="hover:text-blue-600 hover:bg-blue-50"
       focusColor="border-blue-500 focus:ring-blue-500"
       data={character}
-      koreanData={koreanCharacter}
       fields={fields}
       onUpdate={onUpdate}
-      onKoreanUpdate={onKoreanUpdate}
     />
   );
 }
