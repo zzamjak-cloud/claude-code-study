@@ -782,6 +782,18 @@ function App() {
       };
     }
 
+    // BASIC 세션인 경우 초기 데이터 설정
+    if (type === 'BASIC') {
+      newSession.chatData = {
+        messages: [],
+        totalTokenCount: 0,
+        settings: {
+          aspectRatio: '1:1',
+          imageModel: 'gemini-3-pro-image-preview',
+        },
+      };
+    }
+
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);

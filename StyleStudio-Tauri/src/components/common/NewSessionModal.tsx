@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images, MessageCircle } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -10,13 +10,13 @@ interface NewSessionModalProps {
 
 export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalProps) {
   const [sessionName, setSessionName] = useState('');
-  const [sessionType, setSessionType] = useState<SessionType>('STYLE');
+  const [sessionType, setSessionType] = useState<SessionType>('BASIC');
 
   // 모달이 열릴 때마다 초기화
   useEffect(() => {
     if (isOpen) {
       setSessionName('');
-      setSessionType('STYLE');
+      setSessionType('BASIC');
     }
   }, [isOpen]);
 
@@ -24,7 +24,7 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
     if (sessionName.trim()) {
       onCreate(sessionName.trim(), sessionType);
       setSessionName('');
-      setSessionType('STYLE');
+      setSessionType('BASIC');
       onClose();
     } else {
       alert('세션 이름을 입력해주세요');
@@ -77,6 +77,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
               세션 타입
             </label>
             <div className="grid grid-cols-3 gap-4">
+              {/* BASIC */}
+              <button
+                onClick={() => setSessionType('BASIC')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'BASIC'
+                    ? 'bg-slate-50 border-slate-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-slate-300 hover:bg-slate-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <MessageCircle size={20} className={sessionType === 'BASIC' ? 'text-slate-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'BASIC' ? 'text-slate-900' : 'text-gray-700'}>기본 (채팅)</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  프롬프트로 이미지를 생성하고 대화하며 수정합니다
+                </p>
+              </button>
+
               {/* CHARACTER */}
               <button
                 onClick={() => setSessionType('CHARACTER')}
