@@ -38,9 +38,31 @@ export interface SessionConfig {
 }
 
 /**
- * 9개 세션 타입별 설정 데이터
+ * 세션 타입별 설정 데이터
  */
 export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
+  BASIC: {
+    label: '채팅',
+    icon: '💬',
+    description: '이미지 생성 채팅 모드입니다',
+    colors: {
+      selected: 'bg-indigo-600 text-white border-indigo-700 shadow-lg',
+      unselected: 'bg-white text-gray-700 border-indigo-200 hover:border-indigo-400',
+      background: 'bg-gradient-to-r from-indigo-50 to-blue-50',
+      border: 'border-indigo-200',
+    },
+    grids: {
+      '1x1': '✨ 단일 이미지를 생성합니다',
+      '2x2': '✨ 4가지 이미지를 생성합니다',
+      '3x3': '✨ 9가지 이미지를 생성합니다',
+      '4x4': '✨ 16가지 이미지를 생성합니다',
+      '6x6': '✨ 36가지 이미지를 생성합니다',
+      '8x8': '✨ 64가지 이미지를 생성합니다',
+    },
+    promptPlaceholder: '무엇을 만들고 싶으신가요?',
+    gridLabel: '💬 채팅 그리드',
+  },
+
   CHARACTER: {
     label: '캐릭터',
     icon: '👤',
