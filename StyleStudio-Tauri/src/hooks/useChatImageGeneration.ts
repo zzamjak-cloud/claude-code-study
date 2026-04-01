@@ -11,6 +11,7 @@ const RETRY_DELAY = 5000;
 interface GenerationResult {
   content: string;
   images: string[];
+  imageSignatures: string[]; // AI 생성 이미지의 thought_signature (images와 1:1 대응)
   isGeneratedImage: boolean;
 }
 
@@ -56,9 +57,29 @@ export function useChatImageGeneration(
         parts.push({ text: msg.content });
       }
       if (msg.images && msg.images.length > 0) {
-        for (const img of msg.images) {
-          const base64Data = img.includes(',') ? img.split(',')[1] : img;
-          parts.push({ inline_data: { mime_type: 'image/png', data: base64Data } });
+        if (msg.isGeneratedImage && msg.imageSignatures) {
+          // AI 생성 이미지: thought_signature와 함께 전송
+          for (let i = 0; i < msg.images.length; i++) {
+            const img = msg.images[i];
+            const signature = msg.imageSignatures[i];
+            const base64Data = img.includes(',') ? img.split(',')[1] : img;
+            const part: Record<string, unknown> = {
+              inline_data: { mime_type: 'image/png', data: base64Data },
+            };
+            if (signature) {
+              part.thought_signature = signature;
+            }
+            parts.push(part);
+          }
+        } else if (msg.isGeneratedImage) {
+          // thought_signature 없는 AI 생성 이미지 (레거시) — 텍스트 설명으로 대체
+          parts.push({ text: `[이전에 생성한 이미지 ${msg.images.length}개]` });
+        } else {
+          // 사용자가 첨부한 이미지는 그대로 포함
+          for (const img of msg.images) {
+            const base64Data = img.includes(',') ? img.split(',')[1] : img;
+            parts.push({ inline_data: { mime_type: 'image/png', data: base64Data } });
+          }
         }
       }
       if (parts.length > 0) {
@@ -143,6 +164,7 @@ export function useChatImageGeneration(
 
         let textContent = '';
         const generatedImages: string[] = [];
+        const imageSignatures: string[] = [];
 
         for (const part of candidate.content.parts) {
           if (part.text) {
@@ -151,12 +173,14 @@ export function useChatImageGeneration(
           if (part.inlineData) {
             const inlineData = part.inlineData as Record<string, string>;
             generatedImages.push(`data:${inlineData.mimeType};base64,${inlineData.data}`);
+            // thought_signature 보존 (다음 요청 시 이미지 재전송에 필요)
+            imageSignatures.push((part.thoughtSignature as string) ?? '');
           }
         }
 
         setIsGenerating(false);
         setGenerationStatus('');
-        return { content: textContent, images: generatedImages, isGeneratedImage: generatedImages.length > 0 };
+        return { content: textContent, images: generatedImages, imageSignatures, isGeneratedImage: generatedImages.length > 0 };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
         if (attempt >= MAX_RETRIES) break;

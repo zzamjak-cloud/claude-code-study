@@ -9,6 +9,7 @@ export interface ChatMessage {
   timestamp: string;
   isGeneratedImage?: boolean;
   tokenCount?: number;
+  imageSignatures?: string[]; // AI 생성 이미지의 thought_signature (images 배열과 1:1 대응)
 }
 
 // 채팅 세션 데이터

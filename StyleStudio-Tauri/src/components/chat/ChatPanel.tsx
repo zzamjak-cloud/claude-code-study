@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Download, MessageCircle } from 'lucide-react';
+import { X, Download, MessageCircle, Loader2 } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeFile } from '@tauri-apps/plugin-fs';
 import type { Session } from '../../types/session';
@@ -53,12 +53,13 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
       // 2. AI 응답 생성
       const result = await generateFromChat(text, images.length > 0 ? images : undefined);
 
-      // 3. AI 응답 메시지 추가
+      // 3. AI 응답 메시지 추가 (imageSignatures 포함하여 다음 요청 시 thought_signature 전송 가능)
       addMessage(
         'assistant',
         result.content,
         result.images.length > 0 ? result.images : undefined,
         result.isGeneratedImage,
+        result.imageSignatures.length > 0 ? result.imageSignatures : undefined,
       );
 
       // 4. 요약 필요 여부 확인 후 처리
@@ -152,6 +153,18 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
             onImageClick={setPreviewImage}
           />
         ))}
+
+        {/* 생성 중 인디케이터 */}
+        {isGenerating && (
+          <div className="flex justify-start">
+            <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 shadow-sm">
+              <div className="flex items-center gap-2 text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">응답 생성 중...</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 하단 입력 영역 */}
