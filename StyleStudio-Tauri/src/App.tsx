@@ -10,6 +10,7 @@ import { SaveSessionModal } from './components/common/SaveSessionModal';
 import { NewSessionModal } from './components/common/NewSessionModal';
 import { UpdateModal } from './components/common/UpdateModal';
 import { IllustrationSetupPanel } from './components/illustration';
+import { ChatPanel } from './components/chat';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoUpdate } from './hooks/useAutoUpdate';
@@ -1022,6 +1023,12 @@ function App() {
               </div>
             </div>
           </div>
+        ) : currentSession?.type === 'BASIC' ? (
+          <ChatPanel
+            session={currentSession}
+            apiKey={apiKey}
+            onSessionUpdate={handleSessionUpdate}
+          />
         ) : currentSession?.type === 'ILLUSTRATION' ? (
           // ILLUSTRATION 세션 전용 UI
           currentView === 'analysis' ? (
