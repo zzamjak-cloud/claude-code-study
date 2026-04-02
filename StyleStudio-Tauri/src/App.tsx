@@ -11,6 +11,7 @@ import { NewSessionModal } from './components/common/NewSessionModal';
 import { UpdateModal } from './components/common/UpdateModal';
 import { IllustrationSetupPanel } from './components/illustration';
 import { ChatPanel } from './components/chat';
+import { AnimationPanel } from './components/animation';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoUpdate } from './hooks/useAutoUpdate';
@@ -1032,6 +1033,12 @@ function App() {
               </div>
             </div>
           </div>
+        ) : currentSession?.type === 'ANIMATION' ? (
+          <AnimationPanel
+            session={currentSession}
+            apiKey={apiKey}
+            onSessionUpdate={handleSessionUpdate}
+          />
         ) : currentSession?.type === 'BASIC' ? (
           <ChatPanel
             session={currentSession}
