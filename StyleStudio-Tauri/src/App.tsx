@@ -795,6 +795,15 @@ function App() {
       };
     }
 
+    // ANIMATION 세션인 경우 초기 데이터 설정
+    if (type === 'ANIMATION') {
+      newSession.animationData = {
+        loop: false,
+        grid: '4x4',
+        fps: 10,
+      };
+    }
+
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);
