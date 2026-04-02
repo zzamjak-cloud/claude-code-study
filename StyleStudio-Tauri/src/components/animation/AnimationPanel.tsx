@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Image, Send, Loader2, FolderOpen, X, Plus } from 'lucide-react';
+import { Image, Send, Loader2, FolderOpen, X, Plus, Info } from 'lucide-react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { readFile, writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -159,6 +159,45 @@ export default function AnimationPanel({
     onSessionUpdate(updated);
   };
 
+  // 애니메이션 참조 시트 추가 (파일 다이얼로그)
+  const handleAddAnimationReference = async () => {
+    const selected = await open({
+      multiple: false,
+      filters: [{ name: '이미지', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    });
+
+    if (!selected || typeof selected !== 'string') return;
+
+    try {
+      const lowerPath = selected.toLowerCase();
+      const ext = lowerPath.split('.').pop() ?? 'png';
+      const mimeMap: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        bmp: 'image/bmp',
+      };
+      const mime = mimeMap[ext] ?? 'image/png';
+
+      const bytes = await readFile(selected);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const dataUrl = `data:${mime};base64,${base64}`;
+
+      const updated = updateSession(session, {
+        animationData: { ...animationData, animationReference: dataUrl },
+      });
+      onSessionUpdate(updated);
+    } catch (err) {
+      console.error('애니메이션 참조 시트 읽기 실패:', err);
+    }
+  };
+
   // 그리드 변경
   const handleGridChange = (grid: AnimationGridLayout) => {
     const updated = updateSession(session, {
@@ -171,14 +210,6 @@ export default function AnimationPanel({
   const handleLoopChange = (loop: boolean) => {
     const updated = updateSession(session, {
       animationData: { ...animationData, loop },
-    });
-    onSessionUpdate(updated);
-  };
-
-  // FPS 변경
-  const handleFpsChange = (fps: number) => {
-    const updated = updateSession(session, {
-      animationData: { ...animationData, fps },
     });
     onSessionUpdate(updated);
   };
@@ -220,15 +251,26 @@ export default function AnimationPanel({
 
     try {
       const gridInfo = getAnimationGridInfo(animationData.grid);
-      const gridPrompt = `ANIMATION SPRITE SHEET (${gridInfo.totalFrames} frames in ${animationData.grid} grid)\n\n`;
+      const gridPrompt = `🎯 ANIMATION SPRITE SHEET: Generate exactly ${gridInfo.totalFrames} animation frames arranged in a ${animationData.grid} grid (${gridInfo.rows} rows × ${gridInfo.cols} columns).\n`;
+      const orderPrompt = `📐 Frame order: left-to-right, top-to-bottom. Frame 1 at top-left, Frame ${gridInfo.totalFrames} at bottom-right.\n`;
+      const directionPrompt = `🚨 DIRECTION LOCK: The character must face the SAME direction in ALL ${gridInfo.totalFrames} frames. Do NOT rotate or mirror the character in any frame.\n`;
       const loopPrompt = animationData.loop
-        ? '\nLOOP: Last frame must connect seamlessly to first frame.\n'
+        ? `🔄 LOOP ANIMATION: Frame ${gridInfo.totalFrames} must transition seamlessly back to Frame 1. The motion should be cyclical with no visible break.\n`
+        : `▶️ ONE-SHOT ANIMATION: Frame 1 = motion start, Frame ${gridInfo.totalFrames} = motion end.\n`;
+      const animRefPrompt = animationData.animationReference
+        ? `🎯 ANIMATION REFERENCE: The LAST reference image is an animation sprite sheet example. Follow the EXACT same frame-by-frame progression pattern, timing, and pose changes shown in that sprite sheet. Apply this animation pattern to the character/object from the other reference images.\n`
         : '';
-      const fullBasePrompt = gridPrompt + loopPrompt + prompt;
+      const fullBasePrompt = gridPrompt + orderPrompt + directionPrompt + loopPrompt + animRefPrompt + '\n' + prompt;
+
+      // 참조 이미지 배열 구성: 캐릭터 참조 + 애니메이션 참조 시트
+      const allReferenceImages = [
+        ...referenceImages,
+        ...(animationData.animationReference ? [animationData.animationReference] : []),
+      ];
 
       await generateImage(apiKey, {
         prompt: fullBasePrompt,
-        referenceImages: referenceImages.length > 0 ? referenceImages : undefined,
+        referenceImages: allReferenceImages.length > 0 ? allReferenceImages : undefined,
         aspectRatio: '1:1',
         imageSize: '1K',
         sessionType: 'ANIMATION',
@@ -360,6 +402,47 @@ export default function AnimationPanel({
         )}
       </div>
 
+      {/* 애니메이션 참조 시트 */}
+      <div className="px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center gap-1.5 mb-1.5">
+          <h3 className="text-sm font-medium text-gray-700">애니메이션 참조 시트 (선택)</h3>
+          <div className="group relative">
+            <Info size={13} className="text-gray-400 cursor-help" />
+            <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block w-64 p-2 bg-gray-800 text-white text-xs rounded shadow-lg z-10">
+              다른 캐릭터의 스프라이트 시트를 참조로 제공하면 프레임 패턴을 학습합니다
+            </div>
+          </div>
+        </div>
+        {animationData.animationReference ? (
+          <div className="relative inline-block group">
+            <img
+              src={animationData.animationReference.startsWith('data:') ? animationData.animationReference : `data:image/png;base64,${animationData.animationReference}`}
+              alt="애니메이션 참조 시트"
+              className="h-24 max-w-full object-contain rounded border border-gray-300"
+            />
+            <button
+              onClick={() => {
+                const updated = updateSession(session, {
+                  animationData: { ...animationData, animationReference: undefined },
+                });
+                onSessionUpdate(updated);
+              }}
+              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+            >
+              <X size={10} />
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleAddAnimationReference}
+            className="flex items-center justify-center gap-2 w-full h-16 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-400 hover:border-emerald-400 hover:text-emerald-500 transition-colors cursor-pointer"
+          >
+            <Plus size={16} />
+            예시 스프라이트 시트 추가
+          </button>
+        )}
+      </div>
+
       {/* 설정 바 */}
       <AnimationSettings
         grid={animationData.grid}
@@ -436,8 +519,7 @@ export default function AnimationPanel({
             imageBase64={previewImage}
             grid={animationData.grid}
             loop={animationData.loop}
-            fps={animationData.fps}
-            onFpsChange={handleFpsChange}
+            initialFps={animationData.fps}
           />
         </div>
       </div>
