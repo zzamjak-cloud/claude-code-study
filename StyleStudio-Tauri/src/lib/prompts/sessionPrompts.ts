@@ -38,6 +38,7 @@ type PromptGeneratorFunction = (params: PromptGenerationParams) => string;
 
 const promptGenerators: Record<SessionType, PromptGeneratorFunction> = {
   BASIC: (params) => params.basePrompt, // BASIC 채팅 세션은 프롬프트를 그대로 사용
+  ANIMATION: (params) => params.basePrompt, // ANIMATION 세션은 Task 2에서 전용 함수로 교체 예정
   CHARACTER: generateCharacterPrompt,
   BACKGROUND: generateBackgroundPrompt,
   ICON: generateIconPrompt,

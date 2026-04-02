@@ -3,8 +3,9 @@ import { PixelArtGridLayout } from './pixelart';
 import { ReferenceDocument } from './referenceDocument';
 import { IllustrationSessionData } from './illustration';
 import { ChatSessionData } from './chat';
+import { AnimationSessionData } from './animation';
 
-export type SessionType = 'BASIC' | 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI' | 'LOGO' | 'ILLUSTRATION';
+export type SessionType = 'BASIC' | 'ANIMATION' | 'STYLE' | 'CHARACTER' | 'BACKGROUND' | 'ICON' | 'PIXELART_CHARACTER' | 'PIXELART_BACKGROUND' | 'PIXELART_ICON' | 'UI' | 'LOGO' | 'ILLUSTRATION';
 
 export interface Session {
   id: string;
@@ -22,6 +23,7 @@ export interface Session {
   folderId?: string | null; // 소속 폴더 ID (null/undefined면 루트)
   illustrationData?: IllustrationSessionData; // 일러스트 세션 전용 데이터
   chatData?: ChatSessionData; // BASIC 채팅 세션 전용 데이터
+  animationData?: AnimationSessionData; // ANIMATION 세션 전용 데이터
 }
 
 // 생성 히스토리 엔트리
