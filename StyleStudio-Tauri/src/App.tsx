@@ -11,7 +11,6 @@ import { NewSessionModal } from './components/common/NewSessionModal';
 import { UpdateModal } from './components/common/UpdateModal';
 import { IllustrationSetupPanel } from './components/illustration';
 import { ChatPanel } from './components/chat';
-import { AnimationPanel } from './components/animation';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoUpdate } from './hooks/useAutoUpdate';
@@ -796,15 +795,6 @@ function App() {
       };
     }
 
-    // ANIMATION 세션인 경우 초기 데이터 설정
-    if (type === 'ANIMATION') {
-      newSession.animationData = {
-        loop: false,
-        grid: '4x4',
-        fps: 10,
-      };
-    }
-
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);
@@ -1033,12 +1023,6 @@ function App() {
               </div>
             </div>
           </div>
-        ) : currentSession?.type === 'ANIMATION' ? (
-          <AnimationPanel
-            session={currentSession}
-            apiKey={apiKey}
-            onSessionUpdate={handleSessionUpdate}
-          />
         ) : currentSession?.type === 'BASIC' ? (
           <ChatPanel
             session={currentSession}

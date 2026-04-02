@@ -36,53 +36,8 @@ export interface PromptGenerationParams {
  */
 type PromptGeneratorFunction = (params: PromptGenerationParams) => string;
 
-/**
- * ANIMATION 세션 프롬프트 생성
- * - 애니메이션 전문가 역할 및 기본 규칙 설정
- * - 그리드 정보는 AnimationPanel에서 프롬프트에 직접 포함하므로 여기서는 기본 규칙만 설정
- */
-function generateAnimationPrompt(params: PromptGenerationParams): string {
-  const { basePrompt, hasReferenceImages } = params;
-
-  // 그리드 정보는 AnimationPanel에서 프롬프트에 직접 포함하므로
-  // 여기서는 애니메이션 전문가 역할 및 기본 규칙만 설정
-  let prompt = '';
-
-  prompt += '🎬 ANIMATION SEQUENCE EXPERT\n\n';
-  prompt += 'You are a professional game animation specialist and sprite sheet artist.\n';
-  prompt += 'Your task is to create smooth, high-quality animation sequence frames.\n\n';
-
-  if (hasReferenceImages) {
-    prompt += '🎨 REFERENCE PRESERVATION:\n';
-    prompt += '- Maintain the EXACT appearance of the reference character/object\n';
-    prompt += '- Keep exact color palette from reference\n';
-    prompt += '- Keep proportions and details identical across all frames\n';
-    prompt += '- Only change pose/position for animation\n\n';
-  }
-
-  prompt += '📋 CRITICAL ANIMATION RULES:\n';
-  prompt += '✓ Ensure smooth, natural transitions between consecutive frames\n';
-  prompt += '✓ Each frame should show clear progression of the motion\n';
-  prompt += '✓ Maintain consistent size and proportions across ALL frames\n';
-  prompt += '✓ Pure white background (#FFFFFF) for all cells\n';
-  prompt += '✓ NO grid lines, borders, or dividers between cells\n\n';
-
-  prompt += '⛔ DO NOT:\n';
-  prompt += '- Add any grid lines or cell borders\n';
-  prompt += '- Change the character/object design between frames\n';
-  prompt += '- Use different art styles between frames\n';
-  prompt += '- Add extra elements not in the reference\n\n';
-
-  prompt += '🤸 ANIMATION ACTION:\n';
-  prompt += basePrompt || 'Animation sequence frames';
-  prompt += '\n';
-
-  return prompt;
-}
-
 const promptGenerators: Record<SessionType, PromptGeneratorFunction> = {
   BASIC: (params) => params.basePrompt, // BASIC 채팅 세션은 프롬프트를 그대로 사용
-  ANIMATION: generateAnimationPrompt,
   CHARACTER: generateCharacterPrompt,
   BACKGROUND: generateBackgroundPrompt,
   ICON: generateIconPrompt,

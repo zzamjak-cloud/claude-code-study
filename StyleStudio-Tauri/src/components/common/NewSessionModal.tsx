@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images, MessageCircle, Film } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images, MessageCircle } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -92,24 +92,6 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   프롬프트로 이미지를 생성하고 대화하며 수정합니다
-                </p>
-              </button>
-
-              {/* ANIMATION */}
-              <button
-                onClick={() => setSessionType('ANIMATION')}
-                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
-                  sessionType === 'ANIMATION'
-                    ? 'bg-emerald-50 border-emerald-600 shadow-lg'
-                    : 'bg-white border-gray-200 hover:border-emerald-300 hover:bg-emerald-50/50'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Film size={20} className={sessionType === 'ANIMATION' ? 'text-emerald-600' : 'text-gray-600'} />
-                  <span className={sessionType === 'ANIMATION' ? 'text-emerald-900' : 'text-gray-700'}>애니메이션</span>
-                </div>
-                <p className="text-xs text-left text-gray-600">
-                  캐릭터/오브젝트의 애니메이션 시퀀스를 생성합니다
                 </p>
               </button>
 

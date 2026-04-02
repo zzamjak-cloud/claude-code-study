@@ -63,28 +63,6 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     gridLabel: '💬 채팅 그리드',
   },
 
-  ANIMATION: {
-    label: '애니메이션',
-    icon: '🎬',
-    description: '캐릭터/오브젝트의 애니메이션 시퀀스를 생성합니다',
-    colors: {
-      selected: 'bg-emerald-600 text-white border-emerald-700 shadow-lg',
-      unselected: 'bg-white text-gray-700 border-emerald-200 hover:border-emerald-400',
-      background: 'bg-gradient-to-r from-emerald-50 to-green-50',
-      border: 'border-emerald-200',
-    },
-    grids: {
-      '1x1': '',
-      '2x2': '🎬 4프레임 기본 애니메이션 (단순 동작)',
-      '3x3': '🎬 9프레임 부드러운 애니메이션',
-      '4x4': '🎬 16프레임 완전한 동작 시퀀스',
-      '6x6': '',
-      '8x8': '',
-    },
-    promptPlaceholder: '애니메이션 동작을 설명하세요 (예: 걷기, 뛰기, 점프, 동전 회전, 상자 열림)',
-    gridLabel: '🎬 애니메이션 그리드',
-  },
-
   CHARACTER: {
     label: '캐릭터',
     icon: '👤',
