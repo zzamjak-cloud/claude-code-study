@@ -6,8 +6,6 @@ import { ReferenceDocument } from '../../types/referenceDocument';
 import { CAMERA_ANGLES } from '../../types/cameraAngle';
 import { CAMERA_LENSES } from '../../types/cameraLens';
 import { DocumentManager } from './DocumentManager';
-import { IMAGE_MODELS } from '../../hooks/api/useGeminiImageGenerator';
-import type { ImageGenerationModel } from '../../hooks/api/useGeminiImageGenerator';
 import {
   getGridButtonStyle,
   getGridDescription,
@@ -60,10 +58,6 @@ interface GeneratorSettingsProps {
   onCameraLensChange: (value: string) => void;
   onDocumentAdd?: (document: ReferenceDocument) => void;
   onDocumentDelete?: (documentId: string) => void;
-
-  // 이미지 생성 모델
-  imageModel: ImageGenerationModel;
-  onImageModelChange: (model: ImageGenerationModel) => void;
 }
 
 export function GeneratorSettings({
@@ -102,8 +96,6 @@ export function GeneratorSettings({
   onCameraLensChange,
   onDocumentAdd,
   onDocumentDelete,
-  imageModel,
-  onImageModelChange,
 }: GeneratorSettingsProps) {
   // textarea 자동 확장을 위한 ref
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -164,30 +156,6 @@ export function GeneratorSettings({
           </p>
         </div>
 
-        {/* 생성 모델 선택 */}
-        <div className="flex items-center gap-3">
-          {IMAGE_MODELS.map((model) => (
-            <label
-              key={model.id}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg cursor-pointer transition-all text-sm ${
-                imageModel === model.id
-                  ? 'bg-purple-100 text-purple-700 font-semibold border border-purple-300'
-                  : 'bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200'
-              }`}
-            >
-              <input
-                type="radio"
-                name="imageModel"
-                value={model.id}
-                checked={imageModel === model.id}
-                onChange={() => onImageModelChange(model.id)}
-                className="sr-only"
-              />
-              <span className={`w-2 h-2 rounded-full ${imageModel === model.id ? 'bg-purple-600' : 'bg-gray-400'}`} />
-              {model.label}
-            </label>
-          ))}
-        </div>
 
         {/* 이미지 생성 버튼 */}
         <button

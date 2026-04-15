@@ -282,6 +282,28 @@ export const SESSION_CONFIG: Record<SessionType, SessionConfig> = {
     promptPlaceholder: `픽셀아트 아이콘을 설명하세요 (예: health potion, mana crystal, gold coin)`,
     gridLabel: '💎 픽셀아트 아이콘 그리드',
   },
+
+  CONCEPT: {
+    label: '컨셉',
+    icon: '🎨',
+    description: '게임 컨셉 아트를 생성합니다',
+    colors: {
+      selected: 'bg-purple-600 text-white border-purple-700 shadow-lg',
+      unselected: 'bg-white text-gray-700 border-purple-200 hover:border-purple-400',
+      background: 'bg-gradient-to-r from-purple-50 to-pink-50',
+      border: 'border-purple-200',
+    },
+    grids: {
+      '1x1': '✨ 단일 컨셉 아트를 생성합니다',
+      '2x2': '✨ 4가지 컨셉 바리에이션을 생성합니다',
+      '3x3': '✨ 9가지 컨셉 세트를 생성합니다',
+      '4x4': '✨ 16가지 다양한 컨셉을 생성합니다',
+      '6x6': '✨ 36가지 컨셉 대형 세트를 생성합니다',
+      '8x8': '✨ 64가지 컨셉 초대형 세트를 생성합니다',
+    },
+    promptPlaceholder: '비워두면 입력된 정보를 기반으로 자동 생성합니다...',
+    gridLabel: '🎨 컨셉 그리드',
+  },
 };
 
 /**

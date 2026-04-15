@@ -22,10 +22,24 @@ export function ChatInput({ onSend, isGenerating, disabled }: ChatInputProps) {
   useEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
+
+    // 최소 3줄 높이 설정 (줄당 약 24px)
+    const minHeight = 24 * 3;
+    const maxHeight = 24 * 10; // 최대 10줄까지 확장
+
+    // 먼저 auto로 설정하여 scrollHeight를 정확히 측정
     textarea.style.height = 'auto';
-    // 최소 1줄, 최대 5줄 (줄당 약 24px)
-    const maxHeight = 24 * 5;
-    textarea.style.height = `${Math.min(textarea.scrollHeight, maxHeight)}px`;
+
+    // scrollHeight가 minHeight보다 작으면 minHeight, 크면 실제 높이 적용 (maxHeight 제한)
+    const newHeight = Math.max(minHeight, Math.min(textarea.scrollHeight, maxHeight));
+    textarea.style.height = `${newHeight}px`;
+
+    // 스크롤이 필요한 경우 overflow 설정
+    if (textarea.scrollHeight > maxHeight) {
+      textarea.style.overflowY = 'auto';
+    } else {
+      textarea.style.overflowY = 'hidden';
+    }
   }, [text]);
 
   // Tauri 드래그 앤 드롭으로 이미지 파일 첨부
@@ -152,8 +166,8 @@ export function ChatInput({ onSend, isGenerating, disabled }: ChatInputProps) {
           onPaste={handlePaste}
           placeholder="메시지를 입력하세요... (이미지를 붙여넣거나 드래그할 수 있습니다)"
           disabled={disabled}
-          rows={1}
-          className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400"
+          rows={3}
+          className="flex-1 resize-none rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent disabled:bg-gray-50 disabled:text-gray-400 min-h-[72px] overflow-y-auto"
         />
         <button
           onClick={handleSend}

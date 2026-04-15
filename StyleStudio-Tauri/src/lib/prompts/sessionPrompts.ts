@@ -48,6 +48,7 @@ const promptGenerators: Record<SessionType, PromptGeneratorFunction> = {
   PIXELART_BACKGROUND: generatePixelArtBackgroundPrompt,
   PIXELART_ICON: generatePixelArtIconPrompt,
   ILLUSTRATION: generateIllustrationPrompt,
+  CONCEPT: generateConceptPrompt,
 };
 
 /**
@@ -585,4 +586,40 @@ You MUST draw these EXACT characters - not similar ones, not inspired by, but ID
 ${cameraSection}
 
 ⚠️ FINAL REMINDER: The characters in your output must be VISUALLY IDENTICAL to the reference images. Character accuracy is MORE IMPORTANT than camera angles or any other instruction. If someone compared them side by side, they should look like the same character drawn by the same artist.`;
+}
+
+/**
+ * CONCEPT 세션 프롬프트 생성
+ */
+function generateConceptPrompt(params: PromptGenerationParams): string {
+  const { basePrompt, pixelArtGrid } = params;
+
+  if (pixelArtGrid && pixelArtGrid !== '1x1') {
+    const gridInfo = getPixelArtGridInfo(pixelArtGrid);
+    const gridLayout = `${gridInfo.rows}x${gridInfo.cols}`;
+    const frameCount = gridInfo.rows * gridInfo.cols;
+    return `🎯 GAME CONCEPT ART GRID (${frameCount} variations in ${gridLayout} layout)
+
+🎨 CONCEPT ART STYLE:
+✓ Professional game concept art quality
+✓ Cohesive visual style across all variations
+✓ Consistent art direction and rendering technique
+✓ Atmospheric and evocative mood
+✓ High-quality presentation
+
+⛔ CRITICAL - NO GRID LINES: Do NOT draw any lines, borders, dividers, or separators between cells. The grid layout is purely conceptual - there should be NO visible grid structure in the final image.
+
+🎮 CONCEPT VARIATIONS (${frameCount} different concepts):
+${basePrompt || 'Game concept art variations'}
+
+Generate ${frameCount} concept art pieces in ${gridLayout} grid.
+Each piece should explore different aspects or moods while maintaining style consistency.`;
+  }
+
+  return `Create professional game concept art.
+
+${basePrompt}
+
+Focus on atmosphere, mood, and visual storytelling.
+Use high-quality rendering with attention to lighting and composition.`;
 }

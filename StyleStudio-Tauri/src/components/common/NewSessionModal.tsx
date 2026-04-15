@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images, MessageCircle } from 'lucide-react';
+import { X, Palette, User, Mountain, Box, Gamepad2, Grid3x3, Sparkles, Monitor, Award, Images, MessageCircle, Lightbulb } from 'lucide-react';
 import { SessionType } from '../../types/session';
 
 interface NewSessionModalProps {
@@ -272,6 +272,24 @@ export function NewSessionModal({ isOpen, onClose, onCreate }: NewSessionModalPr
                 </div>
                 <p className="text-xs text-left text-gray-600">
                   여러 캐릭터를 등록하고 배경과 함께 씬을 구성합니다
+                </p>
+              </button>
+
+              {/* CONCEPT */}
+              <button
+                onClick={() => setSessionType('CONCEPT')}
+                className={`flex flex-col items-start gap-2 p-4 rounded-lg font-semibold transition-all border-2 ${
+                  sessionType === 'CONCEPT'
+                    ? 'bg-orange-50 border-orange-600 shadow-lg'
+                    : 'bg-white border-gray-200 hover:border-orange-300 hover:bg-orange-50/50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Lightbulb size={20} className={sessionType === 'CONCEPT' ? 'text-orange-600' : 'text-gray-600'} />
+                  <span className={sessionType === 'CONCEPT' ? 'text-orange-900' : 'text-gray-700'}>컨셉</span>
+                </div>
+                <p className="text-xs text-left text-gray-600">
+                  모바일 게임 컨셉 아트를 생성하고 베리에이션을 만듭니다
                 </p>
               </button>
             </div>

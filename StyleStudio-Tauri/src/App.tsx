@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef, startTransition } from 'react';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { Sidebar } from './components/common/Sidebar';
 import { EmptyState } from './components/common/EmptyState';
@@ -11,6 +11,7 @@ import { NewSessionModal } from './components/common/NewSessionModal';
 import { UpdateModal } from './components/common/UpdateModal';
 import { IllustrationSetupPanel } from './components/illustration';
 import { ChatPanel } from './components/chat';
+import { ConceptPanel } from './components/concept/ConceptPanel';
 import { useGeminiAnalyzer } from './hooks/api/useGeminiAnalyzer';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useAutoUpdate } from './hooks/useAutoUpdate';
@@ -206,17 +207,53 @@ function App() {
   });
 
   // 자동 저장 Hook
+  const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSessionsRef = useRef<Session[] | null>(null);
+
+  const flushPendingSessions = useCallback(async () => {
+    if (!pendingSessionsRef.current) return;
+
+    const sessionsToPersist = pendingSessionsRef.current;
+    pendingSessionsRef.current = null;
+
+    try {
+      await persistSessions(sessionsToPersist);
+    } catch (error) {
+      logger.error('❌ [세션 업데이트] 지연 저장 오류:', error);
+    }
+  }, []);
+
   const handleSessionUpdate = useCallback(
     (session: Session) => {
-      setCurrentSession(session);
       const updatedSessions = currentSession
         ? updateSessionInList(sessions, session.id, session)
         : addSessionToList(sessions, session);
-      setSessions(updatedSessions);
-      persistSessions(updatedSessions);
+
+      // 입력 반응성을 유지하기 위해 상태 반영은 우선, 저장은 지연 처리
+      startTransition(() => {
+        setCurrentSession(session);
+        setSessions(updatedSessions);
+      });
+
+      pendingSessionsRef.current = updatedSessions;
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+      persistTimerRef.current = setTimeout(() => {
+        void flushPendingSessions();
+      }, 1000);
     },
-    [currentSession, sessions]
+    [currentSession, sessions, flushPendingSessions]
   );
+
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+      }
+      void flushPendingSessions();
+    };
+  }, [flushPendingSessions]);
 
   const { progress } = useAutoSave({
     currentSession,
@@ -795,6 +832,21 @@ function App() {
       };
     }
 
+    // CONCEPT 세션인 경우 초기 데이터 설정
+    if (type === 'CONCEPT') {
+      newSession.conceptData = {
+        gameGenres: [],
+        artStyles: [],
+        generationSettings: {
+          model: 'nanobanana-pro',
+          ratio: '9:16',
+          size: '2k',
+          grid: '1x1',
+        },
+        history: [],
+      };
+    }
+
     const updatedSessions = addSessionToList(sessions, newSession);
     setSessions(updatedSessions);
     setCurrentSession(newSession);
@@ -1025,6 +1077,12 @@ function App() {
           </div>
         ) : currentSession?.type === 'BASIC' ? (
           <ChatPanel
+            session={currentSession}
+            apiKey={apiKey}
+            onSessionUpdate={handleSessionUpdate}
+          />
+        ) : currentSession?.type === 'CONCEPT' ? (
+          <ConceptPanel
             session={currentSession}
             apiKey={apiKey}
             onSessionUpdate={handleSessionUpdate}

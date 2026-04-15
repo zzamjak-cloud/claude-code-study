@@ -8,7 +8,7 @@ import { useChatSession, RECENT_MESSAGES_TO_KEEP } from '../../hooks/useChatSess
 import { useChatImageGeneration } from '../../hooks/useChatImageGeneration';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
-import { ChatSettings } from './ChatSettings';
+import { ChatAISettings } from './ChatAISettings';
 import { logger } from '../../lib/logger';
 
 interface ChatPanelProps {
@@ -21,12 +21,10 @@ interface ChatPanelProps {
 export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) {
   const {
     messages,
-    settings,
     summary,
     needsSummarization,
     addMessage,
     deleteMessage,
-    updateSettings,
     markSummarized,
   } = useChatSession(session, onSessionUpdate);
 
@@ -34,6 +32,14 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
 
   // 이미지 미리보기 모달 상태
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // AI 설정 상태
+  const [aiSettings, setAISettings] = useState({
+    model: 'nanobanana-pro',
+    ratio: '1:1',
+    size: '2k',
+    grid: '1x1'
+  });
 
   // 메시지 스크롤 영역 ref
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -214,69 +220,75 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
   }, []);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* 상단 설정 바 */}
-      <ChatSettings settings={settings} onSettingsChange={updateSettings} />
+    <div className="flex h-full">
+      {/* 좌측 채팅 영역 */}
+      <div className="flex-1 flex flex-col">
+        {/* 메시지 영역 */}
+        <div
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-4 py-6 space-y-4 bg-gradient-to-b from-gray-50 to-white"
+        >
+          {/* 요약 배너 */}
+          {summary && (
+            <ChatMessage
+              message={{
+                id: 'summary',
+                role: 'summary',
+                content: summary,
+                timestamp: new Date().toISOString(),
+              }}
+              onDelete={() => {}}
+              onImageClick={setPreviewImage}
+            />
+          )}
 
-      {/* 메시지 영역 */}
-      <div
-        ref={scrollContainerRef}
-        className="flex-1 overflow-y-auto px-4 py-6 space-y-4 bg-gradient-to-b from-gray-50 to-white"
-      >
-        {/* 요약 배너 */}
-        {summary && (
-          <ChatMessage
-            message={{
-              id: 'summary',
-              role: 'summary',
-              content: summary,
-              timestamp: new Date().toISOString(),
-            }}
-            onDelete={() => {}}
-            onImageClick={setPreviewImage}
-          />
-        )}
+          {/* 빈 상태 */}
+          {messages.length === 0 && !summary && (
+            <div className="flex flex-col items-center justify-center h-full text-gray-400">
+              <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
+              <p className="text-sm text-center leading-relaxed">
+                대화를 시작해보세요!
+                <br />
+                이미지 생성을 요청하거나 이미지를 첨부하여 대화할 수 있습니다.
+              </p>
+            </div>
+          )}
 
-        {/* 빈 상태 */}
-        {messages.length === 0 && !summary && (
-          <div className="flex flex-col items-center justify-center h-full text-gray-400">
-            <MessageCircle className="w-12 h-12 mb-3 opacity-50" />
-            <p className="text-sm text-center leading-relaxed">
-              대화를 시작해보세요!
-              <br />
-              이미지 생성을 요청하거나 이미지를 첨부하여 대화할 수 있습니다.
-            </p>
-          </div>
-        )}
+          {/* 메시지 목록 */}
+          {messages.map((msg) => (
+            <ChatMessage
+              key={msg.id}
+              message={msg}
+              onDelete={deleteMessage}
+              onImageClick={setPreviewImage}
+            />
+          ))}
 
-        {/* 메시지 목록 */}
-        {messages.map((msg) => (
-          <ChatMessage
-            key={msg.id}
-            message={msg}
-            onDelete={deleteMessage}
-            onImageClick={setPreviewImage}
-          />
-        ))}
-
-        {/* 생성 중 인디케이터 */}
-        {isGenerating && (
-          <div className="flex justify-start">
-            <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 shadow-sm">
-              <div className="flex items-center gap-2 text-gray-500">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">응답 생성 중...</span>
+          {/* 생성 중 인디케이터 */}
+          {isGenerating && (
+            <div className="flex justify-start">
+              <div className="max-w-[80%] px-4 py-3 rounded-2xl rounded-bl-md bg-white border border-gray-200 shadow-sm">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span className="text-sm">응답 생성 중...</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* 하단 입력 영역 */}
+        <ChatInput
+          onSend={handleSend}
+          isGenerating={isGenerating}
+          disabled={!apiKey}
+        />
       </div>
 
-      {/* 하단 입력 영역 */}
-      <ChatInput
-        onSend={handleSend}
-        isGenerating={isGenerating}
-        disabled={!apiKey}
+      {/* 우측 AI 설정 패널 */}
+      <ChatAISettings
+        settings={aiSettings}
+        onSettingsChange={setAISettings}
       />
 
       {/* 이미지 미리보기 모달 */}
