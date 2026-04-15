@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Download, MessageCircle, Loader2 } from 'lucide-react';
 import { save } from '@tauri-apps/plugin-dialog';
-import { writeFile } from '@tauri-apps/plugin-fs';
+import { writeFile, exists, mkdir } from '@tauri-apps/plugin-fs';
+import { join, downloadDir } from '@tauri-apps/api/path';
 import type { Session } from '../../types/session';
 import { useChatSession, RECENT_MESSAGES_TO_KEEP } from '../../hooks/useChatSession';
 import { useChatImageGeneration } from '../../hooks/useChatImageGeneration';
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { ChatSettings } from './ChatSettings';
+import { logger } from '../../lib/logger';
 
 interface ChatPanelProps {
   session: Session;
@@ -53,6 +55,13 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
       // 2. AI 응답 생성
       const result = await generateFromChat(text, images.length > 0 ? images : undefined);
 
+      console.log('🔍 ChatPanel - AI 응답 결과:', {
+        hasContent: !!result.content,
+        imageCount: result.images?.length || 0,
+        isGeneratedImage: result.isGeneratedImage,
+        firstImagePrefix: result.images?.[0]?.substring(0, 30),
+      });
+
       // 3. AI 응답 메시지 추가 (imageSignatures 포함하여 다음 요청 시 thought_signature 전송 가능)
       addMessage(
         'assistant',
@@ -61,6 +70,27 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
         result.isGeneratedImage,
         result.imageSignatures.length > 0 ? result.imageSignatures : undefined,
       );
+
+      // 3-1. 생성된 이미지가 있으면 자동 저장
+      if (result.isGeneratedImage && result.images.length > 0) {
+        console.log('🎯 ChatPanel - 자동 저장 시작, 이미지 개수:', result.images.length);
+        for (const imageBase64 of result.images) {
+          try {
+            const savedPath = await autoSaveImage(imageBase64);
+            console.log('✅ ChatPanel - 자동 저장 성공:', savedPath);
+            logger.debug('💾 채팅 이미지 자동 저장 완료:', savedPath);
+          } catch (error) {
+            console.error('❌ ChatPanel - 자동 저장 실패:', error);
+            logger.error('❌ 채팅 이미지 자동 저장 실패:', error);
+            // 자동 저장 실패해도 채팅은 계속
+          }
+        }
+      } else {
+        console.log('⚠️ ChatPanel - 자동 저장 건너뜀:', {
+          isGeneratedImage: result.isGeneratedImage,
+          hasImages: result.images?.length > 0,
+        });
+      }
 
       // 4. 요약 필요 여부 확인 후 처리
       if (needsSummarization) {
@@ -83,16 +113,45 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류';
       addMessage('assistant', `오류가 발생했습니다: ${errorMessage}`);
     }
-  }, [addMessage, generateFromChat, needsSummarization, messages, summary, summarizeMessages, markSummarized]);
+  }, [addMessage, generateFromChat, needsSummarization, messages, summary, summarizeMessages, markSummarized]); // autoSaveImage 제거
 
-  // 이미지 저장 (Tauri 다이얼로그 + 파일 쓰기)
-  const handleSaveImage = useCallback(async (imageBase64: string) => {
+  // 자동 저장 함수 (배경에서 자동으로 저장)
+  const autoSaveImage = useCallback(async (imageBase64: string) => {
+    console.log('🔄 autoSaveImage 함수 호출됨');
+    console.log('   - 입력 데이터 prefix:', imageBase64.substring(0, 50));
+
     try {
-      const filePath = await save({
-        filters: [{ name: 'PNG 이미지', extensions: ['png'] }],
-        defaultPath: 'generated-image.png',
-      });
-      if (!filePath) return;
+      // 다운로드 디렉터리의 AI_Gen 폴더 경로 계산
+      const downloadPath = await downloadDir();
+      console.log('📁 다운로드 디렉터리:', downloadPath);
+
+      const savePath = await join(downloadPath, 'AI_Gen');
+      console.log('📁 저장 경로:', savePath);
+
+      // 폴더가 없으면 생성
+      try {
+        const folderExists = await exists(savePath);
+        console.log('📁 폴더 존재 여부:', folderExists);
+        if (!folderExists) {
+          await mkdir(savePath, { recursive: true });
+          console.log('✅ AI_Gen 폴더 생성 완료');
+          logger.debug('📁 AI_Gen 폴더 생성됨');
+        }
+      } catch (error) {
+        // 폴더가 없으면 생성 시도
+        console.log('⚠️ exists 실패, 폴더 생성 시도:', error);
+        await mkdir(savePath, { recursive: true });
+        console.log('✅ AI_Gen 폴더 생성 완료 (재시도)');
+        logger.debug('📁 AI_Gen 폴더 생성됨 (exists 실패 후)');
+      }
+
+      // 파일명 생성 (JPEG로 저장)
+      const timestamp = Date.now();
+      const fileName = `chat-image-${timestamp}.jpg`;
+      const fullPath = await join(savePath, fileName);
+
+      console.log('💾 저장할 파일 경로:', fullPath);
+      logger.debug('💾 자동 저장 시작:', fullPath);
 
       // base64 데이터에서 순수 데이터 추출
       const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
@@ -102,9 +161,55 @@ export function ChatPanel({ session, apiKey, onSessionUpdate }: ChatPanelProps) 
         bytes[i] = binaryString.charCodeAt(i);
       }
 
+      console.log('📊 바이너리 데이터 크기:', bytes.length, 'bytes');
+
+      // 파일 저장
+      await writeFile(fullPath, bytes);
+      console.log('✅ 파일 저장 성공:', fullPath);
+      logger.debug('✅ 이미지 자동 저장 완료:', fullPath);
+
+      return fullPath;
+    } catch (error) {
+      console.error('❌ autoSaveImage 오류 상세:', error);
+      logger.error('❌ 자동 저장 오류:', error);
+      throw error;
+    }
+  }, []);
+
+  // 이미지 저장 (Tauri 다이얼로그 + 파일 쓰기)
+  const handleSaveImage = useCallback(async (imageBase64: string) => {
+    console.log('🔍 handleSaveImage 호출됨');
+    console.log('   - 이미지 데이터 prefix:', imageBase64.substring(0, 50));
+
+    try {
+      // Gemini API는 JPEG 형식으로 이미지를 생성하므로 JPG로 저장
+      const timestamp = Date.now();
+      console.log('📝 save 다이얼로그 오픈 시도...');
+
+      const filePath = await save({
+        filters: [{ name: 'JPEG 이미지', extensions: ['jpg', 'jpeg'] }],
+        defaultPath: `chat-image-${timestamp}.jpg`,
+      });
+
+      console.log('📝 선택된 파일 경로:', filePath);
+      if (!filePath) {
+        console.log('⚠️ 사용자가 저장 취소');
+        return;
+      }
+
+      // base64 데이터에서 순수 데이터 추출
+      const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+      const binaryString = atob(base64Data);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      console.log('📊 저장할 데이터 크기:', bytes.length, 'bytes');
       await writeFile(filePath, bytes);
+      console.log('✅ 수동 저장 성공:', filePath);
     } catch (err) {
-      console.error('이미지 저장 실패:', err);
+      console.error('❌ 수동 저장 실패 상세:', err);
     }
   }, []);
 

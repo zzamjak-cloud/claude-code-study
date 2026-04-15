@@ -63,8 +63,9 @@ export function useChatImageGeneration(
             const img = msg.images[i];
             const signature = msg.imageSignatures[i];
             const base64Data = img.includes(',') ? img.split(',')[1] : img;
+            // AI 생성 이미지는 JPEG이므로 mime_type을 올바르게 설정
             const part: Record<string, unknown> = {
-              inline_data: { mime_type: 'image/png', data: base64Data },
+              inline_data: { mime_type: 'image/jpeg', data: base64Data },
             };
             if (signature) {
               part.thought_signature = signature;
@@ -75,10 +76,13 @@ export function useChatImageGeneration(
           // thought_signature 없는 AI 생성 이미지 (레거시) — 텍스트 설명으로 대체
           parts.push({ text: `[이전에 생성한 이미지 ${msg.images.length}개]` });
         } else {
-          // 사용자가 첨부한 이미지는 그대로 포함
+          // 사용자가 첨부한 이미지는 원본 MIME 타입 유지 (보통 PNG)
           for (const img of msg.images) {
             const base64Data = img.includes(',') ? img.split(',')[1] : img;
-            parts.push({ inline_data: { mime_type: 'image/png', data: base64Data } });
+            // 원본 이미지의 MIME 타입 추출 시도
+            const mimeMatch = img.match(/data:([^;]+);base64/);
+            const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+            parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
           }
         }
       }
@@ -96,7 +100,10 @@ export function useChatImageGeneration(
       if (additionalUserImages) {
         for (const img of additionalUserImages) {
           const base64Data = img.includes(',') ? img.split(',')[1] : img;
-          userParts.push({ inline_data: { mime_type: 'image/png', data: base64Data } });
+          // 사용자가 첨부한 이미지의 MIME 타입 추출 (PNG가 기본값)
+          const mimeMatch = img.match(/data:([^;]+);base64/);
+          const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+          userParts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
         }
       }
       contents.push({ role: 'user', parts: userParts });
@@ -110,6 +117,7 @@ export function useChatImageGeneration(
     userMessage: string,
     userImages?: string[]
   ): Promise<GenerationResult> => {
+    console.log('🎨 generateFromChat 호출됨');
     if (!apiKey) throw new Error('API 키가 설정되지 않았습니다.');
 
     setIsGenerating(true);
@@ -172,7 +180,10 @@ export function useChatImageGeneration(
           }
           if (part.inlineData) {
             const inlineData = part.inlineData as Record<string, string>;
-            generatedImages.push(`data:${inlineData.mimeType};base64,${inlineData.data}`);
+            // Gemini API는 JPEG를 반환하므로 MIME 타입을 강제로 설정
+            // API가 잘못된 mimeType을 반환하는 경우를 대비
+            const mimeType = 'image/jpeg';
+            generatedImages.push(`data:${mimeType};base64,${inlineData.data}`);
             // thought_signature 보존 (다음 요청 시 이미지 재전송에 필요)
             imageSignatures.push((part.thoughtSignature as string) ?? '');
           }
