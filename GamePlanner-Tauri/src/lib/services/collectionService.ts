@@ -7,63 +7,89 @@ import { downloadDir, join } from '@tauri-apps/api/path'
 import { sanitizeGameName } from '../utils/collection'
 import { devLog } from '../utils/logger'
 
+// 검색 키워드 세트 (다양한 이미지 소스 확보용, 순환 사용)
+const SEARCH_QUERIES = [
+  '{game} game screenshot',
+  '{game} game UI UX interface',
+  '{game} game gameplay',
+  '{game} game marketing key art promotional',
+  '{game} mobile game review',
+]
+
 /**
- * 게임 이미지 URL 검색 (Google Images + Steam + Google Play 병행)
- *
- * 전략: 3개 소스를 병렬 검색 후 합산
- * - Bing Images: 웹 전체에서 게임 관련 이미지 수집 (메인 소스)
- * - Steam API: PC/콘솔 게임 공식 스크린샷
- * - Google Play: 모바일 게임 스토어 이미지
+ * 게임 이미지 URL 검색 (DuckDuckGo + Steam + Google Play 병행)
  *
  * @param apiKey Gemini API 키
  * @param gameName 검색할 게임명
+ * @param excludeUrls 제외할 URL 목록 (추가 탐색 시 기존 URL 배제)
+ * @param queryOffset 검색 키워드 오프셋 (추가 탐색 시 다른 키워드 사용)
  * @returns 이미지 URL 목록 (최대 20개)
  */
-export async function findGameImages(apiKey: string, gameName: string): Promise<string[]> {
+export async function findGameImages(
+  apiKey: string,
+  gameName: string,
+  excludeUrls: string[] = [],
+  queryOffset: number = 0,
+): Promise<string[]> {
   const cleanApiKey = String(apiKey || '').trim()
   if (!cleanApiKey) {
     throw new Error('API Key가 비어있습니다')
   }
 
-  devLog.log(`🔍 게임 이미지 검색 시작: ${gameName}`)
+  const excludeSet = new Set(excludeUrls)
+  devLog.log(`🔍 게임 이미지 검색 시작: ${gameName} (offset: ${queryOffset}, 제외: ${excludeUrls.length}개)`)
 
-  // 3개 소스를 병렬로 검색
-  const [googleImgUrls, steamUrls, googlePlayUrls] = await Promise.all([
-    findBingImages(gameName).catch(() => [] as string[]),
-    findSteamImages(gameName).catch(() => [] as string[]),
-    findGooglePlayImages(cleanApiKey, gameName).catch(() => [] as string[]),
-  ])
+  // 이번 탐색에서 사용할 검색 키워드 2개 선택 (오프셋 기반 순환)
+  const q1Index = (queryOffset * 2) % SEARCH_QUERIES.length
+  const q2Index = (queryOffset * 2 + 1) % SEARCH_QUERIES.length
+  const query1 = SEARCH_QUERIES[q1Index].replace('{game}', gameName)
+  const query2 = SEARCH_QUERIES[q2Index].replace('{game}', gameName)
 
-  devLog.log(`📊 검색 결과 - Bing Images: ${googleImgUrls.length}개, Steam: ${steamUrls.length}개, Google Play: ${googlePlayUrls.length}개`)
+  // 병렬 검색: DuckDuckGo 2개 쿼리 + (첫 탐색인 경우) Steam/Google Play
+  const searchPromises: Promise<string[]>[] = [
+    searchDuckDuckGo(query1).catch(() => [] as string[]),
+    searchDuckDuckGo(query2).catch(() => [] as string[]),
+  ]
 
-  // 결과 합산 (중복 제거, 우선순위: Google Images > Steam > Google Play)
-  const seenUrls = new Set<string>()
+  if (queryOffset === 0) {
+    searchPromises.push(
+      findSteamImages(gameName).catch(() => [] as string[]),
+      findGooglePlayImages(cleanApiKey, gameName).catch(() => [] as string[]),
+    )
+  }
+
+  const results = await Promise.all(searchPromises)
+
+  const labels = queryOffset === 0
+    ? [`DDG("${query1}")`, `DDG("${query2}")`, 'Steam', 'Google Play']
+    : [`DDG("${query1}")`, `DDG("${query2}")`]
+  devLog.log(`📊 검색 결과 - ${labels.map((l, i) => `${l}: ${results[i]?.length || 0}개`).join(', ')}`)
+
+  // 결과 합산 (중복 + 기존 URL 제거)
+  const seenUrls = new Set<string>(excludeSet)
   const combinedUrls: string[] = []
 
-  for (const url of [...googleImgUrls, ...steamUrls, ...googlePlayUrls]) {
-    if (!seenUrls.has(url)) {
-      seenUrls.add(url)
-      combinedUrls.push(url)
+  for (const batch of results) {
+    for (const url of batch) {
+      if (!seenUrls.has(url)) {
+        seenUrls.add(url)
+        combinedUrls.push(url)
+      }
+      if (combinedUrls.length >= 20) break
     }
     if (combinedUrls.length >= 20) break
   }
 
-  if (combinedUrls.length > 0) {
-    devLog.log(`✅ 총 이미지 ${combinedUrls.length}개 수집 완료`)
-    return combinedUrls
-  }
-
-  devLog.log(`⚠️ 모든 방법으로 이미지를 찾지 못함: ${gameName}`)
-  return []
+  devLog.log(`✅ 신규 이미지 ${combinedUrls.length}개 수집`)
+  return combinedUrls
 }
 
 /**
- * DuckDuckGo Image Search JSON API로 이미지 URL 추출 (메인 소스)
- * 2단계: 먼저 vqd 토큰을 받고, i.js 엔드포인트에서 JSON 결과 수신
+ * DuckDuckGo Image Search JSON API로 이미지 URL 추출
+ * @param query 검색 쿼리 문자열
  */
-async function findBingImages(gameName: string): Promise<string[]> {
+async function searchDuckDuckGo(query: string): Promise<string[]> {
   try {
-    const query = `${gameName} game screenshot`
     devLog.log(`🔎 DuckDuckGo Images 검색: ${query}`)
 
     // 1단계: DuckDuckGo 검색 페이지에서 vqd 토큰 추출
@@ -78,7 +104,7 @@ async function findBingImages(gameName: string): Promise<string[]> {
 
     if (!pageResponse.ok) {
       devLog.warn(`DuckDuckGo 페이지 HTTP 오류: ${pageResponse.status}`)
-      return await findBingImagesFallback(gameName)
+      return await findBingImagesFallback(query)
     }
 
     const pageHtml = await pageResponse.text()
@@ -88,7 +114,7 @@ async function findBingImages(gameName: string): Promise<string[]> {
     const vqdMatch = pageHtml.match(/vqd=["']?([^"'&]+)/) || pageHtml.match(/vqd=([\d-]+)/)
     if (!vqdMatch) {
       devLog.warn(`DuckDuckGo vqd 토큰을 찾지 못함, Bing fallback 시도`)
-      return await findBingImagesFallback(gameName)
+      return await findBingImagesFallback(query)
     }
 
     const vqd = vqdMatch[1]
@@ -107,7 +133,7 @@ async function findBingImages(gameName: string): Promise<string[]> {
 
     if (!imageResponse.ok) {
       devLog.warn(`DuckDuckGo i.js HTTP 오류: ${imageResponse.status}`)
-      return await findBingImagesFallback(gameName)
+      return await findBingImagesFallback(query)
     }
 
     const data = await imageResponse.json() as {
@@ -116,7 +142,7 @@ async function findBingImages(gameName: string): Promise<string[]> {
 
     if (!data.results || data.results.length === 0) {
       devLog.warn(`DuckDuckGo 이미지 결과 없음`)
-      return await findBingImagesFallback(gameName)
+      return await findBingImagesFallback(query)
     }
 
     // 원본 이미지 URL 추출 (중복 제거)
@@ -135,16 +161,16 @@ async function findBingImages(gameName: string): Promise<string[]> {
     return urls
   } catch (error) {
     devLog.warn(`DuckDuckGo Images 검색 실패:`, error)
-    return await findBingImagesFallback(gameName)
+    return await findBingImagesFallback(query)
   }
 }
 
 /**
  * Bing Images async 엔드포인트 (DuckDuckGo 실패 시 fallback)
  */
-async function findBingImagesFallback(gameName: string): Promise<string[]> {
+async function findBingImagesFallback(searchQuery: string): Promise<string[]> {
   try {
-    const query = encodeURIComponent(`${gameName} game screenshot`)
+    const query = encodeURIComponent(searchQuery)
     // Bing의 async 엔드포인트 - 이미지 데이터가 포함된 HTML 조각 반환
     const searchUrl = `https://www.bing.com/images/async?q=${query}&first=0&count=30&qft=+filterui:imagesize-large`
     devLog.log(`🔎 Bing Images fallback 검색`)
@@ -395,15 +421,42 @@ Example: com.example.gamename`
 }
 
 /**
+ * Content-Type 또는 매직 바이트로 실제 이미지 확장자 결정
+ */
+function detectImageExtension(contentType: string | null, data: Uint8Array): string | null {
+  // 매직 바이트로 실제 포맷 판별 (Content-Type보다 정확)
+  if (data[0] === 0xFF && data[1] === 0xD8 && data[2] === 0xFF) return '.jpg'
+  if (data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4E && data[3] === 0x47) return '.png'
+  if (data[0] === 0x47 && data[1] === 0x49 && data[2] === 0x46) return '.gif'
+  if (data[0] === 0x52 && data[1] === 0x49 && data[2] === 0x46 && data[3] === 0x46 &&
+      data[8] === 0x57 && data[9] === 0x45 && data[10] === 0x42 && data[11] === 0x50) return '.webp'
+
+  // 매직 바이트 판별 실패 시 Content-Type 사용
+  if (contentType) {
+    const ct = contentType.toLowerCase()
+    if (ct.includes('image/jpeg') || ct.includes('image/jpg')) return '.jpg'
+    if (ct.includes('image/png')) return '.png'
+    if (ct.includes('image/gif')) return '.gif'
+    if (ct.includes('image/webp')) return '.webp'
+    if (ct.includes('image/bmp')) return '.bmp'
+    if (ct.includes('image/svg')) return '.svg'
+  }
+
+  // 이미지가 아닌 경우
+  return null
+}
+
+/**
  * 이미지 URL에서 파일 다운로드 및 저장
+ * Content-Type/매직 바이트 기반으로 올바른 확장자 적용
  * @param url 다운로드할 이미지 URL
- * @param savePath 저장할 절대 경로
- * @returns 파일 크기 (바이트)
+ * @param savePath 저장할 절대 경로 (확장자는 자동 교정됨)
+ * @returns 파일 크기, 실제 저장 경로
  */
 export async function downloadImage(
   url: string,
   savePath: string
-): Promise<{ fileSize: number }> {
+): Promise<{ fileSize: number; actualPath: string }> {
   devLog.log(`⬇️ 이미지 다운로드 시작: ${url}`)
 
   // Tauri HTTP 플러그인으로 이미지 다운로드
@@ -422,12 +475,28 @@ export async function downloadImage(
   const arrayBuffer = await response.arrayBuffer()
   const data = new Uint8Array(arrayBuffer)
 
+  // 최소 크기 검증 (100바이트 미만이면 유효한 이미지가 아님)
+  if (data.byteLength < 100) {
+    throw new Error(`파일 크기가 너무 작음 (${data.byteLength} bytes)`)
+  }
+
+  // Content-Type + 매직 바이트로 실제 이미지 포맷 판별
+  const contentType = response.headers.get('content-type')
+  const correctExt = detectImageExtension(contentType, data)
+
+  if (!correctExt) {
+    throw new Error(`이미지 파일이 아님 (Content-Type: ${contentType})`)
+  }
+
+  // 확장자 교정: 기존 경로의 확장자를 실제 포맷으로 교체
+  const actualPath = savePath.replace(/\.[^.]+$/, correctExt)
+
   // Tauri FS 플러그인으로 파일 저장
-  await writeFile(savePath, data)
+  await writeFile(actualPath, data)
 
-  devLog.log(`✅ 이미지 저장 완료: ${savePath} (${data.byteLength} bytes)`)
+  devLog.log(`✅ 이미지 저장 완료: ${actualPath} (${data.byteLength} bytes, ${correctExt})`)
 
-  return { fileSize: data.byteLength }
+  return { fileSize: data.byteLength, actualPath }
 }
 
 /**

@@ -1,6 +1,7 @@
 // 게임 이미지 수집 패널 - 수집된 이미지 목록 표시 및 관리
 
 import { FolderOpen, Download, Image, Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useAppStore } from '../store/useAppStore'
 import { useCollection } from '../hooks/useCollection'
 
@@ -53,7 +54,7 @@ function SkeletonCard() {
  */
 export function CollectionPanel() {
   const { collectionSessions, currentCollectionId } = useAppStore()
-  const { openFolder } = useCollection()
+  const { openFolder, continueCollection } = useCollection()
 
   // 현재 선택된 수집 세션
   const currentSession = currentCollectionId
@@ -128,15 +129,29 @@ export function CollectionPanel() {
           {getStatusMessage()}
         </div>
 
-        {/* 저장 폴더 바로가기 버튼 */}
-        <button
-          onClick={() => openFolder(currentSession.folderPath)}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted hover:bg-accent transition-colors text-sm font-medium"
-          title={`폴더 열기: ${currentSession.folderPath}`}
-        >
-          <FolderOpen className="w-4 h-4" />
-          <span>저장 폴더 열기</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* 추가 탐색 버튼 (완료 상태일 때만 표시) */}
+          {currentSession.status === 'completed' && (
+            <button
+              onClick={() => continueCollection(currentSession.id)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors text-sm font-medium"
+              title="다른 키워드로 20개 추가 검색"
+            >
+              <Download className="w-4 h-4" />
+              <span>추가 탐색</span>
+            </button>
+          )}
+
+          {/* 저장 폴더 바로가기 버튼 */}
+          <button
+            onClick={() => openFolder(currentSession.folderPath)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted hover:bg-accent transition-colors text-sm font-medium"
+            title={`폴더 열기: ${currentSession.folderPath}`}
+          >
+            <FolderOpen className="w-4 h-4" />
+            <span>폴더 열기</span>
+          </button>
+        </div>
       </div>
 
       {/* 진행 바 (다운로드 중일 때만 표시) */}
@@ -189,11 +204,12 @@ export function CollectionPanel() {
                 >
                   {/* 이미지 프리뷰 */}
                   <div className="aspect-video bg-muted flex items-center justify-center overflow-hidden">
-                    {image.thumbnailData ? (
+                    {image.status === 'completed' && image.filePath ? (
                       <img
-                        src={image.thumbnailData}
+                        src={convertFileSrc(image.filePath)}
                         alt={image.fileName}
                         className="w-full h-full object-cover"
+                        loading="lazy"
                       />
                     ) : (
                       <div className="flex flex-col items-center gap-1 text-muted-foreground">

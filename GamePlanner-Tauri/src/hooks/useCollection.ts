@@ -4,7 +4,7 @@ import { join } from '@tauri-apps/api/path'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { useAppStore } from '../store/useAppStore'
 import { findGameImages, downloadImage, ensureGameFolder } from '../lib/services/collectionService'
-import { generateImageFileName, createThumbnail } from '../lib/utils/collection'
+import { generateImageFileName } from '../lib/utils/collection'
 import { devLog } from '../lib/utils/logger'
 import type { CollectionImage } from '../types/collection'
 
@@ -82,31 +82,18 @@ export function useCollection() {
         updateCollectionImage(sessionId, imageId, { status: 'downloading' })
 
         try {
-          // c. 이미지 다운로드
-          const { fileSize } = await downloadImage(url, filePath)
+          // c. 이미지 다운로드 (Content-Type/매직 바이트 기반 확장자 자동 교정)
+          const { fileSize, actualPath } = await downloadImage(url, filePath)
 
-          // d. 썸네일 생성 (다운로드된 데이터로 썸네일 생성)
-          let thumbnailData: string | undefined
-          try {
-            // 다운로드된 파일을 다시 읽어서 썸네일 생성 대신
-            // URL에서 직접 fetch하여 썸네일 생성 (Blob 방식)
-            const response = await fetch(url)
-            if (response.ok) {
-              const arrayBuffer = await response.arrayBuffer()
-              const imageBytes = new Uint8Array(arrayBuffer)
-              const mimeType = response.headers.get('content-type') || 'image/jpeg'
-              thumbnailData = await createThumbnail(imageBytes, mimeType)
-            }
-          } catch (thumbErr) {
-            // 썸네일 생성 실패는 치명적이지 않음
-            devLog.warn(`⚠️ 썸네일 생성 실패 (${fileName}):`, thumbErr)
-          }
+          // d. 실제 저장 경로와 파일명 업데이트
+          const actualFileName = actualPath.split(/[/\\]/).pop() || fileName
 
-          // e. 완료 처리 (status: completed)
+          // e. 완료 처리 (status: completed, 실제 경로로 업데이트)
           updateCollectionImage(sessionId, imageId, {
             status: 'completed',
             fileSize,
-            thumbnailData,
+            filePath: actualPath,
+            fileName: actualFileName,
             downloadedAt: Date.now(),
           })
 
@@ -143,6 +130,88 @@ export function useCollection() {
   }
 
   /**
+   * 추가 탐색 - 기존 세션에 이미지를 더 수집
+   * 기존 URL을 제외하고 다른 키워드로 검색
+   * @param sessionId 수집 세션 ID
+   */
+  const continueCollection = async (sessionId: string) => {
+    const state = useAppStore.getState()
+    const session = state.collectionSessions.find(s => s.id === sessionId)
+    if (!session) return
+
+    if (!apiKey) {
+      updateCollectionStatus(sessionId, 'failed', 'API Key가 설정되지 않았습니다')
+      return
+    }
+
+    try {
+      devLog.log(`🔄 추가 탐색 시작: ${session.gameName}`)
+
+      // 기존 이미지 URL 목록 (중복 방지)
+      const existingUrls = session.images.map(img => img.url)
+      // 검색 오프셋 계산 (이전 탐색 횟수 기반)
+      const queryOffset = Math.floor(session.images.length / 20) + 1
+
+      updateCollectionStatus(sessionId, 'searching')
+
+      const urls = await findGameImages(apiKey, session.gameName, existingUrls, queryOffset)
+
+      if (urls.length === 0) {
+        devLog.warn(`⚠️ 추가 이미지를 찾지 못함: ${session.gameName}`)
+        updateCollectionStatus(sessionId, 'completed')
+        return
+      }
+
+      updateCollectionSession(sessionId, {
+        status: 'downloading',
+        totalFound: (session.totalFound || 0) + urls.length,
+      })
+
+      devLog.log(`📋 추가 다운로드 대상: ${urls.length}개`)
+
+      // 기존 이미지 수 기반으로 인덱스 시작
+      const startIndex = session.images.length
+
+      for (let i = 0; i < urls.length; i++) {
+        const url = urls[i]
+        const imageId = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        const fileName = generateImageFileName(url, startIndex + i)
+        const filePath = await join(session.folderPath, fileName)
+
+        const pendingImage: CollectionImage = {
+          id: imageId, url, fileName, filePath, status: 'pending',
+        }
+        addCollectionImage(sessionId, pendingImage)
+        updateCollectionImage(sessionId, imageId, { status: 'downloading' })
+
+        try {
+          const { fileSize, actualPath } = await downloadImage(url, filePath)
+          const actualFileName = actualPath.split(/[/\\]/).pop() || fileName
+
+          updateCollectionImage(sessionId, imageId, {
+            status: 'completed', fileSize, filePath: actualPath, fileName: actualFileName, downloadedAt: Date.now(),
+          })
+          devLog.log(`✅ 추가 이미지 (${i + 1}/${urls.length}): ${actualFileName}`)
+        } catch (downloadErr) {
+          const errorMsg = downloadErr instanceof Error ? downloadErr.message : '다운로드 실패'
+          updateCollectionImage(sessionId, imageId, { status: 'failed', error: errorMsg })
+        }
+
+        if (i < urls.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 200))
+        }
+      }
+
+      updateCollectionStatus(sessionId, 'completed')
+      devLog.log(`🎉 추가 탐색 완료: ${session.gameName} (추가 ${urls.length}개)`)
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류'
+      devLog.error(`❌ 추가 탐색 실패:`, errorMsg)
+      updateCollectionStatus(sessionId, 'failed', errorMsg)
+    }
+  }
+
+  /**
    * 저장 폴더를 파일 탐색기에서 열기
    * @param folderPath 열 폴더 경로
    */
@@ -157,7 +226,7 @@ export function useCollection() {
 
   return {
     startCollection,
+    continueCollection,
     openFolder,
-    isCollecting: false,
   }
 }
