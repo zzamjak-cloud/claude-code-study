@@ -35,10 +35,22 @@
         }
       ]
     },
-    "fs:allow-read-file",
-    "fs:allow-read-text-file",
-    "fs:allow-write-text-file",
-    "fs:allow-write-file",
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "**" }]
+    },
     "fs:allow-exists",
     "fs:allow-mkdir",
     "fs:allow-download-meta",

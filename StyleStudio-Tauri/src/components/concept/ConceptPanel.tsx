@@ -5,7 +5,6 @@ import { ConceptLeftPanel } from './ConceptLeftPanel';
 import { ConceptRightPanel } from './ConceptRightPanel';
 import { ConceptHistory } from './ConceptHistory';
 import { useConceptGeneration } from '../../hooks/useConceptGeneration';
-import { v4 as uuidv4 } from 'uuid';
 import { exists, mkdir, writeFile } from '@tauri-apps/plugin-fs';
 import { downloadDir, join } from '@tauri-apps/api/path';
 import { logger } from '../../lib/logger';
@@ -72,16 +71,33 @@ export const ConceptPanel = memo(({ session, apiKey, onSessionUpdate }: ConceptP
     return fullPath;
   }, []);
 
-  // 세션 업데이트
+  // 세션 저장용 ref (이미지 생성, 히스토리 삭제, 언마운트 시에만 저장)
+  const sessionRef = useRef(session);
+  const onSessionUpdateRef = useRef(onSessionUpdate);
+  const conceptDataRef = useRef(conceptData);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  useEffect(() => { onSessionUpdateRef.current = onSessionUpdate; }, [onSessionUpdate]);
+  useEffect(() => { conceptDataRef.current = conceptData; }, [conceptData]);
+
+  // 명시적 세션 저장 함수 (ref 기반으로 안정적인 참조)
+  const saveToSession = useCallback((dataToSave: ConceptSessionData) => {
+    onSessionUpdateRef.current({
+      ...sessionRef.current,
+      conceptData: dataToSave,
+      updatedAt: new Date().toISOString(),
+    });
+  }, []);
+
+  // 언마운트 시 현재 상태 저장 (세션 전환 등으로 이탈 시 데이터 보존)
   useEffect(() => {
-    if (session.conceptData !== conceptData) {
-      onSessionUpdate({
-        ...session,
-        conceptData,
+    return () => {
+      onSessionUpdateRef.current({
+        ...sessionRef.current,
+        conceptData: conceptDataRef.current,
         updatedAt: new Date().toISOString(),
       });
-    }
-  }, [conceptData, session, onSessionUpdate]);
+    };
+  }, []);
 
   useEffect(() => {
     gamePlayStyleDraftRef.current = conceptData.gamePlayStyle || '';
@@ -128,12 +144,6 @@ export const ConceptPanel = memo(({ session, apiKey, onSessionUpdate }: ConceptP
     try {
       setGenerationError(null);
       const gamePlayStyle = gamePlayStyleDraftRef.current;
-      if (gamePlayStyle !== (conceptData.gamePlayStyle || '')) {
-        setConceptData(prev => ({
-          ...prev,
-          gamePlayStyle,
-        }));
-      }
       const result = await generateConcept({
         prompt,
         referenceImage: conceptData.referenceImage,
@@ -144,25 +154,29 @@ export const ConceptPanel = memo(({ session, apiKey, onSessionUpdate }: ConceptP
         settings: conceptData.generationSettings,
       });
 
-      // 히스토리에 추가
+      // 히스토리에 추가 및 세션 저장
       const newEntry = {
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         prompt: result.prompt,
         imageBase64: result.imageBase64,
         settings: conceptData.generationSettings,
         gameInfo: {
           genres: conceptData.gameGenres,
-          playStyle: conceptData.gamePlayStyle,
+          playStyle: gamePlayStyle,
           referenceGames: conceptData.referenceGames,
           artStyles: conceptData.artStyles,
         },
       };
 
-      setConceptData(prev => ({
-        ...prev,
-        history: [...prev.history, newEntry],
-      }));
+      const updatedData: ConceptSessionData = {
+        ...conceptData,
+        gamePlayStyle,
+        history: [...conceptData.history, newEntry],
+      };
+      setConceptData(updatedData);
+      saveToSession(updatedData);
+
       setSelectedHistoryId(newEntry.id);
       setSelectedGeneratedImage(newEntry.imageBase64);
       setRestoredPrompt(newEntry.prompt || '');
@@ -181,17 +195,19 @@ export const ConceptPanel = memo(({ session, apiKey, onSessionUpdate }: ConceptP
     }
   }, [isGenerating, apiKey, conceptData, generateConcept, autoSaveConceptImage]);
 
-  // 히스토리 아이템 삭제
+  // 히스토리 아이템 삭제 및 세션 저장
   const handleHistoryDelete = useCallback((id: string) => {
-    setConceptData(prev => ({
-      ...prev,
-      history: prev.history.filter(item => item.id !== id),
-    }));
+    const updatedData: ConceptSessionData = {
+      ...conceptDataRef.current,
+      history: conceptDataRef.current.history.filter(item => item.id !== id),
+    };
+    setConceptData(updatedData);
+    saveToSession(updatedData);
     if (selectedHistoryId === id) {
       setSelectedHistoryId(null);
       setSelectedGeneratedImage(null);
     }
-  }, [selectedHistoryId]);
+  }, [selectedHistoryId, saveToSession]);
 
   // 히스토리 선택 시 설정/정보 복원
   const handleHistorySelect = useCallback((entry: ConceptGenerationEntry) => {

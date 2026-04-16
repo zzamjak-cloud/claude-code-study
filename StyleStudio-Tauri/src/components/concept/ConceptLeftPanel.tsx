@@ -3,6 +3,7 @@ import { Upload, X, Plus, Trash2, Image, Gamepad2, Palette } from 'lucide-react'
 import { GAME_GENRE_PRESETS, ART_STYLE_PRESETS } from '../../types/concept';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { readFile } from '@tauri-apps/plugin-fs';
+import { open } from '@tauri-apps/plugin-dialog';
 
 interface ConceptLeftPanelProps {
   referenceImage?: string;
@@ -93,6 +94,36 @@ export const ConceptLeftPanel = memo(({
     return () => { if (unlisten) unlisten(); };
   }, []); // 의존성 배열을 비워서 한 번만 실행되도록 수정
 
+  // Tauri dialog를 사용한 파일 선택
+  const handleFileSelect = useCallback(async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [
+          {
+            name: 'Image',
+            extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'],
+          },
+        ],
+      });
+
+      if (selected && typeof selected === 'string') {
+        const fileData = await readFile(selected);
+        const base64 = btoa(
+          Array.from(new Uint8Array(fileData))
+            .map(b => String.fromCharCode(b))
+            .join('')
+        );
+        const ext = selected.split('.').pop()?.toLowerCase();
+        const mimeType = ext === 'jpg' ? 'image/jpeg' : `image/${ext}`;
+        const dataUrl = `data:${mimeType};base64,${base64}`;
+        onReferenceImageChange(dataUrl);
+      }
+    } catch (err) {
+      console.error('파일 선택 실패:', err);
+    }
+  }, [onReferenceImageChange]);
+
   // 장르 추가
   const handleAddGenre = useCallback((genre: string) => {
     if (genre && !gameGenres.includes(genre)) {
@@ -171,28 +202,14 @@ export const ConceptLeftPanel = memo(({
           </label>
 
           {!referenceImage && !generatedImage ? (
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer">
+            <div
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors cursor-pointer"
+              onClick={handleFileSelect}
+            >
               <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
               <p className="text-sm text-gray-500">
                 이미지를 드래그하거나 클릭하여 업로드
               </p>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = () => {
-                      onReferenceImageChange(reader.result as string);
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-                id="reference-upload"
-              />
-              <label htmlFor="reference-upload" className="sr-only">이미지 선택</label>
             </div>
           ) : (
             <div className={`grid gap-3 ${generatedImage ? 'grid-cols-2' : 'grid-cols-1'}`}>

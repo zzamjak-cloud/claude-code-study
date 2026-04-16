@@ -840,7 +840,7 @@ function App() {
         generationSettings: {
           model: 'nanobanana-pro',
           ratio: '9:16',
-          size: '2k',
+          size: '1k',
           grid: '1x1',
         },
         history: [],
@@ -1077,12 +1077,14 @@ function App() {
           </div>
         ) : currentSession?.type === 'BASIC' ? (
           <ChatPanel
+            key={currentSession.id}
             session={currentSession}
             apiKey={apiKey}
             onSessionUpdate={handleSessionUpdate}
           />
         ) : currentSession?.type === 'CONCEPT' ? (
           <ConceptPanel
+            key={currentSession.id}
             session={currentSession}
             apiKey={apiKey}
             onSessionUpdate={handleSessionUpdate}
