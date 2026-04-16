@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Key, FolderOpen, Trash2, LogOut, User } from 'lucide-react';
 import { open } from '@tauri-apps/plugin-dialog';
+import { getVersion } from '@tauri-apps/api/app';
 import { loadDefaultSessionSavePath, saveDefaultSessionSavePath } from '../../lib/storage';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -16,11 +17,16 @@ export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: Settin
   const [defaultSavePath, setDefaultSavePath] = useState<string | null>(null);
   const [saveNotification, setSaveNotification] = useState<string | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [version, setVersion] = useState('');
   const { user, logout } = useAuth();
 
   useEffect(() => {
     setApiKey(currentApiKey);
   }, [currentApiKey]);
+
+  useEffect(() => {
+    getVersion().then(setVersion).catch(() => setVersion('0.0.0'));
+  }, []);
 
   // 로그아웃 처리
   const handleLogout = async () => {
@@ -203,19 +209,22 @@ export function SettingsModal({ isOpen, onClose, currentApiKey, onSave }: Settin
         )}
 
         {/* 푸터 */}
-        <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            취소
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
-          >
-            저장
-          </button>
+        <div className="flex items-center justify-between p-6 border-t border-gray-200">
+          <span className="text-xs text-gray-400">v{version}</span>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              취소
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg font-semibold transition-all shadow-lg hover:shadow-xl"
+            >
+              저장
+            </button>
+          </div>
         </div>
       </div>
     </div>

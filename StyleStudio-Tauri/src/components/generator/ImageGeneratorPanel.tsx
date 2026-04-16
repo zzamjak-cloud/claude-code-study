@@ -447,7 +447,6 @@ export function ImageGeneratorPanel({
   const setPixelArtGrid = (value: PixelArtGridLayout) => updateState({ pixelArtGrid: value });
   const setCameraAngle = (value: string) => updateState({ cameraAngle: value });
   const setCameraLens = (value: string) => updateState({ cameraLens: value });
-  const setImageModel = (value: ImageGenerationModel) => updateState({ imageModel: value });
   const setZoomLevel = (value: 'fit' | 'actual' | number) => updateState({ zoomLevel: value });
   const setShowZoomMenu = (value: boolean) => updateState({ showZoomMenu: value });
   const setShowPathTooltip = (value: boolean) => updateState({ showPathTooltip: value });
@@ -608,7 +607,8 @@ export function ImageGeneratorPanel({
             logger.debug('📊 진행:', message);
           },
           onComplete: async (imageBase64) => {
-            let dataUrl = `data:image/png;base64,${imageBase64}`;
+            // Gemini API는 JPEG 바이너리를 반환하므로 올바른 MIME 타입 사용
+            let dataUrl = `data:image/jpeg;base64,${imageBase64}`;
 
             // 흰색 배경 제거 대상 세션 타입인지 확인
             const shouldRemoveBackground = TRANSPARENT_BACKGROUND_SESSION_TYPES.includes(sessionType);
@@ -793,12 +793,12 @@ export function ImageGeneratorPanel({
             throw mkdirError;
           }
         }
+      }
 
-        // 기본 경로로 변경 알림 (초기 상태일 때만)
-        if (onAutoSavePathChange && !autoSavePath) {
-          await onAutoSavePathChange(fallbackPath);
-          logger.debug('✅ 세션의 저장 폴더가 기본 경로로 설정되었습니다');
-        }
+      // 기본 경로로 변경 알림 (초기 상태일 때만 - 조건문 바깥으로 이동)
+      if (onAutoSavePathChange && !autoSavePath) {
+        await onAutoSavePathChange(savePath);
+        logger.debug('✅ 세션의 저장 폴더가 설정되었습니다:', savePath);
       }
 
       // 파일명 생성 (투명 배경 이미지는 PNG, 그 외는 JPG)
@@ -1261,8 +1261,6 @@ export function ImageGeneratorPanel({
           onCameraLensChange={setCameraLens}
           onDocumentAdd={onDocumentAdd}
           onDocumentDelete={onDocumentDelete}
-          imageModel={imageModel}
-          onImageModelChange={setImageModel}
         />
 
 

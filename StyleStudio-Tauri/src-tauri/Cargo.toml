@@ -1,6 +1,6 @@
 [package]
 name = "stylestudio-tauri"
-version = "0.1.9"
+version = "0.3.2"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
