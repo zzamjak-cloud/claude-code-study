@@ -7,7 +7,9 @@ import { SettingsModal } from './components/SettingsModal'
 import { Resizer } from './components/Resizer'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { UpdateModal } from './components/UpdateModal'
+import { CollectionPanel } from './components/CollectionPanel'
 import { useAppStore } from './store/useAppStore'
+import { SessionType } from './store/useAppStore'
 import { useAppInitialization } from './hooks/useAppInitialization'
 import { useAutoSave } from './hooks/useAutoSave'
 import { useMessageHandler } from './hooks/useMessageHandler'
@@ -25,7 +27,7 @@ function App() {
   const [errorDialog, setErrorDialog] = useState<{ title: string; message: string } | null>(null)
   const [infoDialog, setInfoDialog] = useState<{ title: string; message: string } | null>(null)
   // sessions 구독 제거 - 렉 방지 (필요할 때만 getState()로 가져옴)
-  const { apiKey, currentSessionId, createVersion, setActivePreviewTab } = useAppStore()
+  const { apiKey, currentSessionId, currentSessionType, createVersion, setActivePreviewTab } = useAppStore()
 
   // 자동 업데이트
   const {
@@ -158,26 +160,34 @@ function App() {
           {/* 좌측 사이드바 (채팅 목록) */}
           <Sidebar />
 
-          {/* 메인 컨텐츠 영역 (채팅 + 리사이저 + 기획서) */}
+          {/* 메인 컨텐츠 영역 (수집 탭이면 CollectionPanel, 그 외엔 기존 3컬럼) */}
           <div className="flex-1 flex overflow-hidden">
-            {/* 중앙 채팅 패널 */}
-            <div
-              style={{ width: `${chatPanelWidth}%` }}
-              className="flex-shrink-0 overflow-hidden"
-            >
-              <ChatPanel
-                onSendMessage={handleSendMessageWrapper}
-                currentAssistantMessage={currentAssistantMessage}
-              />
-            </div>
+            {currentSessionType === SessionType.COLLECTION ? (
+              /* 수집 탭: CollectionPanel이 전체 영역 차지 */
+              <CollectionPanel />
+            ) : (
+              /* 기획/분석 탭: 기존 3컬럼 레이아웃 유지 */
+              <>
+                {/* 중앙 채팅 패널 */}
+                <div
+                  style={{ width: `${chatPanelWidth}%` }}
+                  className="flex-shrink-0 overflow-hidden"
+                >
+                  <ChatPanel
+                    onSendMessage={handleSendMessageWrapper}
+                    currentAssistantMessage={currentAssistantMessage}
+                  />
+                </div>
 
-            {/* 리사이저 */}
-            <Resizer onResize={handleResize} />
+                {/* 리사이저 */}
+                <Resizer onResize={handleResize} />
 
-            {/* 우측 마크다운 프리뷰 */}
-            <div className="flex-1 overflow-hidden">
-              <MarkdownPreview />
-            </div>
+                {/* 우측 마크다운 프리뷰 */}
+                <div className="flex-1 overflow-hidden">
+                  <MarkdownPreview />
+                </div>
+              </>
+            )}
           </div>
         </div>
 

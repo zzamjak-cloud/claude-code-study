@@ -23,8 +23,13 @@
     "fs:default",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-mkdir",
+    "fs:allow-exists",
+    "fs:allow-read-dir",
     "http:default",
     "http:allow-fetch",
+    "opener:allow-reveal-item-in-dir",
     "updater:default",
     "process:default",
     {
@@ -44,7 +49,16 @@
         },
         {
           "url": "https://accounts.google.com/*"
+        },
+        {
+          "url": "https://**"
         }
+      ]
+    },
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$DOWNLOAD/**" }
       ]
     }
   ]

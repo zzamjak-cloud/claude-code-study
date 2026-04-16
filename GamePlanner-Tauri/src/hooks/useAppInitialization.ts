@@ -155,6 +155,12 @@ export function useAppInitialization(options: UseAppInitializationOptions = {}) 
           devLog.log('세션 목록:', savedSessions.map((s, idx) => `${idx + 1}. ${s.title} (${s.type})`).join(', '))
         }
 
+        // 수집 세션 로드
+        if (settings.collectionSessions && settings.collectionSessions.length > 0) {
+          devLog.log('📂 수집 세션 로드:', settings.collectionSessions.length, '개')
+          useAppStore.setState({ collectionSessions: settings.collectionSessions })
+        }
+
         // 저장된 세션이 있으면 복원, 없으면 빈 상태 유지
         if (savedSessions && Array.isArray(savedSessions) && savedSessions.length > 0) {
           try {

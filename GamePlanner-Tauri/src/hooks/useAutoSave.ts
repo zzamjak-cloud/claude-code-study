@@ -3,8 +3,9 @@
 
 import { useEffect } from 'react'
 import { useAppStore } from '../store/useAppStore'
-import { saveSessions } from '../lib/store'
+import { saveSessions, saveCollectionSessions } from '../lib/store'
 import { AUTO_SAVE_DEBOUNCE_MS } from '../lib/constants/session'
+import { devLog } from '../lib/utils/logger'
 
 interface UseAutoSaveOptions {
   /** 자동 저장 차단 여부 (버전 생성 중, 모달 입력 중 등) */
@@ -14,6 +15,7 @@ interface UseAutoSaveOptions {
 export function useAutoSave(options: UseAutoSaveOptions = {}) {
   const { isBlocked = false } = options
   const { sessions } = useAppStore()
+  const collectionSessions = useAppStore(state => state.collectionSessions)
 
   useEffect(() => {
     // 저장이 차단된 경우 스킵
@@ -48,5 +50,27 @@ export function useAutoSave(options: UseAutoSaveOptions = {}) {
     const timeout = setTimeout(saveSession, AUTO_SAVE_DEBOUNCE_MS)
     return () => clearTimeout(timeout)
   }, [sessions, isBlocked])
+
+  // 수집 세션 자동 저장 (채팅 세션과 동일한 디바운스 패턴 적용)
+  useEffect(() => {
+    // 저장이 차단된 경우 스킵
+    if (isBlocked) {
+      return
+    }
+
+    const saveCollectionSession = async () => {
+      if (collectionSessions && collectionSessions.length > 0) {
+        try {
+          await saveCollectionSessions(collectionSessions)
+          devLog.log('💾 수집 세션 자동 저장 완료:', collectionSessions.length, '개')
+        } catch (error) {
+          console.error('❌ 수집 세션 저장 실패:', error)
+        }
+      }
+    }
+
+    const timeout = setTimeout(saveCollectionSession, AUTO_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timeout)
+  }, [collectionSessions, isBlocked])
 }
 

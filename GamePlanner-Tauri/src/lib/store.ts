@@ -2,6 +2,7 @@ import { Store } from '@tauri-apps/plugin-store'
 import { PromptTemplate } from '../types/promptTemplate'
 import { ChatSession } from '../store/useAppStore'
 import { Settings, SaveSettingsParams, WindowState } from '../types/store'
+import { CollectionSession } from '../types/collection'
 import { migrateSettings } from './migrations'
 import { devLog } from './utils/logger'
 
@@ -95,6 +96,9 @@ export async function getSettings(): Promise<Settings> {
   // 창 상태
   const windowState = await store.get<WindowState>('window_state')
 
+  // 수집 세션
+  const collectionSessions = await store.get<CollectionSession[]>('collection_sessions')
+
   const rawSettings: Settings = {
     geminiApiKey,
     notionApiKey,
@@ -106,6 +110,7 @@ export async function getSettings(): Promise<Settings> {
     currentPlanningTemplateId,
     currentAnalysisTemplateId,
     windowState,
+    collectionSessions,
   }
 
   // 설정 마이그레이션 적용
@@ -239,5 +244,35 @@ export async function saveWindowState(windowState: WindowState) {
 export async function getWindowState(): Promise<WindowState | null> {
   const store = await getStore()
   return await store.get<WindowState>('window_state') || null
+}
+
+/**
+ * 수집 세션을 저장합니다
+ * 썸네일 데이터(thumbnailData)는 메모리 전용 필드이므로 저장에서 제외합니다
+ */
+export async function saveCollectionSessions(sessions: CollectionSession[]): Promise<void> {
+  const store = await getStore()
+
+  // 썸네일 데이터 제거 후 저장 (메모리 전용 필드)
+  const sessionsToSave = sessions.map(s => ({
+    ...s,
+    images: s.images.map(img => {
+      const { thumbnailData, ...rest } = img
+      return rest
+    })
+  }))
+
+  await store.set('collection_sessions', sessionsToSave)
+  await saveStore()
+
+  // 저장 후 검증
+  const verifySessions = await store.get<CollectionSession[]>('collection_sessions')
+  if (!verifySessions || verifySessions.length !== sessions.length) {
+    console.error('❌ [saveCollectionSessions] 수집 세션 저장 실패! 저장된 개수가 일치하지 않음')
+    console.error('  - 저장하려던 개수:', sessions.length)
+    console.error('  - 실제 저장된 개수:', verifySessions?.length || 0)
+  } else {
+    devLog.log('💾 수집 세션 저장:', sessions.length, '개')
+  }
 }
 

@@ -31,7 +31,7 @@ export interface SessionSlice {
   clearMessages: () => void
 
   // 분석 세션 관리
-  createAnalysisSession: (gameName: string) => string
+  createAnalysisSession: (gameName: string, templateId?: string) => string
   updateAnalysisStatus: (sessionId: string, status: string, notionUrl?: string) => void
   convertAnalysisToPlanning: (analysisSessionId: string) => string
 
@@ -224,19 +224,24 @@ export const createSessionSlice: StateCreator<
   },
 
   // 분석 세션 생성
-  createAnalysisSession: (gameName: string) => {
+  createAnalysisSession: (gameName: string, templateId?: string) => {
     const state = get()
+    // 전달된 templateId가 있으면 사용, 없으면 현재 기본 템플릿 ID 사용
+    const resolvedTemplateId = templateId
+      || (state as SessionSlice & { currentAnalysisTemplateId: string | null }).currentAnalysisTemplateId
+      || 'default-analysis'
     const newSession: ChatSession = {
       id: generateSessionId(),
       type: SessionType.ANALYSIS,
       title: generateSessionTitle(SessionType.ANALYSIS, gameName),
-      messages: [],
+      // 게임명을 첫 번째 user 메시지로 자동 추가
+      messages: [{ role: 'user', content: gameName }],
       markdownContent: '',
       createdAt: Date.now(),
       updatedAt: Date.now(),
       gameName,
       analysisStatus: 'pending',
-      templateId: (state as SessionSlice & { currentAnalysisTemplateId: string | null }).currentAnalysisTemplateId || 'default-analysis',
+      templateId: resolvedTemplateId,
     }
 
     set((state) => ({
