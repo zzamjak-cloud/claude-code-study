@@ -25,3 +25,8 @@ venv/
 
 # Git worktrees
 .worktrees/
+.omc
+.playwright-mcp
+Plans
+docs
+.github/workflows

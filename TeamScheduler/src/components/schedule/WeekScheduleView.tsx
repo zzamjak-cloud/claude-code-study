@@ -311,7 +311,6 @@ function ScheduleWeekSpanCell({
   rangeStart = 0,
   rangeEnd = 0,
   onResizeRange,
-  onMoveRange,
 }: {
   schedule: Schedule
   projects: Project[]
@@ -323,7 +322,6 @@ function ScheduleWeekSpanCell({
   rangeStart?: number
   rangeEnd?: number
   onResizeRange?: (nextStart: number, nextEnd: number) => void
-  onMoveRange?: (nextStart: number, nextEnd: number) => void
 }) {
   const annual = isAnnualLeaveSchedule(s)
   const bg = annual
@@ -386,33 +384,6 @@ function ScheduleWeekSpanCell({
     window.addEventListener('mouseup', handleUp)
   }
 
-  const beginMove = (e: React.MouseEvent) => {
-    if (!onMoveRange) return
-    const target = e.target as HTMLElement
-    if (target.closest('button')) return
-    e.preventDefault()
-    const rowEl = (e.currentTarget as HTMLElement).closest('.week-row-grid') as HTMLElement | null
-    if (!rowEl) return
-    const rect = rowEl.getBoundingClientRect()
-    const dayWidth = rect.width / 15
-    const startX = e.clientX
-    const initialStart = rangeStart
-    const initialEnd = rangeEnd
-    const length = initialEnd - initialStart
-
-    const handleMove = (ev: MouseEvent) => {
-      const deltaDays = Math.round((ev.clientX - startX) / dayWidth)
-      const nextStart = Math.max(0, Math.min(14 - length, initialStart + deltaDays))
-      onMoveRange(nextStart, nextStart + length)
-    }
-    const handleUp = () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-  }
-
   return (
     <div
       tabIndex={0}
@@ -436,7 +407,6 @@ function ScheduleWeekSpanCell({
       onDoubleClick={(e) => {
         onOpenEdit(s, { x: e.clientX, y: e.clientY })
       }}
-      onMouseDown={beginMove}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
@@ -832,21 +802,6 @@ export function WeekScheduleView() {
                                       updateSchedule(current.id, { startDate, endDate })
                                       updateScheduleFirebase(workspaceId, current.id, { startDate, endDate }).catch((error) => {
                                         console.error('주간 보기 일정 리사이즈 실패:', error)
-                                        updateSchedule(current.id, {
-                                          startDate: current.startDate,
-                                          endDate: current.endDate,
-                                        })
-                                      })
-                                    }}
-                                    onMoveRange={(nextStart, nextEnd) => {
-                                      if (!workspaceId) return
-                                      const startDate = startOfDay(slots[nextStart].date).getTime()
-                                      const endDate = addDays(startOfDay(slots[nextEnd].date), 1).getTime()
-                                      const current = item.schedule
-                                      if (startDate === current.startDate && endDate === current.endDate) return
-                                      updateSchedule(current.id, { startDate, endDate })
-                                      updateScheduleFirebase(workspaceId, current.id, { startDate, endDate }).catch((error) => {
-                                        console.error('주간 보기 일정 이동 실패:', error)
                                         updateSchedule(current.id, {
                                           startDate: current.startDate,
                                           endDate: current.endDate,
