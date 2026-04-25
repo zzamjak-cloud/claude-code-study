@@ -139,18 +139,18 @@ const GridRow = memo(function GridRow(props: GridRowProps) {
       {todayIndex !== null && (
         <>
           <div
-            className="absolute top-0 bg-primary z-10"
+            className="absolute top-0 bg-primary z-[220] pointer-events-none"
             style={{
-              left: todayIndex * cellWidth,
+              left: todayIndex * cellWidth + cellWidth / 2 - 2,
               width: 4,
               height: cellHeight,
               boxShadow: '0 0 8px rgba(59, 130, 246, 0.6)',
             }}
           />
           <div
-            className="absolute top-0 pointer-events-none z-[5]"
+            className="absolute top-0 pointer-events-none z-[90]"
             style={{
-              left: todayIndex * cellWidth,
+              left: todayIndex * cellWidth + cellWidth / 2 - cellWidth / 2,
               width: cellWidth,
               height: cellHeight,
               background: 'linear-gradient(90deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 50%, transparent 100%)',

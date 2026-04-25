@@ -19,6 +19,7 @@ export function TeamTabs() {
   const projects = useAppStore(state => state.projects)
   const selectedJobTitle = useAppStore(state => state.selectedJobTitle)
   const updateProjectStore = useAppStore(state => state.updateProject)
+  const updateMember = useAppStore(state => state.updateMember)
 
   // 최고 관리자 권한 확인
   const { isOwner } = usePermissions()
@@ -74,16 +75,22 @@ export function TeamTabs() {
   const handleHideClick = async () => {
     if (!contextMenu || !workspaceId) return
 
+    const memberId = contextMenu.member.id
+
+    // 로컬 상태 즉시 반영 (화면 갱신)
+    updateMember(memberId, { isHidden: true })
+    // 현재 선택된 탭이 숨겨진 경우 통합 탭으로 이동
+    if (selectedMemberId === memberId) {
+      selectMember(null)
+    }
+    setContextMenu(null)
+
     try {
-      await updateTeamMember(workspaceId, contextMenu.member.id, { isHidden: true })
-      // 현재 선택된 탭이 숨겨진 경우 통합 탭으로 이동
-      if (selectedMemberId === contextMenu.member.id) {
-        selectMember(null)
-      }
+      await updateTeamMember(workspaceId, memberId, { isHidden: true })
     } catch (error) {
       console.error('구성원 숨김 실패:', error)
-    } finally {
-      setContextMenu(null)
+      // 실패 시 롤백
+      updateMember(memberId, { isHidden: false })
     }
   }
 

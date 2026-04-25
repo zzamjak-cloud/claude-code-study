@@ -13,7 +13,8 @@ interface HeaderProps {
 }
 
 export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManager }: HeaderProps) {
-  const { projects, selectedProjectId, setSelectedProjectId, selectMember, globalNotices } = useAppStore()
+  const { projects, selectedProjectId, setSelectedProjectId, selectMember, globalNotices, scheduleViewMode, setScheduleViewMode } =
+    useAppStore()
   const { isOwner } = usePermissions() // 최고 관리자만 관리 기능 사용 가능
   const [showUserSettings, setShowUserSettings] = useState(false)
   const [currentNoticeIndex, setCurrentNoticeIndex] = useState(0)
@@ -62,11 +63,41 @@ export function Header({ onOpenColorPreset, onOpenAdminPanel, onOpenNoticeManage
     <header className="bg-card border-b border-border px-6 py-3">
       <div className="flex items-center justify-between">
         {/* 왼쪽: 로고 및 프로젝트명 */}
-        <div className="flex items-center gap-3">
-          <Calendar className="w-6 h-6 text-primary" />
-          <div className="flex items-baseline gap-1">
-            <h1 className="text-xl font-bold text-foreground">{projectName}</h1>
-            <span className="text-sm text-muted-foreground">일정</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Calendar className="w-6 h-6 text-primary shrink-0" />
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-baseline gap-1">
+              <h1 className="text-xl font-bold text-foreground">{projectName}</h1>
+              <span className="text-sm text-muted-foreground">일정</span>
+            </div>
+            <div className="flex rounded-md border border-border bg-muted/40 p-0.5" role="tablist" aria-label="일정 보기 모드">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={scheduleViewMode === 'year'}
+                onClick={() => setScheduleViewMode('year')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  scheduleViewMode === 'year'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                연간 보기
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={scheduleViewMode === 'week'}
+                onClick={() => setScheduleViewMode('week')}
+                className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  scheduleViewMode === 'week'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                주간 보기
+              </button>
+            </div>
           </div>
         </div>
 

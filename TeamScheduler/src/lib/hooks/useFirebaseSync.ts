@@ -17,7 +17,7 @@ import { useWorkspaceSettingsSync } from './firebase/useWorkspaceSettingsSync'
  * 각 컬렉션별 동기화 훅을 조합하여 워크스페이스의 모든 데이터를 실시간으로 동기화합니다.
  *
  * 포함된 동기화:
- * - 일정 (schedules) - 연도별 필터링
+ * - 일정 (schedules) - 연도별 쿼리 병합 (`scheduleSyncYears`)
  * - 팀원 (teams/members)
  * - 특이사항 (events) - 연도별 필터링
  * - 글로벌 이벤트 (globalEvents) - 연도별 필터링
@@ -27,11 +27,16 @@ import { useWorkspaceSettingsSync } from './firebase/useWorkspaceSettingsSync'
  * - 최고 관리자 (superAdmins)
  *
  * @param workspaceId - 워크스페이스 ID
- * @param currentYear - 현재 연도 (연도별 페이지네이션)
+ * @param currentYear - 현재 연도 (이벤트·글로벌 이벤트 등 연도별 페이지네이션)
+ * @param scheduleSyncYears - 일정 동기화에 사용할 연도 목록 (주간 보기 시 다중 연도)
  */
-export const useFirebaseSync = (workspaceId: string | null, currentYear: number) => {
-  // 일정 동기화 (연도별) - 실시간
-  useSchedulesSync(workspaceId, currentYear)
+export const useFirebaseSync = (
+  workspaceId: string | null,
+  currentYear: number,
+  scheduleSyncYears: number[]
+) => {
+  // 일정 동기화 (연도별 쿼리 병합) - 실시간
+  useSchedulesSync(workspaceId, scheduleSyncYears)
 
   // 팀원 동기화 - 일회성 조회 (getDocs)
   const { refreshTeamMembers } = useTeamSync(workspaceId)

@@ -66,8 +66,8 @@ export const GridCell = memo(function GridCell({ dayIndex, isFirstDayOfMonth = f
       {isTodayDate && (
         <>
           <div
-            className="absolute left-0 top-0 bottom-0 w-1 bg-primary z-10"
-            style={{ boxShadow: '0 0 8px rgba(59, 130, 246, 0.6)' }}
+            className="absolute top-0 bottom-0 w-1 bg-primary z-10"
+            style={{ left: `${cellWidth / 2 - 2}px`, boxShadow: '0 0 8px rgba(59, 130, 246, 0.6)' }}
           />
           <div
             className="absolute inset-0 pointer-events-none z-[5]"

@@ -10,7 +10,7 @@ interface HiddenMembersModalProps {
 }
 
 export function HiddenMembersModal({ onClose }: HiddenMembersModalProps) {
-  const { members, workspaceId } = useAppStore()
+  const { members, workspaceId, updateMember } = useAppStore()
 
   // 숨긴 구성원 목록
   const hiddenMembers = members.filter((m) => m.isHidden)
@@ -19,10 +19,15 @@ export function HiddenMembersModal({ onClose }: HiddenMembersModalProps) {
   const handleRestore = async (member: TeamMember) => {
     if (!workspaceId) return
 
+    // 로컬 상태 즉시 반영 (화면 갱신)
+    updateMember(member.id, { isHidden: false })
+
     try {
       await updateTeamMember(workspaceId, member.id, { isHidden: false })
     } catch (error) {
       console.error('구성원 복원 실패:', error)
+      // 실패 시 롤백
+      updateMember(member.id, { isHidden: true })
     }
   }
 

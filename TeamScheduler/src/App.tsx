@@ -1,6 +1,7 @@
 // 메인 App 컴포넌트
 
-import { useState, useEffect, lazy, Suspense } from 'react'
+import { useState, useEffect, lazy, Suspense, useMemo } from 'react'
+import { startOfWeek, addWeeks, subDays } from 'date-fns'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from './lib/firebase/config'
 import { useAppStore } from './store/useAppStore'
@@ -15,9 +16,11 @@ import { AuthGuard } from './components/AuthGuard'
 import { Header } from './components/layout/Header'
 import { TeamTabs } from './components/layout/TeamTabs'
 import { ScheduleGrid } from './components/schedule/ScheduleGrid'
+import { WeekScheduleView } from './components/schedule/WeekScheduleView'
 import { MonthFilter } from './components/layout/MonthFilter'
 import { YearSelector } from './components/layout/YearSelector'
 import { JobTitleFilter } from './components/layout/JobTitleFilter'
+import { WeekViewMemberFilter } from './components/layout/WeekViewMemberFilter'
 import { LogIn, HelpCircle, ZoomIn, ZoomOut, Columns3, RotateCcw, Minus, Plus, CalendarDays } from 'lucide-react'
 
 // 코드 스플리팅: 모달 컴포넌트 lazy 로드 (초기 번들 크기 감소)
@@ -29,12 +32,48 @@ const GlobalNoticeManagerModal = lazy(() => import('./components/modals/GlobalNo
 function App() {
   // 인증 및 상태 관리
   useAuth()
-  const { currentUser, isLoading, workspaceId, setWorkspace, zoomLevel, setZoomLevel, columnWidthScale, setColumnWidthScale, resetColumnWidthScale, projects, selectedProjectId, setSelectedProjectId, currentYear, scrollToToday, selectedMemberId } =
-    useAppStore()
+  const {
+    currentUser,
+    isLoading,
+    workspaceId,
+    setWorkspace,
+    zoomLevel,
+    setZoomLevel,
+    columnWidthScale,
+    setColumnWidthScale,
+    resetColumnWidthScale,
+    projects,
+    selectedProjectId,
+    setSelectedProjectId,
+    currentYear,
+    scrollToToday,
+    selectedMemberId,
+    scheduleViewMode,
+  } = useAppStore()
+
+  const scheduleSyncYears = useMemo(() => {
+    if (scheduleViewMode !== 'week') {
+      return [currentYear]
+    }
+    const now = new Date()
+    const thisWeekStart = startOfWeek(now, { weekStartsOn: 1 })
+    const lastWeekStart = subDays(thisWeekStart, 7)
+    const lastDayNextWeek = subDays(addWeeks(thisWeekStart, 2), 1)
+    const ys = new Set<number>()
+    ys.add(lastWeekStart.getFullYear())
+    for (let t = lastWeekStart.getTime(); t <= lastDayNextWeek.getTime(); t += 86400000) {
+      ys.add(new Date(t).getFullYear())
+    }
+    return [...ys].sort((a, b) => a - b)
+  }, [scheduleViewMode, currentYear])
 
   // Firebase 동기화 (연도별 페이지네이션 적용)
   // getDocs 기반 데이터 (teams, projects, superAdmins)는 refresh 함수로 새로고침 가능
-  const { refreshTeamMembers, refreshProjects, refreshSuperAdmins } = useFirebaseSync(workspaceId, currentYear)
+  const { refreshTeamMembers, refreshProjects, refreshSuperAdmins } = useFirebaseSync(
+    workspaceId,
+    currentYear,
+    scheduleSyncYears
+  )
 
   // Undo/Redo 기능 (Ctrl+Z, Ctrl+Shift+Z)
   useUndoRedo()
@@ -206,29 +245,37 @@ function App() {
 
         {/* 툴바 */}
         <div className="bg-card border-b border-border px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            {/* 연도 선택 드롭다운 */}
-            <YearSelector />
-
-            {/* 월 바로가기 + 필터링 */}
-            <MonthFilter />
-
-            {/* 직군 필터링 (통합 탭에서만 표시) */}
-            {selectedMemberId === null && <JobTitleFilter />}
+          <div className="flex items-center gap-4 flex-wrap">
+            {scheduleViewMode === 'year' ? (
+              <>
+                <YearSelector />
+                <MonthFilter />
+                {selectedMemberId === null && <JobTitleFilter />}
+                {selectedMemberId === null && <WeekViewMemberFilter />}
+              </>
+            ) : (
+              <>
+                <JobTitleFilter showWhenEmpty />
+                <WeekViewMemberFilter />
+              </>
+            )}
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* 오늘 버튼 */}
-            <button
-              onClick={scrollToToday}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent rounded-md transition-colors text-sm font-medium text-foreground"
-              title="오늘 날짜로 이동"
-            >
-              <CalendarDays className="w-4 h-4" />
-              오늘
-            </button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* 오늘 버튼 (연간 타임라인 전용) */}
+            {scheduleViewMode === 'year' && (
+              <button
+                onClick={scrollToToday}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-muted hover:bg-accent rounded-md transition-colors text-sm font-medium text-foreground"
+                title="오늘 날짜로 이동"
+              >
+                <CalendarDays className="w-4 h-4" />
+                오늘
+              </button>
+            )}
 
             {/* 열너비 컨트롤 */}
+            {scheduleViewMode === 'year' && (
             <div className="flex items-center gap-1 bg-muted rounded-md p-1">
               <Columns3 className="w-4 h-4 text-muted-foreground ml-1" />
               <button
@@ -259,8 +306,10 @@ function App() {
                 <RotateCcw className="w-3 h-3" />
               </button>
             </div>
+            )}
 
             {/* 줌 컨트롤 */}
+            {scheduleViewMode === 'year' && (
             <div className="flex items-center gap-1 bg-muted rounded-md p-1">
               <button
                 onClick={() => setZoomLevel(Math.max(0.5, zoomLevel - 0.25))}
@@ -282,6 +331,7 @@ function App() {
                 <ZoomIn className="w-4 h-4" />
               </button>
             </div>
+            )}
 
             {/* 도움말 버튼 */}
             <button
@@ -294,8 +344,8 @@ function App() {
           </div>
         </div>
 
-        {/* 그리드 영역 */}
-        <ScheduleGrid />
+        {/* 그리드 / 주간 보기 */}
+        {scheduleViewMode === 'year' ? <ScheduleGrid /> : <WeekScheduleView />}
 
         {/* 관리자 패널 모달 (lazy loaded) */}
         {showAdminPanel && (

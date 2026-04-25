@@ -189,12 +189,22 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   }
 
   // 편집 팝업 저장
-  const handleEditSave = async (title: string, comment: string, link: string) => {
+  const handleEditSave = async (
+    title: string,
+    comment: string,
+    link: string,
+    _projectId?: string,
+    startDate?: number,
+    endDate?: number
+  ) => {
     setEditPopup(null)
 
     if (workspaceId) {
       try {
-        await updateGlobalEventFirebase(workspaceId, event.id, { title, comment, link })
+        const updates: Record<string, any> = { title, comment, link }
+        if (startDate !== undefined) updates.startDate = startDate
+        if (endDate !== undefined) updates.endDate = endDate
+        await updateGlobalEventFirebase(workspaceId, event.id, updates)
       } catch (error) {
         console.error('글로벌 이벤트 수정 실패:', error)
       }
@@ -504,9 +514,15 @@ export const GlobalEventCard = memo(function GlobalEventCard({
           title={event.title}
           comment={event.comment}
           link={event.link || ''}
+          startDate={event.startDate}
+          endDate={event.endDate}
           position={editPopup}
           onSave={handleEditSave}
           onCancel={() => setEditPopup(null)}
+          onDelete={() => {
+            setEditPopup(null)
+            setShowDeleteConfirm(true)
+          }}
         />,
         document.body
       )}

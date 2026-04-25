@@ -4,8 +4,14 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronDown, Users } from 'lucide-react'
 import { useAppStore } from '../../store/useAppStore'
 
-export function JobTitleFilter() {
-  const { members, selectedJobTitle, setSelectedJobTitle, selectedProjectId, projects } = useAppStore()
+interface JobTitleFilterProps {
+  /** 직군 목록이 없어도 비활성 버튼으로 자리 표시 (주간 보기 등) */
+  showWhenEmpty?: boolean
+}
+
+export function JobTitleFilter({ showWhenEmpty = false }: JobTitleFilterProps) {
+  const { members, selectedJobTitle, setSelectedJobTitle, selectedProjectId, projects, selectedMemberId } =
+    useAppStore()
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -39,10 +45,14 @@ export function JobTitleFilter() {
       }
     }
 
+    if (selectedMemberId) {
+      filteredMembers = filteredMembers.filter((m) => m.id === selectedMemberId)
+    }
+
     // 직군 목록 추출 (중복 제거, 정렬)
     const titles = [...new Set(filteredMembers.map((m) => m.jobTitle).filter(Boolean))]
     return titles.sort((a, b) => a.localeCompare(b, 'ko'))
-  }, [members, selectedProjectId, projects])
+  }, [members, selectedProjectId, projects, selectedMemberId])
 
   // 직군 선택 핸들러
   const handleSelectJobTitle = (jobTitle: string | null) => {
@@ -50,9 +60,21 @@ export function JobTitleFilter() {
     setIsOpen(false)
   }
 
-  // 직군이 없으면 표시하지 않음
   if (jobTitles.length === 0) {
-    return null
+    if (!showWhenEmpty) return null
+    return (
+      <div className="relative">
+        <button
+          type="button"
+          disabled
+          className="px-3 py-1.5 text-sm border border-border rounded-md bg-muted/50 text-muted-foreground cursor-not-allowed flex items-center gap-2"
+          title="등록된 직군 구분이 없습니다"
+        >
+          <Users className="w-4 h-4" />
+          <span>직군 없음</span>
+        </button>
+      </div>
+    )
   }
 
   return (

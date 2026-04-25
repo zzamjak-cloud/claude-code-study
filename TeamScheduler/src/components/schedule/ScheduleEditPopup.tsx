@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { X, FolderKanban } from 'lucide-react'
+import { addDays, format, startOfDay } from 'date-fns'
 import { Project } from '../../types/project'
 import { useAppStore } from '../../store/useAppStore'
 
@@ -10,10 +11,33 @@ interface ScheduleEditPopupProps {
   comment?: string
   link?: string
   projectId?: string
+  startDate?: number
+  endDate?: number
   projects?: Project[]
   position: { x: number; y: number }
-  onSave: (title: string, comment: string, link: string, projectId?: string) => void
+  onSave: (
+    title: string,
+    comment: string,
+    link: string,
+    projectId?: string,
+    startDate?: number,
+    endDate?: number
+  ) => void
   onCancel: () => void
+  onDelete?: () => void
+}
+
+function toDateInputValue(timestamp?: number, inclusiveEnd = false): string {
+  if (!timestamp) return ''
+  const source = inclusiveEnd ? new Date(timestamp - 1) : new Date(timestamp)
+  return format(startOfDay(source), 'yyyy-MM-dd')
+}
+
+function parseDateInputValue(value: string): number | null {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return null
+  return startOfDay(parsed).getTime()
 }
 
 export function ScheduleEditPopup({
@@ -21,26 +45,30 @@ export function ScheduleEditPopup({
   comment = '',
   link = '',
   projectId = '',
+  startDate,
+  endDate,
   projects = [],
   position,
   onSave,
   onCancel,
+  onDelete,
 }: ScheduleEditPopupProps) {
   const { lastSelectedProjectId, setLastSelectedProjectId } = useAppStore()
 
   const [titleValue, setTitleValue] = useState(title)
   const [commentValue, setCommentValue] = useState(comment)
   const [linkValue, setLinkValue] = useState(link)
+  const [startDateValue, setStartDateValue] = useState(toDateInputValue(startDate))
+  const [endDateValue, setEndDateValue] = useState(toDateInputValue(endDate, true))
   // 기존 projectId가 있으면 사용, 없으면 lastSelectedProjectId 사용
   const [projectIdValue, setProjectIdValue] = useState(projectId || lastSelectedProjectId || '')
 
-  // 프로젝트 정렬 및 필터링: 숨김 제외, 프로젝트 타입 먼저 → 조직 타입
+  // 프로젝트 정렬 및 필터링: 숨김 제외, 그룹별 알파벳순 정렬
   const sortedProjects = useMemo(() => {
-    // 숨김 프로젝트 제외
     const visible = projects.filter(p => !p.isHidden)
-    // 프로젝트 타입과 조직 타입 분리
-    const projectType = visible.filter(p => p.type === 'project' || !p.type)
-    const orgType = visible.filter(p => p.type === 'organization')
+    const alphabetSort = (a: Project, b: Project) => a.name.localeCompare(b.name, 'ko')
+    const projectType = visible.filter(p => p.type === 'project' || !p.type).sort(alphabetSort)
+    const orgType = visible.filter(p => p.type === 'organization').sort(alphabetSort)
     return { projectType, orgType }
   }, [projects])
 
@@ -69,7 +97,7 @@ export function ScheduleEditPopup({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [titleValue, commentValue, linkValue, projectIdValue])
+  }, [titleValue, commentValue, linkValue, projectIdValue, startDateValue, endDateValue])
 
   // Enter 키로 저장, Escape 키로 취소
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -80,7 +108,17 @@ export function ScheduleEditPopup({
       if (projectIdValue) {
         setLastSelectedProjectId(projectIdValue)
       }
-      onSave(titleValue, commentValue, linkValue, projectIdValue || undefined)
+      const parsedStartDate = parseDateInputValue(startDateValue)
+      const parsedEndDate = parseDateInputValue(endDateValue)
+      if ((startDateValue && parsedStartDate === null) || (endDateValue && parsedEndDate === null)) return
+      if (parsedStartDate !== null && parsedEndDate !== null && parsedStartDate > parsedEndDate) {
+        window.alert('종료일은 시작일보다 빠를 수 없습니다.')
+        return
+      }
+      const normalizedStartDate = parsedStartDate ?? undefined
+      const normalizedEndDate =
+        parsedEndDate !== null ? addDays(new Date(parsedEndDate), 1).getTime() : undefined
+      onSave(titleValue, commentValue, linkValue, projectIdValue || undefined, normalizedStartDate, normalizedEndDate)
     } else if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
@@ -103,7 +141,16 @@ export function ScheduleEditPopup({
     if (projectIdValue) {
       setLastSelectedProjectId(projectIdValue)
     }
-    onSave(titleValue, commentValue, linkValue, projectIdValue || undefined)
+    const parsedStartDate = parseDateInputValue(startDateValue)
+    const parsedEndDate = parseDateInputValue(endDateValue)
+    if ((startDateValue && parsedStartDate === null) || (endDateValue && parsedEndDate === null)) return
+    if (parsedStartDate !== null && parsedEndDate !== null && parsedStartDate > parsedEndDate) {
+      window.alert('종료일은 시작일보다 빠를 수 없습니다.')
+      return
+    }
+    const normalizedStartDate = parsedStartDate ?? undefined
+    const normalizedEndDate = parsedEndDate !== null ? addDays(new Date(parsedEndDate), 1).getTime() : undefined
+    onSave(titleValue, commentValue, linkValue, projectIdValue || undefined, normalizedStartDate, normalizedEndDate)
   }
 
   return (
@@ -132,7 +179,7 @@ export function ScheduleEditPopup({
         <div className="mb-2">
           <label className="block text-xs text-muted-foreground mb-1">
             <FolderKanban className="w-3 h-3 inline mr-1" />
-            프로젝트
+            조직 · 프로젝트
           </label>
           <select
             value={projectIdValue}
@@ -140,7 +187,7 @@ export function ScheduleEditPopup({
             onKeyDown={handleKeyDown}
             className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
           >
-            <option value="">프로젝트 선택 안함</option>
+            <option value="">조직/프로젝트 선택 안함</option>
             {/* 프로젝트 타입 먼저 */}
             {sortedProjects.projectType.map((project) => (
               <option key={project.id} value={project.id}>
@@ -203,8 +250,42 @@ export function ScheduleEditPopup({
         />
       </div>
 
+      {/* 시작일 / 종료일 */}
+      {startDate !== undefined && endDate !== undefined && (
+        <div className="mb-3 grid grid-cols-2 gap-2">
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">시작일</label>
+            <input
+              type="date"
+              value={startDateValue}
+              onChange={(e) => setStartDateValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1">종료일</label>
+            <input
+              type="date"
+              value={endDateValue}
+              onChange={(e) => setEndDateValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        </div>
+      )}
+
       {/* 버튼 */}
       <div className="flex gap-2 justify-end">
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            className="px-3 py-1.5 text-sm rounded bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-colors mr-auto"
+          >
+            삭제
+          </button>
+        )}
         <button
           onClick={onCancel}
           className="px-3 py-1.5 text-sm rounded bg-muted hover:bg-accent text-foreground transition-colors"

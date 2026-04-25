@@ -40,6 +40,7 @@ export function ScheduleGrid() {
     columnWidthScale,
     pushHistory,
     selectedJobTitle,
+    weekViewMemberIds,
     updateMember,
     scrollToTodayTrigger,
     weekendColor,
@@ -547,6 +548,12 @@ export function ScheduleGrid() {
         visibleMembers = visibleMembers.filter((m) => m.jobTitle === selectedJobTitle)
       }
 
+      // 이름(구성원) 필터가 있으면 해당 구성원만 표시
+      if (weekViewMemberIds !== null) {
+        const allow = new Set(weekViewMemberIds)
+        visibleMembers = visibleMembers.filter((m) => allow.has(m.id))
+      }
+
       // 현재 선택된 프로젝트
       const selectedProject = selectedProjectId
         ? projects.find((p) => p.id === selectedProjectId)
@@ -622,7 +629,7 @@ export function ScheduleGrid() {
 
       return rowData
     }
-  }, [isUnifiedTab, members, schedulesByMemberId, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
+  }, [isUnifiedTab, members, schedulesByMemberId, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle, weekViewMemberIds])
 
   // 구성원별 그룹화 데이터 (단일 컨테이너 렌더링용)
   const memberGroups = useMemo(() => {
@@ -654,6 +661,11 @@ export function ScheduleGrid() {
 
       if (selectedJobTitle) {
         visibleMembers = visibleMembers.filter((m) => m.jobTitle === selectedJobTitle)
+      }
+
+      if (weekViewMemberIds !== null) {
+        const allow = new Set(weekViewMemberIds)
+        visibleMembers = visibleMembers.filter((m) => allow.has(m.id))
       }
 
       // 프로젝트가 선택되어 있고 memberOrder가 있으면 프로젝트 순서 사용
@@ -720,7 +732,7 @@ export function ScheduleGrid() {
     }
 
     return groups
-  }, [isUnifiedTab, members, schedulesByMemberId, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle])
+  }, [isUnifiedTab, members, schedulesByMemberId, filteredSchedules, selectedMemberId, selectedProjectId, projects, memberRowCounts, selectedJobTitle, weekViewMemberIds])
 
   // 박스 선택 훅
   const {

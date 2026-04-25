@@ -7,6 +7,12 @@ import { storage, STORAGE_KEYS } from '../../lib/utils/storage'
 // 월별 가시성 타입 (1~12월)
 export type MonthVisibility = Record<number, boolean>
 
+/** 연간 타임라인 vs 주간 미리보기 */
+export type ScheduleViewMode = 'year' | 'week'
+
+/** 주간 보기: 업무 카드 — 전체 일정 vs 현재 프로젝트만 */
+export type WeekViewCardScope = 'all' | 'project'
+
 // 기본 월 가시성 (모든 월 표시)
 const defaultMonthVisibility: MonthVisibility = {
   1: true, 2: true, 3: true, 4: true, 5: true, 6: true,
@@ -53,6 +59,23 @@ export interface ViewSlice {
   // 오늘 날짜로 스크롤 트리거 (카운터)
   scrollToTodayTrigger: number
 
+  /** 연간 보기 / 주간 보기 */
+  scheduleViewMode: ScheduleViewMode
+
+  /**
+   * 주간 보기 이름 필터 (구성원 id 목록).
+   * null이면 프로젝트·직군 필터 적용 후 전원 표시.
+   */
+  weekViewMemberIds: string[] | null
+
+  /** 주간 보기 업무 카드: 전체 / 현재 프로젝트 */
+  weekViewCardScope: WeekViewCardScope
+
+  /**
+   * 주간 보기 업무 카드 — 특정 조직/프로젝트만 표시 (null이면 전체·프로젝트 토글만 적용)
+   */
+  weekViewScheduleProjectId: string | null
+
   // 메서드
   setZoomLevel: (level: number) => void
   setColumnWidthScale: (scale: number) => void
@@ -69,6 +92,10 @@ export interface ViewSlice {
   setSelectedJobTitle: (jobTitle: string | null) => void
   scrollToToday: () => void
   resetFilters: () => void
+  setScheduleViewMode: (mode: ScheduleViewMode) => void
+  setWeekViewMemberIds: (ids: string[] | null) => void
+  setWeekViewCardScope: (scope: WeekViewCardScope) => void
+  setWeekViewScheduleProjectId: (projectId: string | null) => void
 }
 
 // localStorage에서 줌 레벨 로드
@@ -147,6 +174,39 @@ const getInitialSelectedProjectId = (): string | null => {
   return null
 }
 
+const getInitialScheduleViewMode = (): ScheduleViewMode => {
+  if (typeof window !== 'undefined') {
+    const v = storage.getString(STORAGE_KEYS.SCHEDULE_VIEW_MODE, null)
+    if (v === 'week' || v === 'year') return v
+  }
+  return 'year'
+}
+
+const getInitialWeekViewMemberIds = (): string[] | null => {
+  if (typeof window !== 'undefined') {
+    const raw = storage.get<string[] | null>(STORAGE_KEYS.WEEK_VIEW_MEMBER_IDS, null)
+    if (Array.isArray(raw) && raw.every((x) => typeof x === 'string')) {
+      return raw
+    }
+  }
+  return null
+}
+
+const getInitialWeekViewCardScope = (): WeekViewCardScope => {
+  if (typeof window !== 'undefined') {
+    const v = storage.getString(STORAGE_KEYS.WEEK_VIEW_CARD_SCOPE, null)
+    if (v === 'all' || v === 'project') return v
+  }
+  return 'all'
+}
+
+const getInitialWeekViewScheduleProjectId = (): string | null => {
+  if (typeof window !== 'undefined') {
+    return storage.getString(STORAGE_KEYS.WEEK_VIEW_SCHEDULE_PROJECT_ID, null)
+  }
+  return null
+}
+
 // 줌 레벨 requestAnimationFrame 디바운싱용 ID
 let zoomRafId: number | null = null
 
@@ -167,6 +227,10 @@ export const createViewSlice = (set: any): ViewSlice => ({
   lastSelectedProjectId: getInitialLastSelectedProjectId(),
   selectedJobTitle: null,
   scrollToTodayTrigger: 0,
+  scheduleViewMode: getInitialScheduleViewMode(),
+  weekViewMemberIds: getInitialWeekViewMemberIds(),
+  weekViewCardScope: getInitialWeekViewCardScope(),
+  weekViewScheduleProjectId: getInitialWeekViewScheduleProjectId(),
 
   // 줌 레벨 설정 (requestAnimationFrame으로 디바운싱, localStorage에도 저장)
   setZoomLevel: (level) => {
@@ -273,5 +337,34 @@ export const createViewSlice = (set: any): ViewSlice => ({
       zoomLevel: DEFAULT_ZOOM,
       monthVisibility: { ...defaultMonthVisibility },
     })
+  },
+
+  setScheduleViewMode: (mode) => {
+    storage.setString(STORAGE_KEYS.SCHEDULE_VIEW_MODE, mode)
+    set({ scheduleViewMode: mode })
+  },
+
+  setWeekViewMemberIds: (ids) => {
+    if (ids === null) {
+      storage.remove(STORAGE_KEYS.WEEK_VIEW_MEMBER_IDS)
+      set({ weekViewMemberIds: null })
+    } else {
+      storage.set(STORAGE_KEYS.WEEK_VIEW_MEMBER_IDS, ids)
+      set({ weekViewMemberIds: ids })
+    }
+  },
+
+  setWeekViewCardScope: (scope) => {
+    storage.setString(STORAGE_KEYS.WEEK_VIEW_CARD_SCOPE, scope)
+    set({ weekViewCardScope: scope })
+  },
+
+  setWeekViewScheduleProjectId: (projectId) => {
+    if (projectId) {
+      storage.setString(STORAGE_KEYS.WEEK_VIEW_SCHEDULE_PROJECT_ID, projectId)
+    } else {
+      storage.remove(STORAGE_KEYS.WEEK_VIEW_SCHEDULE_PROJECT_ID)
+    }
+    set({ weekViewScheduleProjectId: projectId })
   },
 })

@@ -273,7 +273,9 @@ export function getRndConfig(options: {
           bottomRight: false,
         },
     resizeGrid: [cellWidth, 1] as [number, number],
-    dragGrid: [cellWidth, 1] as [number, number],
+    // dragGrid 제거: scale(zoomLevel)과 dragGrid의 상호작용으로 1열 이동 불가 및 마우스 위치 벌어짐 발생
+    // handleDragStop에서 snapToGrid로 최종 위치를 정렬하므로 드래그 중에는 자유 이동 허용
+    dragGrid: [1, 1] as [number, number],
     dragAxis: totalRows > 1 ? 'both' as const : 'x' as const,
     minWidth: cellWidth - CARD_MARGIN * 2,
     resizeHandleStyles: {

@@ -15,7 +15,7 @@ import {
 } from '../../lib/firebase/firestore'
 import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
 import { hasCollision } from '../../lib/utils/collisionDetection'
-import { ANNUAL_LEAVE_COLOR } from '../../lib/constants/colors'
+import { ANNUAL_LEAVE_COLOR, isAnnualLeaveSchedule } from '../../lib/constants/colors'
 import { ExternalLink } from 'lucide-react'
 import { ConfirmDialog } from '../common/ConfirmDialog'
 import { ContextMenu } from './ContextMenu'
@@ -262,12 +262,20 @@ export const ScheduleCard = memo(function ScheduleCard({
     }
   }, [x, currentWidth])
 
-  // 과거 일정 여부 확인 (연차는 제외 - 항상 원래 색상 유지)
-  const isAnnualLeave = schedule.color === ANNUAL_LEAVE_COLOR
+  // 과거 일정 여부 확인 (연차는 항상 빨강 — 회색 처리 안 함)
+  const isAnnualLeave = isAnnualLeaveSchedule(schedule)
   const isPast = !isAnnualLeave && schedule.endDate < Date.now()
+  const cardBackgroundColor = isAnnualLeave ? ANNUAL_LEAVE_COLOR : isPast ? '#9ca3af' : schedule.color
 
   // 편집 팝업 저장
-  const handleEditSave = async (title: string, comment: string, link: string, projectId?: string) => {
+  const handleEditSave = async (
+    title: string,
+    comment: string,
+    link: string,
+    projectId?: string,
+    startDate?: number,
+    endDate?: number
+  ) => {
     setEditPopup(null)
 
     if (workspaceId) {
@@ -275,6 +283,12 @@ export const ScheduleCard = memo(function ScheduleCard({
       const updates: Record<string, any> = { title, comment: comment || '', link: link || '' }
       if (projectId !== undefined) {
         updates.projectId = projectId
+      }
+      if (startDate !== undefined) {
+        updates.startDate = startDate
+      }
+      if (endDate !== undefined) {
+        updates.endDate = endDate
       }
 
       // 로컬 상태 즉시 반영
@@ -291,6 +305,8 @@ export const ScheduleCard = memo(function ScheduleCard({
           comment: schedule.comment,
           link: schedule.link,
           projectId: schedule.projectId,
+          startDate: schedule.startDate,
+          endDate: schedule.endDate,
         })
       }
     }
@@ -634,7 +650,7 @@ export const ScheduleCard = memo(function ScheduleCard({
           <div
             className="h-full rounded-md border-2 border-transparent select-none relative overflow-hidden"
             style={{
-              backgroundColor: isPast ? '#9ca3af' : schedule.color,
+              backgroundColor: cardBackgroundColor,
               color: schedule.textColor || '#ffffff',
             }}
           >
@@ -669,7 +685,7 @@ export const ScheduleCard = memo(function ScheduleCard({
           ref={cardRef}
           className={cardClassName}
           style={{
-            backgroundColor: isPast ? '#9ca3af' : schedule.color,
+            backgroundColor: cardBackgroundColor,
             color: schedule.textColor || '#ffffff',
           }}
           onDoubleClick={handleDoubleClick}
@@ -818,10 +834,18 @@ export const ScheduleCard = memo(function ScheduleCard({
           comment={schedule.comment}
           link={schedule.link}
           projectId={schedule.projectId}
+          startDate={schedule.startDate}
+          endDate={schedule.endDate}
           projects={projects}
           position={editPopup}
           onSave={handleEditSave}
           onCancel={() => setEditPopup(null)}
+          onDelete={() => {
+            const ok = window.confirm(`"${schedule.title || '제목 없음'}" 일정을 삭제하시겠습니까?`)
+            if (!ok) return
+            setEditPopup(null)
+            handleDelete()
+          }}
         />,
         document.body
       )}

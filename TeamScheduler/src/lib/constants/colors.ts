@@ -37,5 +37,15 @@ export const DEFAULT_SCHEDULE_COLOR = '#3498DB'  // 기본 일정 색상 (파랑
 export const DEFAULT_WEEKEND_COLOR = '#ffe3de'  // 기본 주말/공휴일 배경색
 export const WEEKEND_HOLIDAY_COLOR = '#ffe3de'  // 주말/공휴일 배경색 (하위 호환)
 export const ANNUAL_LEAVE_COLOR = '#e64c4c'     // 연차/공휴일 카드 색상 (빨강)
+
+/** 연차 카드 여부 (과거 일정 회색 처리 등에서 사용). 색상 대소문자·# 형태 차이 허용, 제목「연차」도 인정 */
+export function isAnnualLeaveSchedule(s: { color: string; title?: string }): boolean {
+  const a = (s.color || '').trim().toLowerCase()
+  const b = ANNUAL_LEAVE_COLOR.trim().toLowerCase()
+  if (a === b) return true
+  if (a.replace(/^#/, '') === b.replace(/^#/, '')) return true
+  if ((s.title || '').trim() === '연차') return true
+  return false
+}
 export const COLLISION_COLOR = '#EF4444'         // 겹침 표시 색상 (빨강)
 export const GLOBAL_EVENT_COLOR = '#f59e0b'      // 글로벌 이벤트 색상 (앰버)

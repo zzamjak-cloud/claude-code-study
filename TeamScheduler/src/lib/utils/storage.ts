@@ -22,6 +22,10 @@ export const STORAGE_KEYS = {
   // UI 설정
   BOTTOM_PANEL_HEIGHT: 'bottomPanelHeight',
   AVAILABLE_YEARS: 'availableYears',
+  SCHEDULE_VIEW_MODE: 'scheduleViewMode',
+  WEEK_VIEW_MEMBER_IDS: 'weekViewMemberIds',
+  WEEK_VIEW_CARD_SCOPE: 'weekViewCardScope',
+  WEEK_VIEW_SCHEDULE_PROJECT_ID: 'weekViewScheduleProjectId',
 } as const
 
 export type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS]
