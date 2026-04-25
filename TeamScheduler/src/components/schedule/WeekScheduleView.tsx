@@ -15,7 +15,8 @@ import { ko } from 'date-fns/locale'
 import { useAppStore } from '../../store/useAppStore'
 import { getScheduleProjectMeta } from '../../lib/utils/scheduleProjectMeta'
 import { ANNUAL_LEAVE_COLOR, isAnnualLeaveSchedule } from '../../lib/constants/colors'
-import { updateSchedule as updateScheduleFirebase } from '../../lib/firebase/firestore'
+import { DEFAULT_SCHEDULE_COLOR } from '../../lib/constants/colors'
+import { createSchedule as createScheduleFirebase, updateSchedule as updateScheduleFirebase } from '../../lib/firebase/firestore'
 import { deleteSchedule as deleteScheduleFirebase } from '../../lib/firebase/firestore'
 import { ScheduleEditPopup } from './ScheduleEditPopup'
 import type { Project } from '../../types/project'
@@ -283,18 +284,46 @@ function buildLastWeekStats(memberSchedules: Schedule[], lastMonday: Date, proje
     .sort((a, b) => b.percent - a.percent || a.label.localeCompare(b.label, 'ko'))
 }
 
+function getSafePopupPosition(x: number, y: number): { x: number; y: number } {
+  const POPUP_WIDTH = 300
+  const POPUP_HEIGHT = 360
+  const MARGIN = 8
+  const viewportWidth = window.innerWidth
+  const viewportHeight = window.innerHeight
+
+  let nx = x - 170
+  let ny = y - 120
+  if (ny + POPUP_HEIGHT > viewportHeight) ny = y - POPUP_HEIGHT - MARGIN
+  if (nx + POPUP_WIDTH > viewportWidth) nx = viewportWidth - POPUP_WIDTH - MARGIN
+  if (nx < MARGIN) nx = MARGIN
+  if (ny < MARGIN) ny = MARGIN
+  return { x: nx, y: ny }
+}
+
 function ScheduleWeekSpanCell({
   schedule: s,
   projects,
   weekIndex,
   gridColumn,
   onOpenEdit,
+  showLeftResizeHandle = false,
+  showRightResizeHandle = false,
+  rangeStart = 0,
+  rangeEnd = 0,
+  onResizeRange,
+  onMoveRange,
 }: {
   schedule: Schedule
   projects: Project[]
   weekIndex: 0 | 1 | 2
   gridColumn: string
   onOpenEdit: (schedule: Schedule, position: { x: number; y: number }) => void
+  showLeftResizeHandle?: boolean
+  showRightResizeHandle?: boolean
+  rangeStart?: number
+  rangeEnd?: number
+  onResizeRange?: (nextStart: number, nextEnd: number) => void
+  onMoveRange?: (nextStart: number, nextEnd: number) => void
 }) {
   const annual = isAnnualLeaveSchedule(s)
   const bg = annual
@@ -305,16 +334,109 @@ function ScheduleWeekSpanCell({
         ? darkenHexColor(s.color, 0.2)
         : s.color
   const meta = getScheduleProjectMeta(s.projectId, projects)
+  const [previewInset, setPreviewInset] = useState<{ left: number; right: number }>({ left: 0, right: 0 })
+  const [isPreviewResizing, setIsPreviewResizing] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+
+  const beginResize = (direction: 'left' | 'right', e: React.MouseEvent) => {
+    if (!onResizeRange) return
+    e.preventDefault()
+    e.stopPropagation()
+    const rowEl = (e.currentTarget as HTMLElement).closest('.week-row-grid') as HTMLElement | null
+    if (!rowEl) return
+    const rect = rowEl.getBoundingClientRect()
+
+    const calcIndex = (clientX: number) => {
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+      return Math.max(0, Math.min(14, Math.floor(ratio * 15)))
+    }
+
+    let lastClientX = e.clientX
+    setIsPreviewResizing(true)
+    const handleMove = (ev: MouseEvent) => {
+      lastClientX = ev.clientX
+      const delta = ev.clientX - e.clientX
+      if (direction === 'left') {
+        // 실제 폭/위치가 바뀌는 느낌으로 프리뷰 (축소/확대 모두 허용)
+        setPreviewInset({
+          left: Math.max(-rect.width + 8, Math.min(rect.width - 8, delta)),
+          right: 0,
+        })
+      } else {
+        setPreviewInset({
+          left: 0,
+          right: Math.max(-rect.width + 8, Math.min(rect.width - 8, -delta)),
+        })
+      }
+    }
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+      setIsPreviewResizing(false)
+      setPreviewInset({ left: 0, right: 0 })
+      const idx = calcIndex(lastClientX)
+      if (direction === 'left') {
+        onResizeRange(Math.min(idx, rangeEnd), rangeEnd)
+      } else {
+        onResizeRange(rangeStart, Math.max(idx, rangeStart))
+      }
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+  }
+
+  const beginMove = (e: React.MouseEvent) => {
+    if (!onMoveRange) return
+    const target = e.target as HTMLElement
+    if (target.closest('button')) return
+    e.preventDefault()
+    const rowEl = (e.currentTarget as HTMLElement).closest('.week-row-grid') as HTMLElement | null
+    if (!rowEl) return
+    const rect = rowEl.getBoundingClientRect()
+    const dayWidth = rect.width / 15
+    const startX = e.clientX
+    const initialStart = rangeStart
+    const initialEnd = rangeEnd
+    const length = initialEnd - initialStart
+
+    const handleMove = (ev: MouseEvent) => {
+      const deltaDays = Math.round((ev.clientX - startX) / dayWidth)
+      const nextStart = Math.max(0, Math.min(14 - length, initialStart + deltaDays))
+      onMoveRange(nextStart, nextStart + length)
+    }
+    const handleUp = () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+  }
 
   return (
     <div
       tabIndex={0}
       role="button"
-      className="min-h-full rounded px-1.5 py-0.5 text-white shadow-sm border border-white/10 flex flex-col justify-start leading-tight cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/60"
-      style={{ gridColumn, backgroundColor: bg }}
+      className="relative overflow-visible min-h-full rounded px-1.5 py-0.5 text-white shadow-sm border border-white/10 flex flex-col justify-start leading-tight cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/60"
+      style={{
+        gridColumn,
+        backgroundColor: bg,
+        marginLeft: previewInset.left === 0 ? undefined : `${previewInset.left}px`,
+        width:
+          previewInset.left === 0 && previewInset.right === 0
+            ? undefined
+            : `calc(100% - ${previewInset.left}px - ${previewInset.right}px)`,
+        zIndex: isPreviewResizing || isHovered ? 60 : 10,
+        outline: isPreviewResizing ? '2px dashed #ef4444' : undefined,
+        outlineOffset: isPreviewResizing ? '1px' : undefined,
+        boxShadow: isPreviewResizing ? '0 0 0 2px rgba(239,68,68,0.25)' : undefined,
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       onDoubleClick={(e) => {
         onOpenEdit(s, { x: e.clientX, y: e.clientY })
       }}
+      onMouseDown={beginMove}
       onKeyDown={(e) => {
         if (e.key === 'Enter') {
           e.preventDefault()
@@ -323,18 +445,32 @@ function ScheduleWeekSpanCell({
         }
       }}
     >
+      {showLeftResizeHandle && (
+        <button
+          type="button"
+          aria-label="시작일 조정"
+          onMouseDown={(e) => beginResize('left', e)}
+          className="absolute left-0 top-0 h-full w-3 z-30 cursor-ew-resize bg-white/45 opacity-0 hover:opacity-100 transition-opacity"
+        />
+      )}
+      {showRightResizeHandle && (
+        <button
+          type="button"
+          aria-label="종료일 조정"
+          onMouseDown={(e) => beginResize('right', e)}
+          className="absolute right-0 top-0 h-full w-3 z-30 cursor-ew-resize bg-white/45 opacity-0 hover:opacity-100 transition-opacity"
+        />
+      )}
       <div
         className="flex items-center gap-1 flex-wrap mb-0.5 min-w-0"
-        title={meta.tooltip || meta.displayName || meta.categoryLabel || undefined}
+        title={meta.tooltip || meta.displayText || undefined}
       >
-        <span className="text-[9px] font-semibold shrink-0 rounded px-1 py-px bg-black/30 text-white">
-          {meta.categoryLabel}
+        <span
+          className="text-[9px] font-semibold shrink-0 rounded px-1 py-px bg-slate-300/90 text-slate-800"
+          title={meta.tooltip || meta.displayText}
+        >
+          {meta.displayText}
         </span>
-        {meta.displayName ? (
-          <span className="text-[9px] text-white/95 truncate min-w-0" title={meta.tooltip || meta.displayName}>
-            {meta.displayName}
-          </span>
-        ) : null}
       </div>
       <div className="text-[11px] font-semibold line-clamp-2">{annual ? s.title || '연차' : s.title}</div>
       <div className="text-[10px] opacity-90 tabular-nums mt-px">{formatScheduleRange(s)}</div>
@@ -350,6 +486,8 @@ export function WeekScheduleView() {
     selectedProjectId,
     projects,
     workspaceId,
+    currentUser,
+    addSchedule,
     updateSchedule,
     deleteSchedule,
     selectedJobTitle,
@@ -580,18 +718,59 @@ export function WeekScheduleView() {
                     />
                   ))}
                 </div>
-                <div className="relative z-10 grid min-h-[30px]" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-                  <div className="flex items-center justify-center px-2">
+                <div className="relative z-10 grid min-h-[30px]" style={GRID_15}>
+                  <div className="col-span-5 flex items-center justify-center px-2">
                     <span className="max-w-full truncate rounded-md bg-background/85 border border-border/70 px-2 py-0.5 text-[10px] font-medium text-foreground" title={lastWeekStatsText}>
                       {lastWeekStatsText}
                     </span>
                   </div>
-                  <div className="flex items-center justify-center px-2">
-                    <span className="max-w-full truncate rounded-md bg-background/90 border border-border/80 px-2 py-0.5 text-[12px] font-semibold text-foreground" title={m.name}>
+                  <div className="col-span-5 flex items-center justify-center px-2 gap-1.5">
+                    <span className="max-w-[70%] truncate rounded-md bg-background/90 border border-border/80 px-2 py-0.5 text-[12px] font-semibold text-foreground" title={m.name}>
                       {m.name}
                     </span>
+                    <button
+                      type="button"
+                      className="text-[10px] px-2 py-0.5 rounded border border-emerald-600 bg-emerald-600 hover:bg-emerald-700 text-white"
+                      onClick={async () => {
+                        if (!workspaceId || !currentUser) return
+                        const startDate = startOfDay(mondays[1]).getTime()
+                        const endDate = addDays(startOfDay(mondays[1]), 5).getTime()
+                        const now = Date.now()
+                        const payload: Record<string, any> = {
+                          memberId: m.id,
+                          title: '추가 업무',
+                          startDate,
+                          endDate,
+                          color: DEFAULT_SCHEDULE_COLOR,
+                          rowIndex: 0,
+                          createdBy: currentUser.uid,
+                        }
+                        if (selectedProjectId) payload.projectId = selectedProjectId
+                        const newId = await createScheduleFirebase(workspaceId, payload as any)
+                        const createdSchedule: Schedule = {
+                          id: newId,
+                          memberId: m.id,
+                          title: '추가 업무',
+                          startDate,
+                          endDate,
+                          color: DEFAULT_SCHEDULE_COLOR,
+                          rowIndex: 0,
+                          createdBy: currentUser.uid,
+                          createdAt: now,
+                          updatedAt: now,
+                          projectId: selectedProjectId || undefined,
+                        }
+                        addSchedule(createdSchedule)
+                        setEditState({
+                          schedule: createdSchedule,
+                          ...getSafePopupPosition(window.innerWidth * 0.55, window.innerHeight * 0.35),
+                        })
+                      }}
+                      title={`이번주에 ${m.name} 일정 추가`}
+                    >
+                      + 일정추가
+                    </button>
                   </div>
-                  <div />
                 </div>
               </div>
 
@@ -622,7 +801,7 @@ export function WeekScheduleView() {
                         {group.rows.map((row, rowIdx) => (
                           <div
                             key={`${m.id}-group-${group.key}-row-${rowIdx}`}
-                            className="grid w-full items-stretch min-h-[28px] [&:not(:last-child)]:border-b border-border/40"
+                            className="week-row-grid grid w-full items-stretch min-h-[28px] [&:not(:last-child)]:border-b border-border/40"
                             style={GRID_15}
                           >
                             {row.map((item) =>
@@ -630,6 +809,8 @@ export function WeekScheduleView() {
                                 const startCol = fr.weekIndex * 5 + fr.minD + 1
                                 const span = fr.maxD - fr.minD + 1
                                 const gridColumn = `${startCol} / span ${span}`
+                                const rangeStart = Math.min(...item.intervals.map((x) => x.start))
+                                const rangeEnd = Math.max(...item.intervals.map((x) => x.end))
                                 return (
                                   <ScheduleWeekSpanCell
                                     key={`${item.schedule.id}-w${fr.weekIndex}-${fr.minD}-${fr.maxD}-${fi}`}
@@ -637,11 +818,45 @@ export function WeekScheduleView() {
                                     projects={projects}
                                     weekIndex={fr.weekIndex}
                                     gridColumn={gridColumn}
+                                    showLeftResizeHandle={fr.weekIndex * 5 + fr.minD === rangeStart}
+                                    showRightResizeHandle={fr.weekIndex * 5 + fr.maxD === rangeEnd}
+                                    rangeStart={rangeStart}
+                                    rangeEnd={rangeEnd}
+                                    onResizeRange={async (nextStart, nextEnd) => {
+                                      if (!workspaceId) return
+                                      const startDate = startOfDay(slots[nextStart].date).getTime()
+                                      const endDate = addDays(startOfDay(slots[nextEnd].date), 1).getTime()
+                                      const current = item.schedule
+                                      if (startDate === current.startDate && endDate === current.endDate) return
+
+                                      updateSchedule(current.id, { startDate, endDate })
+                                      updateScheduleFirebase(workspaceId, current.id, { startDate, endDate }).catch((error) => {
+                                        console.error('주간 보기 일정 리사이즈 실패:', error)
+                                        updateSchedule(current.id, {
+                                          startDate: current.startDate,
+                                          endDate: current.endDate,
+                                        })
+                                      })
+                                    }}
+                                    onMoveRange={(nextStart, nextEnd) => {
+                                      if (!workspaceId) return
+                                      const startDate = startOfDay(slots[nextStart].date).getTime()
+                                      const endDate = addDays(startOfDay(slots[nextEnd].date), 1).getTime()
+                                      const current = item.schedule
+                                      if (startDate === current.startDate && endDate === current.endDate) return
+                                      updateSchedule(current.id, { startDate, endDate })
+                                      updateScheduleFirebase(workspaceId, current.id, { startDate, endDate }).catch((error) => {
+                                        console.error('주간 보기 일정 이동 실패:', error)
+                                        updateSchedule(current.id, {
+                                          startDate: current.startDate,
+                                          endDate: current.endDate,
+                                        })
+                                      })
+                                    }}
                                     onOpenEdit={(schedule, position) =>
                                       setEditState({
                                         schedule,
-                                        x: Math.max(16, position.x - 170),
-                                        y: Math.max(16, position.y - 120),
+                                        ...getSafePopupPosition(position.x, position.y),
                                       })
                                     }
                                   />
@@ -673,12 +888,14 @@ export function WeekScheduleView() {
           comment={editState.schedule.comment}
           link={editState.schedule.link}
           projectId={editState.schedule.projectId}
+          memberId={editState.schedule.memberId}
+          members={members}
           startDate={editState.schedule.startDate}
           endDate={editState.schedule.endDate}
           projects={projects}
           position={{ x: editState.x, y: editState.y }}
           onCancel={() => setEditState(null)}
-          onSave={async (title, comment, link, projectId, startDate, endDate) => {
+          onSave={async (title, comment, link, projectId, startDate, endDate, memberId) => {
             const current = editState.schedule
             setEditState(null)
             if (!workspaceId) return
@@ -688,6 +905,7 @@ export function WeekScheduleView() {
               comment: comment || '',
               link: link || '',
               projectId,
+              memberId,
               ...(startDate !== undefined ? { startDate } : {}),
               ...(endDate !== undefined ? { endDate } : {}),
             }
@@ -705,6 +923,7 @@ export function WeekScheduleView() {
                 comment: current.comment,
                 link: current.link,
                 projectId: current.projectId,
+                memberId: current.memberId,
                 startDate: current.startDate,
                 endDate: current.endDate,
               })

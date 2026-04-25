@@ -11,6 +11,7 @@ import { useAppStore } from '../../store/useAppStore'
 import {
   updateGlobalEvent as updateGlobalEventFirebase,
   deleteGlobalEvent as deleteGlobalEventFirebase,
+  createGlobalEvent as createGlobalEventFirebase,
 } from '../../lib/firebase/firestore'
 import { debouncedFirebaseUpdate } from '../../lib/utils/debounce'
 import { ConfirmDialog } from '../common/ConfirmDialog'
@@ -78,6 +79,7 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   const globalEvents = useAppStore(state => state.globalEvents)
   const selectedProjectId = useAppStore(state => state.selectedProjectId)
   const pushHistory = useAppStore(state => state.pushHistory)
+  const currentUser = useAppStore(state => state.currentUser)
 
   // 현재 프로젝트로 필터링된 이벤트 (충돌 검사용)
   const filteredGlobalEvents = selectedProjectId
@@ -87,6 +89,49 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   // CSS transform 내부에서는 줌 미적용 기본 셀 크기 사용
   const cellWidth = getCellWidthBase(columnWidthScale)
   const cellHeight = getCellHeightBase()
+
+  const handleDuplicate = async () => {
+    if (!workspaceId || !currentUser) return
+    const currentRowCount = totalRows || 1
+    let targetRowIndex = -1
+
+    for (let rowIdx = 0; rowIdx < currentRowCount; rowIdx++) {
+      const rowEvents = filteredGlobalEvents.filter((e) => (e.rowIndex || 0) === rowIdx)
+      const hasConflict = rowEvents.some(
+        (existing) => !(event.endDate <= existing.startDate || event.startDate >= existing.endDate)
+      )
+      if (!hasConflict) {
+        targetRowIndex = rowIdx
+        break
+      }
+    }
+    if (targetRowIndex === -1) targetRowIndex = currentRowCount
+
+    const eventData: Record<string, any> = {
+      title: event.title,
+      startDate: event.startDate,
+      endDate: event.endDate,
+      color: event.color,
+      rowIndex: targetRowIndex,
+      createdBy: currentUser.uid,
+    }
+    if (event.comment) eventData.comment = event.comment
+    if (event.link) eventData.link = event.link
+    if (event.textColor) eventData.textColor = event.textColor
+    if (event.projectId) eventData.projectId = event.projectId
+
+    try {
+      const newId = await createGlobalEventFirebase(workspaceId, eventData as any)
+      pushHistory({
+        type: 'global_event_create',
+        description: '특이사항 복제',
+        undoData: { eventId: newId },
+        redoData: { event: eventData },
+      })
+    } catch (error) {
+      console.error('특이사항 복제 실패:', error)
+    }
+  }
 
   // 공통 상호작용 훅 사용
   const {
@@ -110,10 +155,12 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     handleContextMenu,
     handleMouseEnter,
     handleMouseLeave,
-  } = useCardInteractions({ isReadOnly })
+  } = useCardInteractions({ isReadOnly, onDuplicate: handleDuplicate })
 
   // 충돌 상태
   const [isColliding, setIsColliding] = useState(false)
+  const isShiftDragRef = useRef(false)
+  const [isShiftDragging, setIsShiftDragging] = useState(false)
 
   // 현재 위치/크기 계산 (transform 내부이므로 zoomLevel=1)
   const calculatedWidth = dateRangeToWidth(
@@ -254,15 +301,20 @@ export const GlobalEventCard = memo(function GlobalEventCard({
   }
 
   // 드래그 시작
-  const handleDragStart = () => {
+  const handleDragStart = (e: any) => {
     if (isReadOnly) return
     setIsDragging(true)
     setIsSelected(true)
+    isShiftDragRef.current = !!(e as MouseEvent)?.shiftKey
+    setIsShiftDragging(isShiftDragRef.current)
   }
 
   // 드래그 종료
   const handleDragStop = (_e: any, data: DraggableData) => {
     if (isReadOnly) return
+    const wasShiftDrag = isShiftDragRef.current
+    isShiftDragRef.current = false
+    setIsShiftDragging(false)
     setIsDragging(false)
 
     // x 좌표 계산 (그리드 스냅, transform 내부이므로 zoomLevel=1)
@@ -285,6 +337,35 @@ export const GlobalEventCard = memo(function GlobalEventCard({
     setIsColliding(colliding)
 
     if (colliding) {
+      return
+    }
+
+    if (wasShiftDrag && workspaceId && currentUser) {
+      const eventData: Record<string, any> = {
+        title: event.title,
+        startDate: newStartDate.getTime(),
+        endDate: newEndDate.getTime(),
+        color: event.color,
+        rowIndex: newRowIndex,
+        createdBy: currentUser.uid,
+      }
+      if (event.comment) eventData.comment = event.comment
+      if (event.link) eventData.link = event.link
+      if (event.textColor) eventData.textColor = event.textColor
+      if (event.projectId) eventData.projectId = event.projectId
+
+      createGlobalEventFirebase(workspaceId, eventData as any)
+        .then((newId) => {
+          pushHistory({
+            type: 'global_event_create',
+            description: '특이사항 복제 (Shift+드래그)',
+            undoData: { eventId: newId },
+            redoData: { event: eventData },
+          })
+        })
+        .catch((error) => {
+          console.error('Shift+드래그 특이사항 복제 실패:', error)
+        })
       return
     }
 
@@ -393,7 +474,10 @@ export const GlobalEventCard = memo(function GlobalEventCard({
         disableDragging={isReadOnly}
         {...rndConfig}
         className="!absolute global-event-card"
-        style={{ zIndex: isDragging || isResizing || isSelected ? 100 : 10 }}
+        style={{
+          zIndex: isDragging || isResizing || isSelected ? 100 : 10,
+          opacity: isShiftDragging ? 0.55 : undefined,
+        }}
       >
         <div
           ref={cardRef}

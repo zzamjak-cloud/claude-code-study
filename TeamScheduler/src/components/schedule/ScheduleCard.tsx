@@ -274,7 +274,8 @@ export const ScheduleCard = memo(function ScheduleCard({
     link: string,
     projectId?: string,
     startDate?: number,
-    endDate?: number
+    endDate?: number,
+    memberId?: string
   ) => {
     setEditPopup(null)
 
@@ -289,6 +290,9 @@ export const ScheduleCard = memo(function ScheduleCard({
       }
       if (endDate !== undefined) {
         updates.endDate = endDate
+      }
+      if (memberId !== undefined) {
+        updates.memberId = memberId
       }
 
       // 로컬 상태 즉시 반영
@@ -305,6 +309,7 @@ export const ScheduleCard = memo(function ScheduleCard({
           comment: schedule.comment,
           link: schedule.link,
           projectId: schedule.projectId,
+          memberId: schedule.memberId,
           startDate: schedule.startDate,
           endDate: schedule.endDate,
         })
@@ -834,6 +839,8 @@ export const ScheduleCard = memo(function ScheduleCard({
           comment={schedule.comment}
           link={schedule.link}
           projectId={schedule.projectId}
+          memberId={schedule.memberId}
+          members={members}
           startDate={schedule.startDate}
           endDate={schedule.endDate}
           projects={projects}

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import { X, FolderKanban } from 'lucide-react'
 import { addDays, format, startOfDay } from 'date-fns'
 import { Project } from '../../types/project'
+import { TeamMember } from '../../types/team'
 import { useAppStore } from '../../store/useAppStore'
 
 interface ScheduleEditPopupProps {
@@ -11,6 +12,8 @@ interface ScheduleEditPopupProps {
   comment?: string
   link?: string
   projectId?: string
+  memberId?: string
+  members?: TeamMember[]
   startDate?: number
   endDate?: number
   projects?: Project[]
@@ -21,7 +24,8 @@ interface ScheduleEditPopupProps {
     link: string,
     projectId?: string,
     startDate?: number,
-    endDate?: number
+    endDate?: number,
+    memberId?: string
   ) => void
   onCancel: () => void
   onDelete?: () => void
@@ -45,6 +49,8 @@ export function ScheduleEditPopup({
   comment = '',
   link = '',
   projectId = '',
+  memberId,
+  members = [],
   startDate,
   endDate,
   projects = [],
@@ -60,6 +66,11 @@ export function ScheduleEditPopup({
   const [linkValue, setLinkValue] = useState(link)
   const [startDateValue, setStartDateValue] = useState(toDateInputValue(startDate))
   const [endDateValue, setEndDateValue] = useState(toDateInputValue(endDate, true))
+  const initialMemberName = memberId ? members.find((m) => m.id === memberId)?.name || '' : ''
+  const [memberIdValue, setMemberIdValue] = useState(memberId || '')
+  const [workerQuery, setWorkerQuery] = useState(initialMemberName)
+  const [workerHighlightIndex, setWorkerHighlightIndex] = useState(-1)
+  const [showWorkerSuggest, setShowWorkerSuggest] = useState(false)
   // 기존 projectId가 있으면 사용, 없으면 lastSelectedProjectId 사용
   const [projectIdValue, setProjectIdValue] = useState(projectId || lastSelectedProjectId || '')
 
@@ -75,7 +86,28 @@ export function ScheduleEditPopup({
   const titleRef = useRef<HTMLInputElement>(null)
   const commentRef = useRef<HTMLInputElement>(null)
   const linkRef = useRef<HTMLInputElement>(null)
+  const workerRef = useRef<HTMLInputElement>(null)
+  const workerSuggestRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
+  const workerCandidates = useMemo(() => {
+    const q = workerQuery.trim()
+    const visible = members.filter((m) => !m.isHidden)
+    if (!q) return visible.slice(0, 8)
+    return visible
+      .filter((m) => m.name.startsWith(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+      .slice(0, 8)
+  }, [members, workerQuery])
+
+  useEffect(() => {
+    if (!showWorkerSuggest) return
+    if (workerHighlightIndex < 0) return
+    const container = workerSuggestRef.current
+    if (!container) return
+    const selectedEl = container.querySelector<HTMLElement>(`[data-worker-idx="${workerHighlightIndex}"]`)
+    selectedEl?.scrollIntoView({ block: 'nearest' })
+  }, [showWorkerSuggest, workerHighlightIndex])
+
 
   // 포커스 및 선택
   useEffect(() => {
@@ -97,7 +129,7 @@ export function ScheduleEditPopup({
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [titleValue, commentValue, linkValue, projectIdValue, startDateValue, endDateValue])
+  }, [titleValue, commentValue, linkValue, projectIdValue, startDateValue, endDateValue, memberIdValue])
 
   // Enter 키로 저장, Escape 키로 취소
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -118,7 +150,15 @@ export function ScheduleEditPopup({
       const normalizedStartDate = parsedStartDate ?? undefined
       const normalizedEndDate =
         parsedEndDate !== null ? addDays(new Date(parsedEndDate), 1).getTime() : undefined
-      onSave(titleValue, commentValue, linkValue, projectIdValue || undefined, normalizedStartDate, normalizedEndDate)
+      onSave(
+        titleValue,
+        commentValue,
+        linkValue,
+        projectIdValue || undefined,
+        normalizedStartDate,
+        normalizedEndDate,
+        memberIdValue || undefined
+      )
     } else if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
@@ -150,7 +190,15 @@ export function ScheduleEditPopup({
     }
     const normalizedStartDate = parsedStartDate ?? undefined
     const normalizedEndDate = parsedEndDate !== null ? addDays(new Date(parsedEndDate), 1).getTime() : undefined
-    onSave(titleValue, commentValue, linkValue, projectIdValue || undefined, normalizedStartDate, normalizedEndDate)
+    onSave(
+      titleValue,
+      commentValue,
+      linkValue,
+      projectIdValue || undefined,
+      normalizedStartDate,
+      normalizedEndDate,
+      memberIdValue || undefined
+    )
   }
 
   return (
@@ -221,6 +269,83 @@ export function ScheduleEditPopup({
           className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
+
+      {/* 작업자 */}
+      {members.length > 0 && (
+        <div className="mb-2 relative">
+          <label className="block text-xs text-muted-foreground mb-1">작업자</label>
+          <input
+            ref={workerRef}
+            type="text"
+            value={workerQuery}
+            onChange={(e) => {
+              setWorkerQuery(e.target.value)
+              setShowWorkerSuggest(true)
+              setWorkerHighlightIndex(0)
+              if (!e.target.value.trim()) {
+                setMemberIdValue('')
+              }
+            }}
+            onFocus={() => setShowWorkerSuggest(true)}
+            onKeyDown={(e) => {
+              if (!showWorkerSuggest || workerCandidates.length === 0) {
+                handleKeyDown(e)
+                return
+              }
+              if (e.key === 'ArrowDown') {
+                e.preventDefault()
+                setWorkerHighlightIndex((idx) => Math.min(workerCandidates.length - 1, idx + 1))
+                return
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault()
+                setWorkerHighlightIndex((idx) => Math.max(0, idx - 1))
+                return
+              }
+              if (e.key === 'Enter') {
+                const picked = workerCandidates[Math.max(0, workerHighlightIndex)]
+                if (picked) {
+                  e.preventDefault()
+                  setMemberIdValue(picked.id)
+                  setWorkerQuery(picked.name)
+                  setShowWorkerSuggest(false)
+                }
+                return
+              }
+              handleKeyDown(e)
+            }}
+            placeholder="작업자 이름 검색"
+            className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+          {showWorkerSuggest && workerCandidates.length > 0 && (
+            <div
+              ref={workerSuggestRef}
+              className="absolute left-0 right-0 top-[calc(100%+2px)] z-[260] rounded border border-border bg-card shadow-lg max-h-40 overflow-auto"
+            >
+              {workerCandidates.map((m, idx) => (
+                <button
+                  type="button"
+                  key={m.id}
+                  data-worker-idx={idx}
+                  className={`w-full text-left px-2 py-1.5 text-sm hover:bg-accent transition-colors ${
+                    idx === workerHighlightIndex
+                      ? 'bg-primary/15 border-l-2 border-primary text-foreground font-semibold'
+                      : 'border-l-2 border-transparent'
+                  }`}
+                  onMouseDown={(ev) => {
+                    ev.preventDefault()
+                    setMemberIdValue(m.id)
+                    setWorkerQuery(m.name)
+                    setShowWorkerSuggest(false)
+                  }}
+                >
+                  {m.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 코멘트 */}
       <div className="mb-2">
