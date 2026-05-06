@@ -8,6 +8,15 @@ import { batchReorderTeamMembers, updateTeamMember, updateProject as updateProje
 import { TeamMember } from '../../types/team'
 import { HiddenMembersModal } from '../modals/HiddenMembersModal'
 
+interface ShiftMemberFocusState {
+  // Shift+클릭 모드 시작 시점의 기존 통합 탭(=selectedMemberId=null) 필터 상태
+  originalWeekViewMemberIds: string[] | null
+  // Shift+클릭으로 사용자가 누적 선택한 구성원들
+  selectedMemberIds: string[]
+}
+
+const getShiftMemberFocusKey = (uid: string) => `shiftMemberFocus:${uid}`
+
 export function TeamTabs() {
   // Zustand 선택적 구독
   const members = useAppStore(state => state.members)
@@ -20,6 +29,9 @@ export function TeamTabs() {
   const selectedJobTitle = useAppStore(state => state.selectedJobTitle)
   const updateProjectStore = useAppStore(state => state.updateProject)
   const updateMember = useAppStore(state => state.updateMember)
+  const currentUser = useAppStore(state => state.currentUser)
+  const weekViewMemberIds = useAppStore(state => state.weekViewMemberIds)
+  const setWeekViewMemberIds = useAppStore(state => state.setWeekViewMemberIds)
 
   // 최고 관리자 권한 확인
   const { isOwner } = usePermissions()
@@ -27,6 +39,41 @@ export function TeamTabs() {
   // 드래그 상태
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
   const [insertPosition, setInsertPosition] = useState<number | null>(null)  // 삽입될 위치 (해당 인덱스 앞에 삽입)
+
+  function getShiftMemberFocusState(): ShiftMemberFocusState | null {
+    if (typeof window === 'undefined' || !currentUser) return null
+    try {
+      const raw = localStorage.getItem(getShiftMemberFocusKey(currentUser.uid))
+      if (!raw) return null
+      const parsed = JSON.parse(raw) as ShiftMemberFocusState
+      if (parsed.originalWeekViewMemberIds !== null && !Array.isArray(parsed.originalWeekViewMemberIds)) {
+        return null
+      }
+      if (!Array.isArray(parsed.selectedMemberIds)) return null
+      return parsed
+    } catch {
+      return null
+    }
+  }
+
+  const shiftSelectedSet = useMemo(() => {
+    const state = getShiftMemberFocusState()
+    if (!state?.selectedMemberIds?.length) return null
+    return new Set(state.selectedMemberIds)
+  }, [currentUser?.uid, weekViewMemberIds])
+
+  const setShiftMemberFocusState = (state: ShiftMemberFocusState) => {
+    if (typeof window === 'undefined' || !currentUser) return
+    localStorage.setItem(getShiftMemberFocusKey(currentUser.uid), JSON.stringify(state))
+  }
+
+  const clearShiftMemberFocusState = () => {
+    if (typeof window === 'undefined' || !currentUser) return
+    localStorage.removeItem(getShiftMemberFocusKey(currentUser.uid))
+  }
+
+  // shift mode는 "Shift를 떼고 구성원 탭을 클릭하는 순간" 복원하도록 동작한다.
+  // 페이지 새로고침 시 복원은 의도와 다를 수 있어 여기서는 자동 복원을 하지 않는다.
 
   // 우클릭 메뉴 상태
   const [contextMenu, setContextMenu] = useState<{
@@ -302,6 +349,50 @@ export function TeamTabs() {
     </div>
   )
 
+  const handleTabClick = (tabId: string | null, shiftKey: boolean) => {
+    if (tabId === null) {
+      // 통합 탭 클릭(일반 클릭) 시 shift mode가 켜져 있으면 기존 필터로 복원
+      const shiftState = getShiftMemberFocusState()
+      if (!shiftKey && shiftState) {
+        setWeekViewMemberIds(shiftState.originalWeekViewMemberIds)
+        clearShiftMemberFocusState()
+      }
+      selectMember(null)
+      return
+    }
+
+    const shiftState = getShiftMemberFocusState()
+
+    // Shift+구성원 탭 클릭 = 통합 탭(고정) + 누적 필터 적용
+    if (shiftKey) {
+      const originalWeekViewMemberIds = shiftState
+        ? shiftState.originalWeekViewMemberIds
+        : weekViewMemberIds
+
+      const selectedMemberIds = shiftState?.selectedMemberIds ?? []
+      const nextSelected = selectedMemberIds.includes(tabId)
+        ? selectedMemberIds.filter((id) => id !== tabId)
+        : [...selectedMemberIds, tabId]
+
+      setShiftMemberFocusState({
+        originalWeekViewMemberIds,
+        selectedMemberIds: nextSelected,
+      })
+
+      // 통합 탭 필터를 "누적 선택"으로 덮어쓴다.
+      setWeekViewMemberIds(nextSelected)
+      selectMember(null)
+      return
+    }
+
+    // 일반 클릭 = shift mode가 켜져 있으면 기존(원래) 통합 탭 필터로 복원
+    if (shiftState) {
+      setWeekViewMemberIds(shiftState.originalWeekViewMemberIds)
+      clearShiftMemberFocusState()
+    }
+    selectMember(tabId)
+  }
+
   return (
     <>
       <div className="bg-card border-b border-border px-6 overflow-x-auto scrollbar-thin">
@@ -340,13 +431,25 @@ export function TeamTabs() {
                   `}
                 >
                   <button
-                    onClick={() => selectMember(tab.id)}
+                    type="button"
+                    onClick={(e) => {
+                      // Shift+클릭은 통합 탭 고정 + 필터링 동작이므로,
+                      // 클릭한 구성원 탭에 포커스(outline)가 남아 '선택된 것처럼' 보이는 것을 방지
+                      if (e.shiftKey) {
+                        e.preventDefault()
+                        ;(e.currentTarget as HTMLButtonElement).blur()
+                      }
+                      handleTabClick(tab.id, e.shiftKey)
+                    }}
                     className={`
                       flex items-center gap-2 px-3 py-1.5 rounded-t-md transition-colors text-xs font-medium
+                      focus:outline-none
                       ${
                         isSelected
                           ? 'bg-background text-foreground border-t border-x border-border'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                          : shiftSelectedSet && tab.id !== null && shiftSelectedSet.has(tab.id)
+                            ? 'bg-muted text-foreground border-t border-x border-border'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                       }
                     `}
                     style={

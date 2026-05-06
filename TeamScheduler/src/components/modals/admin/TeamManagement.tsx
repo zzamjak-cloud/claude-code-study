@@ -26,6 +26,7 @@ export function TeamManagement() {
     customJobTitles,
     addMember: addMemberToStore,
     deleteMember: deleteMemberFromStore,
+    updateMember: updateMemberInStore,
     addCustomJobTitle,
     removeCustomJobTitle,
   } = useAppStore()
@@ -302,14 +303,17 @@ export function TeamManagement() {
 
     setIsSubmitting(true)
     try {
-      await updateTeamMember(workspaceId, editingMember, {
+      const updates = {
         name: trimmedName,
         email: trimmedEmail,
         jobTitle: jobTitle.trim(),
         role: role.trim(),
         isLeader,
         status: editStatus,
-      })
+      }
+      await updateTeamMember(workspaceId, editingMember, updates)
+      // Store에 즉시 반영 (낙관적 업데이트) - useTeamSync는 일회성 조회라 자동 갱신 안 됨
+      updateMemberInStore(editingMember, { ...updates, updatedAt: Date.now() })
       resetForm()
     } catch (error) {
       console.error('구성원 수정 실패:', error)

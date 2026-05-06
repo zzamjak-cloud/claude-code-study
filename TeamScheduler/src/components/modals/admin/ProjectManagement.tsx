@@ -206,15 +206,23 @@ export function ProjectManagement() {
       ? memberIds.filter((id) => id !== memberId)
       : [...memberIds, memberId]
 
+    // memberOrder도 함께 유지/갱신 (memberOrder가 있으면 화면/정렬에서 이를 우선 사용)
+    const memberOrder = project.memberOrder || []
+    const newMemberOrder = memberIds.includes(memberId)
+      ? memberOrder.filter((id) => id !== memberId)
+      : memberOrder.includes(memberId)
+        ? memberOrder
+        : [...memberOrder, memberId]
+
     // 낙관적 업데이트
-    updateProjectLocal(projectId, { memberIds: newMemberIds })
+    updateProjectLocal(projectId, { memberIds: newMemberIds, memberOrder: newMemberOrder })
 
     try {
-      await updateProject(workspaceId, projectId, { memberIds: newMemberIds })
+      await updateProject(workspaceId, projectId, { memberIds: newMemberIds, memberOrder: newMemberOrder })
     } catch (error) {
       console.error('프로젝트 구성원 변경 실패:', error)
       // 실패 시 원복
-      updateProjectLocal(projectId, { memberIds })
+      updateProjectLocal(projectId, { memberIds, memberOrder })
     }
   }
 
